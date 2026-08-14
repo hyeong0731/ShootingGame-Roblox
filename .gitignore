@@ -1,0 +1,12 @@
+# Rojo / Luau LSP
+sourcemap.json
+
+# Built Roblox files
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+
+# OS
+Thumbs.db
+.DS_Store
