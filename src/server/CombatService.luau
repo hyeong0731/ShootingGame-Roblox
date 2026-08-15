@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local ZombieService = require(script.Parent.ZombieService)
+local SupplyService = require(script.Parent.SupplyService)
 
 local CombatService = {}
 CombatService._remotes = nil :: any
@@ -62,14 +63,83 @@ function CombatService.fireStraight(origin: Vector3, damage: number)
 	})
 end
 
+local function pointToSegmentDist(point: Vector3, a: Vector3, b: Vector3): (number, Vector3)
+	local ab = b - a
+	local len2 = ab:Dot(ab)
+	if len2 < 1e-6 then
+		return (point - a).Magnitude, a
+	end
+	local t = math.clamp((point - a):Dot(ab) / len2, 0, 1)
+	local closest = a + ab * t
+	return (point - closest).Magnitude, closest
+end
+
+-- Backup when spherecast misses thin/low targets (esp. dogs).
+local function proximityHit(from: Vector3, to: Vector3, damage: number): (boolean, Vector3?, boolean?)
+	local bestDist = math.huge
+	local bestPos: Vector3? = nil
+	local bestModel: Model? = nil
+	local bestBoss = false
+
+	for _, record in ZombieService.getAlive() do
+		local radius = (record.model:GetAttribute("HitRadius") :: number?) or Config.Zombie.HitRadius
+		-- Ignore height: lane shooter aims along Z at target X.
+		local flatPoint = Vector3.new(record.root.Position.X, from.Y, record.root.Position.Z)
+		local dist, closest = pointToSegmentDist(flatPoint, from, to)
+		local pad = if record.isDog then 1.6 else 0.85
+		if dist <= radius + pad and dist < bestDist then
+			bestDist = dist
+			bestPos = Vector3.new(closest.X, record.root.Position.Y + 1.2, closest.Z)
+			bestModel = record.model
+			bestBoss = record.isBoss
+		end
+	end
+
+	local suppliesFolder = Workspace:FindFirstChild("Supplies")
+	if suppliesFolder then
+		for _, child in suppliesFolder:GetChildren() do
+			if child:IsA("Model") and child:GetAttribute("IsSupply") == true then
+				local root = child.PrimaryPart or child:FindFirstChild("HumanoidRootPart")
+				if root and root:IsA("BasePart") then
+					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
+					local dist, closest = pointToSegmentDist(flatPoint, from, to)
+					if dist <= 3.4 and dist < bestDist then
+						bestDist = dist
+						bestPos = closest
+						bestModel = child
+						bestBoss = false
+					end
+				end
+			end
+		end
+	end
+
+	if bestModel and bestPos then
+		local damaged = false
+		if bestModel:GetAttribute("IsSupply") == true then
+			damaged = SupplyService.damageModel(bestModel, damage)
+		else
+			damaged = ZombieService.damageModel(bestModel, damage)
+		end
+		return damaged, bestPos, bestBoss
+	end
+	return false, nil, nil
+end
+
 function CombatService.update(dt: number)
 	local keep = {}
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Include
+	local filter = {}
 	local zombiesFolder = Workspace:FindFirstChild("Zombies")
 	if zombiesFolder then
-		params.FilterDescendantsInstances = { zombiesFolder }
+		table.insert(filter, zombiesFolder)
 	end
+	local suppliesFolder = Workspace:FindFirstChild("Supplies")
+	if suppliesFolder then
+		table.insert(filter, suppliesFolder)
+	end
+	params.FilterDescendantsInstances = filter
 
 	local now = os.clock()
 	for _, shot in active do
@@ -83,19 +153,42 @@ function CombatService.update(dt: number)
 
 		local visual = shot.part.Position
 		local nextPos = visual + shot.direction * shot.speed * dt
-		local castFrom = visual - shot.direction * 1.2
-		local castTravel = shot.direction * (shot.speed * dt + 2.6)
-		local result = Workspace:Spherecast(castFrom, 0.7, castTravel, params)
+		local castFrom = visual - shot.direction * 1.5
+		local castTravel = shot.direction * (shot.speed * dt + 3.4)
+		local result = Workspace:Spherecast(castFrom, 1.35, castTravel, params)
+
+		local hitPos: Vector3? = nil
+		local hitBoss = false
+		local damaged = false
+
 		if result then
 			local model = result.Instance:FindFirstAncestorOfClass("Model")
 			while model and model.Name == "Bolt" do
 				model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
 			end
 			if model then
-				local damaged = ZombieService.damageModel(model, shot.damage)
-				if damaged and CombatService._remotes then
-					CombatService._remotes.HitFx:FireAllClients(result.Position, model:GetAttribute("IsBoss") == true)
+				if model:GetAttribute("IsSupply") == true then
+					damaged = SupplyService.damageModel(model, shot.damage)
+				else
+					damaged = ZombieService.damageModel(model, shot.damage)
 				end
+				hitPos = result.Position
+				hitBoss = model:GetAttribute("IsBoss") == true
+			end
+		end
+
+		if not damaged then
+			local ok, pos, boss = proximityHit(castFrom, nextPos + shot.direction * 2, shot.damage)
+			if ok and pos then
+				damaged = true
+				hitPos = pos
+				hitBoss = boss == true
+			end
+		end
+
+		if damaged then
+			if hitPos and CombatService._remotes then
+				CombatService._remotes.HitFx:FireAllClients(hitPos, hitBoss)
 			end
 			shot.part:Destroy()
 			continue

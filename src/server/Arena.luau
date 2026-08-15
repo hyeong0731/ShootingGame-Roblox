@@ -53,10 +53,10 @@ function Arena.build(): Folder
 		CFrame = CFrame.new(0, lane.CenterY, midZ),
 	})
 
-	-- Camera looks +Z: screen-right is world -X. Side path lives there.
-	local dividerX = -(pathWidth / 2 + lane.DividerWidth / 2)
-	local sidePathX = -(pathWidth / 2 + lane.DividerWidth + lane.SidePathWidth / 2)
-	local outerX = -(pathWidth / 2 + lane.DividerWidth + lane.SidePathWidth)
+	-- Camera looks +Z: screen-right is world -X. Side path lives there, separated by flat ground.
+	local gapX = -(pathWidth / 2 + lane.GapWidth / 2)
+	local sidePathX = -(pathWidth / 2 + lane.GapWidth + lane.SidePathWidth / 2)
+	local outerX = -(pathWidth / 2 + lane.GapWidth + lane.SidePathWidth)
 
 	part({
 		Name = "Shoulder",
@@ -97,15 +97,15 @@ function Arena.build(): Folder
 		CastShadow = false,
 	}).Transparency = 1
 
-	-- low dirt mound so the player can cross onto the side path
+	-- Flat ground between roads (no dirt berm / wall).
 	part({
-		Name = "Divider",
+		Name = "Median",
 		Parent = folder,
-		Color = Color3.fromRGB(148, 118, 82),
+		Color = Color3.fromRGB(54, 62, 42),
 		Material = Enum.Material.Ground,
-		Size = Vector3.new(lane.DividerWidth, 0.7, pathLength),
-		CFrame = CFrame.new(dividerX, 0.75, midZ),
-		CanCollide = false,
+		Size = Vector3.new(lane.GapWidth, 1, pathLength + 4),
+		CFrame = CFrame.new(gapX, 0.4, midZ),
+		CanCollide = true,
 	})
 	part({
 		Name = "SidePath",
@@ -218,30 +218,38 @@ function Arena.build(): Folder
 	zombiesFolder.Name = "Zombies"
 	zombiesFolder.Parent = Workspace
 
+	local suppliesFolder = Instance.new("Folder")
+	suppliesFolder.Name = "Supplies"
+	suppliesFolder.Parent = Workspace
+
+	local alliesFolder = Instance.new("Folder")
+	alliesFolder.Name = "Allies"
+	alliesFolder.Parent = Workspace
+
 	local fxFolder = Instance.new("Folder")
 	fxFolder.Name = "Fx"
 	fxFolder.Parent = Workspace
 
-	Lighting.Brightness = 1.35
-	Lighting.Ambient = Color3.fromRGB(70, 68, 62)
-	Lighting.OutdoorAmbient = Color3.fromRGB(90, 88, 78)
-	Lighting.ClockTime = 7.4
-	Lighting.GeographicLatitude = 40
-	Lighting.FogColor = Color3.fromRGB(110, 108, 98)
-	Lighting.FogStart = 40
-	Lighting.FogEnd = 220
+	Lighting.Brightness = 2.55
+	Lighting.Ambient = Color3.fromRGB(140, 138, 130)
+	Lighting.OutdoorAmbient = Color3.fromRGB(170, 168, 158)
+	Lighting.ClockTime = 13.5
+	Lighting.GeographicLatitude = 25
+	Lighting.FogColor = Color3.fromRGB(190, 200, 210)
+	Lighting.FogStart = 90
+	Lighting.FogEnd = 320
 
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if not atmosphere then
 		atmosphere = Instance.new("Atmosphere")
 		atmosphere.Parent = Lighting
 	end
-	atmosphere.Density = 0.38
-	atmosphere.Offset = 0.05
-	atmosphere.Color = Color3.fromRGB(120, 118, 108)
-	atmosphere.Decay = Color3.fromRGB(70, 68, 60)
-	atmosphere.Glare = 0
-	atmosphere.Haze = 2.4
+	atmosphere.Density = 0.18
+	atmosphere.Offset = 0.1
+	atmosphere.Color = Color3.fromRGB(200, 205, 215)
+	atmosphere.Decay = Color3.fromRGB(150, 155, 165)
+	atmosphere.Glare = 0.15
+	atmosphere.Haze = 0.8
 
 	return folder
 end

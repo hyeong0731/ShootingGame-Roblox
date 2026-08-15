@@ -100,12 +100,22 @@ function Hud.start()
 	})
 
 	local timer = textLabel(gui, "Timer", {
-		Size = UDim2.new(0.28, 0, 0.055, 0),
-		Position = UDim2.new(0.5, 0, 0.04, 0),
+		Size = UDim2.new(0.28, 0, 0.04, 0),
+		Position = UDim2.new(0.5, 0, 0.085, 0),
 		AnchorPoint = Vector2.new(0.5, 0),
 		Align = Enum.TextXAlignment.Center,
 	})
 	timer.Text = "0:00"
+	timer.TextTransparency = 0.1
+
+	local waveLabel = textLabel(gui, "Wave", {
+		Size = UDim2.new(0.4, 0, 0.055, 0),
+		Position = UDim2.new(0.5, 0, 0.028, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Align = Enum.TextXAlignment.Center,
+	})
+	waveLabel.Text = "웨이브 1"
+	waveLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 
 	local banner = textLabel(gui, "Banner", {
 		Size = UDim2.new(0.7, 0, 0.1, 0),
@@ -148,6 +158,17 @@ function Hud.start()
 		end
 	end
 
+	local function formatKills(count: number): string
+		if count >= 1000 then
+			local k = count / 1000
+			if math.abs(k - math.floor(k + 1e-9)) < 0.05 then
+				return `{math.floor(k + 1e-9)}k`
+			end
+			return string.format("%.1fk", k)
+		end
+		return tostring(count)
+	end
+
 	local function refresh()
 		local state = ReplicatedStorage:FindFirstChild("GameState")
 		if not state then
@@ -158,14 +179,17 @@ function Hud.start()
 		local currentPhase = state:GetAttribute("Phase") or "lobby"
 		local countdown = state:GetAttribute("Countdown") or 0
 		local elapsed = state:GetAttribute("Elapsed") or 0
+		local wave = state:GetAttribute("Wave") or 1
 
 		local minutes = math.floor(elapsed / 60)
 		local seconds = elapsed % 60
 		timer.Text = string.format("%d:%02d", minutes, seconds)
-		kills.Text = `처치 {killCount}`
+		waveLabel.Text = `웨이브 {wave}`
+		kills.Text = `처치 {formatKills(killCount)}`
 		local isLobby = currentPhase == "lobby"
 		kills.Visible = not isLobby
 		timer.Visible = not isLobby
+		waveLabel.Visible = not isLobby
 		ensureWorldBar(currentPhase)
 
 		if currentPhase == "lobby" then
@@ -175,7 +199,7 @@ function Hud.start()
 			banner.Text = "A / D 를 사용해서 좀비를 무찌르세요"
 			hint.Text = if countdown > 0 then `시작 {countdown}` else "시작!"
 		elseif currentPhase == "gameOver" then
-			banner.Text = `게임 오버  ·  처치 {killCount}`
+			banner.Text = `게임 오버  ·  처치 {formatKills(killCount)}`
 			hint.Text = "로비로 돌아갑니다"
 		else
 			banner.Text = ""

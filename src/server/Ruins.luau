@@ -77,7 +77,7 @@ function Ruins.build(folder: Folder)
 	local pathWidth = lane.Width
 	local midZ = lane.Length / 2 - 8
 	local leftSide = pathWidth / 2 + 16
-	local rightSide = pathWidth / 2 + lane.DividerWidth + lane.SidePathWidth + 16
+	local rightSide = pathWidth / 2 + lane.GapWidth + lane.SidePathWidth + 16
 	local concrete = Color3.fromRGB(92, 90, 82)
 	local dirty = Color3.fromRGB(78, 74, 66)
 	local dark = Color3.fromRGB(62, 60, 54)
@@ -119,9 +119,9 @@ function Ruins.build(folder: Folder)
 	label.Parent = gui
 
 	rustCar(folder, pathWidth / 2 + 5, 18, math.rad(18))
-	rustCar(folder, -(pathWidth / 2 + lane.DividerWidth + lane.SidePathWidth + 8), 40, math.rad(-35))
+	rustCar(folder, -(pathWidth / 2 + lane.GapWidth + lane.SidePathWidth + 8), 40, math.rad(-35))
 	rustCar(folder, pathWidth / 2 + 6, 72, math.rad(80))
-	rustCar(folder, -(pathWidth / 2 + lane.DividerWidth + lane.SidePathWidth + 7), 96, math.rad(-12))
+	rustCar(folder, -(pathWidth / 2 + lane.GapWidth + lane.SidePathWidth + 7), 96, math.rad(-12))
 	rustCar(folder, pathWidth / 2 + 4, 118, math.rad(40))
 
 	part({
@@ -130,7 +130,7 @@ function Ruins.build(folder: Folder)
 		Color = Color3.fromRGB(110, 72, 42),
 		Material = Enum.Material.CorrodedMetal,
 		Size = Vector3.new(8, 8, 18),
-		CFrame = CFrame.new(-(pathWidth / 2 + lane.DividerWidth + lane.SidePathWidth + 12), 4.2, 58) * CFrame.Angles(0, math.rad(-18), math.rad(8)),
+		CFrame = CFrame.new(-(pathWidth / 2 + lane.GapWidth + lane.SidePathWidth + 12), 4.2, 58) * CFrame.Angles(0, math.rad(-18), math.rad(8)),
 		CanCollide = true,
 	})
 
@@ -159,7 +159,7 @@ function Ruins.build(folder: Folder)
 	end
 
 	for i = 1, 18 do
-		local sideClear = pathWidth / 2 + lane.DividerWidth + lane.SidePathWidth + 3
+		local sideClear = pathWidth / 2 + lane.GapWidth + lane.SidePathWidth + 3
 		local scatterX = if i % 2 == 0 then -(sideClear + (i % 4)) else pathWidth / 2 + 3 + (i % 4)
 		local scatterZ = 10 + i * 7
 		part({
@@ -181,7 +181,7 @@ function Ruins.build(folder: Folder)
 			Size = Vector3.new(1.1, 1.6, 1.1),
 			CFrame = CFrame.new(
 				if i % 2 == 0
-					then -(pathWidth / 2 + lane.DividerWidth + lane.SidePathWidth + 4)
+					then -(pathWidth / 2 + lane.GapWidth + lane.SidePathWidth + 4)
 					else pathWidth / 2 + 4,
 				1.5,
 				16 + i * 18

@@ -6,8 +6,15 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StrafeState = require(script.Parent.StrafeState)
 
-local savedAnimate: { [Model]: Instance } = {}
+-- A/D strafe turn (radians). Positive Y = turn left relative to facing +Z.
+local STRAFE_YAW = math.rad(38)
+local YAW_LERP = 9
+-- R15 walk (legs). Upper body is overwritten by Motor6D.Transform each frame.
+local WALK_ANIM_ID = "rbxassetid://913402848"
+
 local ikBound: { [Model]: boolean } = {}
+local walkTracks: { [Model]: AnimationTrack } = {}
+local yawState: { [Model]: number } = {}
 
 local function motor(character: Model, partName: string, motorName: string): Motor6D?
 	local part = character:FindFirstChild(partName)
@@ -21,28 +28,20 @@ local function motor(character: Model, partName: string, motorName: string): Mot
 	return nil
 end
 
-local function stopDefault(character: Model)
-	local animate = character:FindFirstChild("Animate")
-	if animate then
-		savedAnimate[character] = animate
-		if animate:IsA("LocalScript") or animate:IsA("Script") then
-			animate.Disabled = true
-		end
-		animate.Parent = nil
-	end
+local function prepareLane(character: Model)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.WalkSpeed = 0
 		humanoid.AutoRotate = false
+		humanoid.JumpPower = 0
+		humanoid.JumpHeight = 0
 		for _, track in humanoid:GetPlayingAnimationTracks() do
 			track:Stop(0)
 		end
-		local animator = humanoid:FindFirstChildOfClass("Animator")
-		if animator then
-			for _, track in animator:GetPlayingAnimationTracks() do
-				track:Stop(0)
-			end
-		end
+	end
+	local animate = character:FindFirstChild("Animate")
+	if animate and (animate:IsA("LocalScript") or animate:IsA("Script")) then
+		animate.Disabled = true
 	end
 end
 
@@ -61,13 +60,19 @@ end
 
 local function restoreDefault(character: Model)
 	unbindIk(character)
-	local animate = savedAnimate[character]
-	if animate then
-		animate.Parent = character
-		if animate:IsA("LocalScript") or animate:IsA("Script") then
-			animate.Disabled = false
-		end
-		savedAnimate[character] = nil
+	local track = walkTracks[character]
+	if track then
+		track:Stop(0.15)
+		walkTracks[character] = nil
+	end
+	yawState[character] = nil
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.AutoRotate = true
+	end
+	local animate = character:FindFirstChild("Animate")
+	if animate and (animate:IsA("LocalScript") or animate:IsA("Script")) then
+		animate.Disabled = false
 	end
 end
 
@@ -93,13 +98,6 @@ local function bindIk(character: Model)
 	local leftGrip = gun:FindFirstChild("LeftGrip", true)
 	if not (rightGrip and leftGrip) then
 		return
-	end
-
-	for _, name in { "GunIK_Right", "GunIK_Left" } do
-		local old = humanoid:FindFirstChild(name)
-		if old then
-			old:Destroy()
-		end
 	end
 
 	local rightHand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
@@ -137,6 +135,75 @@ local function bindIk(character: Model)
 	ikBound[character] = true
 end
 
+local function ensureWalkTrack(character: Model, humanoid: Humanoid): AnimationTrack?
+	local existing = walkTracks[character]
+	if existing then
+		return existing
+	end
+
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		animator = Instance.new("Animator")
+		animator.Parent = humanoid
+	end
+
+	local animId = WALK_ANIM_ID
+	local animate = character:FindFirstChild("Animate")
+	if animate then
+		local walkFolder = animate:FindFirstChild("walk") or animate:FindFirstChild("run")
+		if walkFolder then
+			local animObj = walkFolder:FindFirstChildOfClass("Animation")
+			if animObj and animObj.AnimationId ~= "" then
+				animId = animObj.AnimationId
+			end
+		end
+	end
+
+	local animation = Instance.new("Animation")
+	animation.AnimationId = animId
+	local ok, track = pcall(function()
+		return animator:LoadAnimation(animation)
+	end)
+	if not ok or not track then
+		return nil
+	end
+	track.Looped = true
+	track.Priority = Enum.AnimationPriority.Movement
+	walkTracks[character] = track
+	return track
+end
+
+local function updateWalkAnim(character: Model, humanoid: Humanoid, moving: number)
+	local isMoving = math.abs(moving) > 0.1
+
+	-- Kill every playing track while idle so default Animate can't bob the legs.
+	if not isMoving then
+		for _, track in humanoid:GetPlayingAnimationTracks() do
+			track:Stop(0)
+		end
+		local animator = humanoid:FindFirstChildOfClass("Animator")
+		if animator then
+			for _, track in animator:GetPlayingAnimationTracks() do
+				track:Stop(0)
+			end
+		end
+		local ours = walkTracks[character]
+		if ours and ours.IsPlaying then
+			ours:Stop(0)
+		end
+		return
+	end
+
+	local track = ensureWalkTrack(character, humanoid)
+	if not track then
+		return
+	end
+	if not track.IsPlaying then
+		track:Play(0.12)
+	end
+	track:AdjustSpeed(1.2)
+end
+
 local function strafeInput(): number
 	local value = 0
 	if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then
@@ -148,28 +215,66 @@ local function strafeInput(): number
 	return value
 end
 
--- Shouldered ADS. Arms are a fallback; IK snaps hands to grip + handguard.
-local function applyR15(character: Model, moving: number)
+local function smoothYaw(character: Model, targetYaw: number, dt: number): number
+	local current = yawState[character] or 0
+	local alpha = 1 - math.exp(-YAW_LERP * dt)
+	local from = CFrame.Angles(0, current, 0)
+	local to = CFrame.Angles(0, targetYaw, 0)
+	local lerped = from:Lerp(to, alpha)
+	local _, y = lerped:ToEulerAnglesYXZ()
+	yawState[character] = y
+	return y
+end
+
+-- Upper body ADS always faces character forward; lower body yaws only while strafing.
+local function applyR15(character: Model, moving: number, dt: number)
+	local neck = motor(character, "Head", "Neck")
+	local waist = motor(character, "UpperTorso", "Waist")
+	local root = motor(character, "LowerTorso", "Root")
 	local rightShoulder = motor(character, "RightUpperArm", "RightShoulder")
 	local leftShoulder = motor(character, "LeftUpperArm", "LeftShoulder")
 	local rightElbow = motor(character, "RightLowerArm", "RightElbow")
 	local leftElbow = motor(character, "LeftLowerArm", "LeftElbow")
 	local rightWrist = motor(character, "RightHand", "RightWrist")
 	local leftWrist = motor(character, "LeftHand", "LeftWrist")
-	local neck = motor(character, "Head", "Neck")
-	local waist = motor(character, "UpperTorso", "Waist")
-	local root = motor(character, "LowerTorso", "Root")
 	local rightHip = motor(character, "RightUpperLeg", "RightHip")
 	local leftHip = motor(character, "LeftUpperLeg", "LeftHip")
 	local rightKnee = motor(character, "RightLowerLeg", "RightKnee")
 	local leftKnee = motor(character, "LeftLowerLeg", "LeftKnee")
+	local rightAnkle = motor(character, "RightFoot", "RightAnkle")
+	local leftAnkle = motor(character, "LeftFoot", "LeftAnkle")
 
+	local isMoving = math.abs(moving) > 0.1
+	local targetYaw = 0
+	if isMoving then
+		if moving < -0.1 then
+			targetYaw = STRAFE_YAW
+		else
+			targetYaw = -STRAFE_YAW
+		end
+	end
+
+	local yaw = 0
+	if isMoving then
+		yaw = smoothYaw(character, targetYaw, dt)
+	else
+		-- Idle: instantly plant hips forward — no leftover lerp sway.
+		yawState[character] = 0
+		yaw = 0
+	end
+
+	if root then
+		root.Transform = if isMoving then CFrame.Angles(0, yaw, 0) else CFrame.identity
+	end
+
+	local adsWaist = CFrame.Angles(math.rad(8), math.rad(10), math.rad(-3))
 	if waist then
-		waist.Transform = CFrame.Angles(math.rad(8), math.rad(18), math.rad(-4))
+		waist.Transform = if isMoving then CFrame.Angles(0, -yaw, 0) * adsWaist else adsWaist
 	end
 	if neck then
-		neck.Transform = CFrame.Angles(math.rad(-18), math.rad(-10), math.rad(4))
+		neck.Transform = CFrame.Angles(math.rad(-16), math.rad(-6), math.rad(2))
 	end
+
 	if rightShoulder then
 		rightShoulder.Transform = CFrame.Angles(math.rad(75), math.rad(58), math.rad(28))
 	end
@@ -188,23 +293,14 @@ local function applyR15(character: Model, moving: number)
 	if leftWrist then
 		leftWrist.Transform = CFrame.identity
 	end
-	if root then
-		root.Transform = CFrame.identity
-	end
 
-	local dir = 0
-	if moving > 0.1 then
-		dir = 1
-	elseif moving < -0.1 then
-		dir = -1
-	end
-
-	if dir == 0 then
+	-- Always drive lower body when idle so anim residuals cannot move legs.
+	if not isMoving then
 		if rightHip then
-			rightHip.Transform = CFrame.Angles(math.rad(4), 0, math.rad(3))
+			rightHip.Transform = CFrame.identity
 		end
 		if leftHip then
-			leftHip.Transform = CFrame.Angles(math.rad(4), 0, math.rad(-3))
+			leftHip.Transform = CFrame.identity
 		end
 		if rightKnee then
 			rightKnee.Transform = CFrame.identity
@@ -212,54 +308,65 @@ local function applyR15(character: Model, moving: number)
 		if leftKnee then
 			leftKnee.Transform = CFrame.identity
 		end
-	else
-		if rightHip then
-			rightHip.Transform = CFrame.Angles(math.rad(8), 0, math.rad(-14) * dir)
+		if rightAnkle then
+			rightAnkle.Transform = CFrame.identity
 		end
-		if leftHip then
-			leftHip.Transform = CFrame.Angles(math.rad(8), 0, math.rad(-14) * dir)
-		end
-		if rightKnee then
-			rightKnee.Transform = CFrame.Angles(math.rad(12), 0, 0)
-		end
-		if leftKnee then
-			leftKnee.Transform = CFrame.Angles(math.rad(12), 0, 0)
+		if leftAnkle then
+			leftAnkle.Transform = CFrame.identity
 		end
 	end
 end
 
-local function applyR6(character: Model, moving: number)
+local function applyR6(character: Model, moving: number, dt: number)
 	local torso = character:FindFirstChild("Torso")
 	if not (torso and torso:IsA("BasePart")) then
 		return
 	end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local rootJoint = if hrp and hrp:IsA("BasePart") then hrp:FindFirstChild("RootJoint") else nil
 	local rightArm = torso:FindFirstChild("Right Shoulder")
 	local leftArm = torso:FindFirstChild("Left Shoulder")
+	local neck = torso:FindFirstChild("Neck")
 	local rightHip = torso:FindFirstChild("Right Hip")
 	local leftHip = torso:FindFirstChild("Left Hip")
-	local neck = torso:FindFirstChild("Neck")
+
+	local isMoving = math.abs(moving) > 0.1
+	local targetYaw = 0
+	if isMoving then
+		if moving < -0.1 then
+			targetYaw = STRAFE_YAW
+		else
+			targetYaw = -STRAFE_YAW
+		end
+	end
+	local yaw = 0
+	if isMoving then
+		yaw = smoothYaw(character, targetYaw, dt)
+	else
+		yawState[character] = 0
+	end
+
+	if rootJoint and rootJoint:IsA("Motor6D") then
+		rootJoint.Transform = if isMoving then CFrame.Angles(0, yaw, 0) else CFrame.identity
+	end
 
 	if rightArm and rightArm:IsA("Motor6D") then
-		rightArm.Transform = CFrame.Angles(math.rad(80), math.rad(45), math.rad(12))
+		rightArm.Transform = CFrame.Angles(0, -yaw, 0) * CFrame.Angles(math.rad(80), math.rad(45), math.rad(12))
 	end
 	if leftArm and leftArm:IsA("Motor6D") then
-		leftArm.Transform = CFrame.Angles(math.rad(100), math.rad(-48), math.rad(-10))
+		leftArm.Transform = CFrame.Angles(0, -yaw, 0) * CFrame.Angles(math.rad(100), math.rad(-48), math.rad(-10))
 	end
 	if neck and neck:IsA("Motor6D") then
-		neck.Transform = CFrame.Angles(math.rad(-14), math.rad(-8), 0)
+		neck.Transform = CFrame.Angles(0, -yaw, 0) * CFrame.Angles(math.rad(-14), math.rad(-8), 0)
 	end
 
-	local dir = 0
-	if moving > 0.1 then
-		dir = 1
-	elseif moving < -0.1 then
-		dir = -1
-	end
-	if rightHip and rightHip:IsA("Motor6D") then
-		rightHip.Transform = CFrame.Angles(0, 0, math.rad(-12) * dir)
-	end
-	if leftHip and leftHip:IsA("Motor6D") then
-		leftHip.Transform = CFrame.Angles(0, 0, math.rad(-12) * dir)
+	if not isMoving then
+		if rightHip and rightHip:IsA("Motor6D") then
+			rightHip.Transform = CFrame.identity
+		end
+		if leftHip and leftHip:IsA("Motor6D") then
+			leftHip.Transform = CFrame.identity
+		end
 	end
 end
 
@@ -291,7 +398,7 @@ function CombatPose.start()
 				return
 			end
 			if inLane() then
-				stopDefault(character)
+				prepareLane(character)
 				gameplay = true
 			else
 				restoreDefault(character)
@@ -301,9 +408,11 @@ function CombatPose.start()
 	end)
 
 	player.CharacterAdded:Connect(function(character)
+		walkTracks[character] = nil
+		yawState[character] = 0
 		task.wait(0.2)
 		if inLane() then
-			stopDefault(character)
+			prepareLane(character)
 			gameplay = true
 		else
 			restoreDefault(character)
@@ -311,7 +420,7 @@ function CombatPose.start()
 		end
 	end)
 
-	RunService.Heartbeat:Connect(function()
+	RunService.RenderStepped:Connect(function(dt)
 		local character = player.Character
 		if not character then
 			return
@@ -325,27 +434,26 @@ function CombatPose.start()
 		end
 
 		if not gameplay then
-			stopDefault(character)
+			prepareLane(character)
 			gameplay = true
 		end
 
 		bindIk(character)
 
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			for _, track in humanoid:GetPlayingAnimationTracks() do
-				track:Stop(0)
-			end
-		end
-
 		local moving = StrafeState.value
 		if moving == 0 then
 			moving = strafeInput()
 		end
+
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			updateWalkAnim(character, humanoid, moving)
+		end
+
 		if character:FindFirstChild("UpperTorso") then
-			applyR15(character, moving)
+			applyR15(character, moving, dt)
 		else
-			applyR6(character, moving)
+			applyR6(character, moving, dt)
 		end
 	end)
 end

@@ -1,23 +1,45 @@
 local Config = {}
 
 Config.Lane = {
-	Width = 28,
-	Length = 160,
+	Width = 35,
+	Length = 195,
 	Thickness = 1,
 	CenterY = 0.5,
 	PlayerZ = 8,
-	SpawnZ = 140,
+	SpawnZ = 175,
 	SidePathWidth = 8,
-	DividerWidth = 2.2,
+	-- Flat ground strip between main road and right path (not a dirt wall).
+	GapWidth = 7,
 }
 
 -- Camera looks +Z, so screen-right is world -X.
 function Config.laneXBounds(): (number, number)
 	local lane = Config.Lane
-	local minX = -(lane.Width / 2 + lane.DividerWidth + lane.SidePathWidth - 2)
+	local minX = -(lane.Width / 2 + lane.GapWidth + lane.SidePathWidth - 2)
 	local maxX = lane.Width / 2 - 4
 	return minX, maxX
 end
+
+function Config.sidePathCenterX(): number
+	local lane = Config.Lane
+	return -(lane.Width / 2 + lane.GapWidth + lane.SidePathWidth / 2)
+end
+
+-- Tunables for supply crates on the right path (change freely later).
+Config.Supply = {
+	FirstSpawnDelay = 28,
+	SpawnInterval = 40,
+	HitCountMin = 9,
+	HitCountMax = 25,
+	WalkSpeed = 7,
+	MaxAlive = 1,
+	MaxAllies = 6,
+	AllyFireInterval = 0.12,
+	DespawnZ = -12,
+	-- After this many successful recruits, stop spawning crates (editable later).
+	MaxRecruitsPerMatch = 1,
+	AllyHealth = 100,
+}
 
 Config.Lobby = {
 	Center = Vector3.new(0, 1, 4000),
@@ -51,15 +73,33 @@ Config.Combat = {
 
 Config.Zombie = {
 	Health = 36,
-	WalkSpeed = 8.5,
+	WalkSpeed = 6.2,
 	ContactDamage = 7,
 	ContactCooldown = 0.95,
 	HitRadius = 3.1,
 	SpawnGap = 0.9,
 	ChaseStartZ = 74,
 	ChaseSpeedScale = 0.34,
+	-- Stop this many studs in front of the player (so they stay shootable).
+	StopDistance = 7.5,
+	AttackDuration = 0.38,
+	ShambleSpeed = 2.4,
 	BodyColor = Color3.fromRGB(72, 112, 58),
 	ClothesColor = Color3.fromRGB(62, 48, 40),
+}
+
+-- Zombie dogs (editable spawn tunables).
+Config.ZombieDog = {
+	UnlockWave = 4,
+	-- Chance to spawn a dog instead of a normal zombie once unlocked (0~1).
+	SpawnChance = 0.32,
+	Health = 28,
+	WalkSpeed = 9.4,
+	ContactDamage = 6,
+	HitRadius = 4.2,
+	SizeScale = 0.85,
+	BodyColor = Color3.fromRGB(58, 72, 48),
+	SpeedPerSecond = 0.028,
 }
 
 Config.Boss = {
@@ -74,21 +114,27 @@ Config.Infinite = {
 	MaxAlive = 10,
 	SpawnGapStart = 1.15,
 	SpawnGapMin = 0.42,
-	LaneSlots = { -9, -4.5, 0, 4.5, 9 },
+	LaneSlots = { -12, -6, 0, 6, 12 },
 	HealthPerKill = 0.55,
-	SpeedPerSecond = 0.035,
+	SpeedPerSecond = 0.022,
+	-- After recruiting an ally once: spawn gap *= this (lower = denser). Editable.
+	AllySpawnGapScale = 0.62,
+	AllyMaxAliveBonus = 3,
 }
 
 Config.Waves = {
 	Countdown = 3,
+	-- Seconds between wave number increases (editable).
+	Duration = 40,
 }
 
 Config.Camera = {
-	Offset = Vector3.new(0, 16.5, -13),
-	LookAhead = Vector3.new(0, 4.2, 24),
+	-- High angle, but framed so the player stays visible at the bottom.
+	Offset = Vector3.new(0, 30, -16),
+	LookAhead = Vector3.new(0, 1.5, 28),
 	LobbyOffset = Vector3.new(0, 16, -14),
 	LobbyLookAhead = Vector3.new(0, 1, 16),
-	FieldOfView = 72,
+	FieldOfView = 64,
 	Lerp = 1,
 }
 

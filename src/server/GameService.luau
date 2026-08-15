@@ -6,6 +6,7 @@ local Workspace = game:GetService("Workspace")
 local Config = require(ReplicatedStorage.Shared.Config)
 local ZombieService = require(script.Parent.ZombieService)
 local CombatService = require(script.Parent.CombatService)
+local SupplyService = require(script.Parent.SupplyService)
 local Gun = require(script.Parent.Gun)
 
 type PlayerData = {
@@ -22,6 +23,7 @@ local phase = "lobby"
 local kills = 0
 local matchStart = 0
 local lastSpawnAt = 0
+local lastSupplySpawnAt = 0
 local nextIsBossAt = Config.Boss.EveryNKills
 local heartbeatConn: RBXScriptConnection?
 local startPadDebounce = false
@@ -114,10 +116,16 @@ local function currentStats()
 		Config.Infinite.SpawnGapMin,
 		Config.Infinite.SpawnGapStart - elapsed * 0.018
 	)
+	local maxAlive = Config.Infinite.MaxAlive
+	if SupplyService.hasRecruitedThisMatch() then
+		gap *= Config.Infinite.AllySpawnGapScale
+		maxAlive += Config.Infinite.AllyMaxAliveBonus
+	end
 	return {
 		health = health,
 		speed = speed,
 		gap = gap,
+		maxAlive = maxAlive,
 	}
 end
 
@@ -131,24 +139,54 @@ local function spawnOne()
 		x = slots[math.ceil(#slots / 2)]
 	end
 
-	local scale = if isBoss then Config.Boss.SizeMultiplier else 1
-	local y = Config.Lane.CenterY + 2.4 * scale
-	ZombieService.create(Vector3.new(x, y, Config.Lane.SpawnZ), {
-		health = if isBoss then stats.health * Config.Boss.HealthMultiplier else stats.health,
-		walkSpeed = if isBoss then stats.speed * Config.Boss.SpeedMultiplier else stats.speed,
+	local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
+	local dogCfg = Config.ZombieDog
+	local isDog = (not isBoss)
+		and wave >= dogCfg.UnlockWave
+		and math.random() < dogCfg.SpawnChance
+
+	local scale = if isBoss then Config.Boss.SizeMultiplier elseif isDog then dogCfg.SizeScale else 1
+	local y = Config.Lane.CenterY + (if isDog then 1.35 else 2.4) * scale
+	local elapsed = math.max(0, os.clock() - matchStart)
+
+	local health: number
+	local walkSpeed: number
+	local contactDamage: number
+	if isBoss then
+		health = stats.health * Config.Boss.HealthMultiplier
+		walkSpeed = stats.speed * Config.Boss.SpeedMultiplier
+		contactDamage = Config.Boss.ContactDamage
+	elseif isDog then
+		health = dogCfg.Health + kills * Config.Infinite.HealthPerKill * 0.7
+		walkSpeed = dogCfg.WalkSpeed + elapsed * dogCfg.SpeedPerSecond
+		contactDamage = dogCfg.ContactDamage
+	else
+		health = stats.health
+		walkSpeed = stats.speed
+		contactDamage = Config.Zombie.ContactDamage
+	end
+
+	local zombie = ZombieService.create(Vector3.new(x, y, Config.Lane.SpawnZ), {
+		health = health,
+		walkSpeed = walkSpeed,
 		isBoss = isBoss,
-		contactDamage = if isBoss then Config.Boss.ContactDamage else Config.Zombie.ContactDamage,
+		isDog = isDog,
+		contactDamage = contactDamage,
 		scale = scale,
 	})
+	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 end
 
 local function beginPlay()
 	phase = "playing"
 	matchStart = os.clock()
 	lastSpawnAt = 0
+	-- First crate at FirstSpawnDelay, then every SpawnInterval after that.
+	lastSupplySpawnAt = matchStart - Config.Supply.SpawnInterval + Config.Supply.FirstSpawnDelay
 	setState("Phase", "playing")
 	setState("Kills", kills)
 	setState("Elapsed", 0)
+	setState("Wave", 1)
 end
 
 local startCountdown: () -> ()
@@ -195,11 +233,13 @@ local function returnToLobby()
 	kills = 0
 	CombatService.clear()
 	ZombieService.clear()
+	SupplyService.clear()
 	setState("Phase", "lobby")
 	setState("Kills", 0)
 	setState("ZombiesAlive", 0)
 	setState("Countdown", 0)
 	setState("Elapsed", 0)
+	setState("Wave", 1)
 
 	for _, player in Players:GetPlayers() do
 		if player.Character then
@@ -217,6 +257,7 @@ local function startMatch()
 	nextIsBossAt = Config.Boss.EveryNKills
 	CombatService.clear()
 	ZombieService.clear()
+	SupplyService.clear()
 	setState("Kills", 0)
 
 	for _, player in Players:GetPlayers() do
@@ -236,6 +277,7 @@ local function onPlayerDied(_player: Player)
 	setState("Phase", "gameOver")
 	CombatService.clear()
 	ZombieService.clear()
+	SupplyService.clear()
 
 	task.delay(2.2, function()
 		if phase == "gameOver" then
@@ -290,8 +332,8 @@ local function tryFire(now: number)
 		return
 	end
 
-	for player, data in playerData do
-		local character = player.Character
+	for _, data in playerData do
+		local character = data.character
 		if not character then
 			continue
 		end
@@ -309,6 +351,10 @@ local function tryFire(now: number)
 			or (root.CFrame * CFrame.new(Config.Combat.MuzzleOffset)).Position
 		local origin = Vector3.new(root.Position.X, muzzle.Y, muzzle.Z)
 		CombatService.fireStraight(origin, Config.Combat.UnitDamage)
+	end
+
+	for _, allyOrigin in SupplyService.allyMuzzlePoints(now) do
+		CombatService.fireStraight(allyOrigin, Config.Combat.UnitDamage)
 	end
 end
 
@@ -357,12 +403,22 @@ function GameService.start(remotes)
 	setState("ZombiesAlive", 0)
 	setState("Countdown", 0)
 	setState("Elapsed", 0)
+	setState("Wave", 1)
 
 	ZombieService.onDied(function()
 		onZombieDied()
 	end)
 	ZombieService.onReached(function(record)
-		if phase == "playing" then
+		if phase ~= "playing" then
+			return
+		end
+		local target = record.attackTarget
+		if target and target.kind == "ally" and target.ally then
+			local hit = SupplyService.damageAlly(target.ally, record.contactDamage)
+			if not hit then
+				damagePlayers(record.contactDamage)
+			end
+		else
 			damagePlayers(record.contactDamage)
 		end
 	end)
@@ -399,6 +455,11 @@ function GameService.start(remotes)
 			if (stateFolder:GetAttribute("Elapsed") or 0) ~= elapsed then
 				setState("Elapsed", elapsed)
 			end
+			local waveDuration = math.max(1, Config.Waves.Duration)
+			local wave = 1 + math.floor(elapsed / waveDuration)
+			if (stateFolder:GetAttribute("Wave") or 1) ~= wave then
+				setState("Wave", wave)
+			end
 		end
 
 		if isLanePhase() then
@@ -430,11 +491,28 @@ function GameService.start(remotes)
 
 		if phase == "playing" then
 			local stats = currentStats()
-			if #ZombieService.getAlive() < Config.Infinite.MaxAlive and now - lastSpawnAt >= stats.gap then
+			if #ZombieService.getAlive() < stats.maxAlive and now - lastSpawnAt >= stats.gap then
 				lastSpawnAt = now
 				spawnOne()
 			end
+
+			local supplyCfg = Config.Supply
+			local firstReady = (now - matchStart) >= supplyCfg.FirstSpawnDelay
+			local intervalReady = (now - lastSupplySpawnAt) >= supplyCfg.SpawnInterval
+			if firstReady and intervalReady and SupplyService.canSpawn() then
+				lastSupplySpawnAt = now
+				SupplyService.create()
+			end
+
+			local leaderStrafe = 0
+			for _, data in playerData do
+				if math.abs(data.strafe) > math.abs(leaderStrafe) then
+					leaderStrafe = data.strafe
+				end
+			end
+
 			ZombieService.update(dt, playerPos)
+			SupplyService.update(dt, playerPos, leaderStrafe)
 			tryFire(now)
 			CombatService.update(dt)
 		end
