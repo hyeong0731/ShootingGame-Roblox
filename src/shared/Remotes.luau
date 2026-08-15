@@ -32,6 +32,7 @@ function Remotes.serverInit()
 		Strafe = ensureRemote(folder, "Strafe"),
 		HitFx = ensureRemote(folder, "HitFx"),
 		FireFx = ensureRemote(folder, "FireFx"),
+		ExplodeFx = ensureRemote(folder, "ExplodeFx"),
 	}
 end
 
@@ -41,6 +42,7 @@ function Remotes.clientWait()
 		Strafe = folder:WaitForChild("Strafe"),
 		HitFx = folder:WaitForChild("HitFx"),
 		FireFx = folder:WaitForChild("FireFx"),
+		ExplodeFx = folder:WaitForChild("ExplodeFx"),
 	}
 end
 

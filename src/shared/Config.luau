@@ -10,6 +10,10 @@ Config.Lane = {
 	SidePathWidth = 8,
 	-- Flat ground strip between main road and right path (not a dirt wall).
 	GapWidth = 7,
+	-- Green ruined strip (median) starts at this Z and runs away from the player.
+	-- Smaller = green closer to the character = narrower asphalt merge.
+	-- Player stands at PlayerZ. Tweak this often (try 28~40).
+	MergeUntilZ = 33,
 }
 
 -- Camera looks +Z, so screen-right is world -X.
@@ -23,6 +27,18 @@ end
 function Config.sidePathCenterX(): number
 	local lane = Config.Lane
 	return -(lane.Width / 2 + lane.GapWidth + lane.SidePathWidth / 2)
+end
+
+-- Zombies stay on asphalt only: main road, or the near merge onto the right path.
+function Config.zombieXBounds(z: number): (number, number)
+	local lane = Config.Lane
+	local mainMin = -(lane.Width / 2 - 2.4)
+	local mainMax = lane.Width / 2 - 3
+	if z <= lane.MergeUntilZ then
+		local mergeMin = -(lane.Width / 2 + lane.GapWidth + lane.SidePathWidth) + 2.6
+		return mergeMin, mainMax
+	end
+	return mainMin, mainMax
 end
 
 -- Tunables for supply crates on the right path (change freely later).
@@ -39,6 +55,23 @@ Config.Supply = {
 	-- After this many successful recruits, stop spawning crates (editable later).
 	MaxRecruitsPerMatch = 1,
 	AllyHealth = 100,
+}
+
+-- Bomb crate on the right path from round 4 (same crate look, bomb on top).
+Config.BombCrate = {
+	UnlockRound = 4,
+	FirstSpawnDelay = 6,
+	SpawnInterval = 32,
+	HitCountMin = 35,
+	HitCountMax = 55,
+	MaxAlive = 1,
+	Duration = 10,
+	ThrowInterval = 1,
+	Damage = 320,
+	Radius = 16,
+	ThrowDistance = 54,
+	FlightTime = 0.72,
+	Gravity = 95,
 }
 
 Config.Lobby = {
@@ -82,7 +115,7 @@ Config.Zombie = {
 	ChaseSpeedScale = 0.34,
 	-- Stop this many studs in front of the player (so they stay shootable).
 	StopDistance = 7.5,
-	AttackDuration = 0.38,
+	AttackDuration = 0.55,
 	ShambleSpeed = 2.4,
 	BodyColor = Color3.fromRGB(72, 112, 58),
 	ClothesColor = Color3.fromRGB(62, 48, 40),
@@ -108,6 +141,15 @@ Config.Boss = {
 	SizeMultiplier = 2.4,
 	SpeedMultiplier = 0.45,
 	ContactDamage = 14,
+}
+
+-- One extra-large boss on this round (editable).
+Config.MegaBoss = {
+	Round = 5,
+	HitCount = 150,
+	SizeScale = 2.9,
+	WalkSpeed = 3.2,
+	ContactDamage = 18,
 }
 
 Config.Infinite = {
@@ -136,6 +178,11 @@ Config.Camera = {
 	LobbyLookAhead = Vector3.new(0, 1, 16),
 	FieldOfView = 64,
 	Lerp = 1,
+}
+
+Config.Hud = {
+	-- Current-weapon button size in pixels.
+	WeaponButtonSize = 78,
 }
 
 return Config

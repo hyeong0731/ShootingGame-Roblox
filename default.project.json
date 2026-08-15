@@ -7,6 +7,10 @@
       "$ignoreUnknownInstances": true,
       "Shared": {
         "$path": "src/shared"
+      },
+      "HudAssets": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true
       }
     },
 

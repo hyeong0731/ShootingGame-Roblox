@@ -97,15 +97,33 @@ function Arena.build(): Folder
 		CastShadow = false,
 	}).Transparency = 1
 
-	-- Flat ground between roads (no dirt berm / wall).
+	-- Flat ground between roads, but only PAST the near merge so the player area is one wide road.
+	local mergeUntilZ = lane.MergeUntilZ
+	local pathStartZ = midZ - pathLength / 2
+	local pathEndZ = midZ + pathLength / 2
+	local farLength = math.max(4, pathEndZ - mergeUntilZ)
+	local farMidZ = mergeUntilZ + farLength / 2
+	local nearLength = math.max(4, mergeUntilZ - pathStartZ)
+	local nearMidZ = pathStartZ + nearLength / 2
+	local mergeWidth = lane.GapWidth + lane.SidePathWidth + 1.2
+
 	part({
 		Name = "Median",
 		Parent = folder,
 		Color = Color3.fromRGB(54, 62, 42),
 		Material = Enum.Material.Ground,
-		Size = Vector3.new(lane.GapWidth, 1, pathLength + 4),
-		CFrame = CFrame.new(gapX, 0.4, midZ),
+		Size = Vector3.new(lane.GapWidth, 1, farLength),
+		CFrame = CFrame.new(gapX, 0.4, farMidZ),
 		CanCollide = true,
+	})
+	-- Fill the gap next to the player with the same asphalt as the main road.
+	part({
+		Name = "MergedRoad",
+		Parent = folder,
+		Color = Color3.fromRGB(62, 58, 52),
+		Material = Enum.Material.Asphalt,
+		Size = Vector3.new(mergeWidth, lane.Thickness, nearLength),
+		CFrame = CFrame.new(-(pathWidth / 2 + mergeWidth / 2) + 0.4, lane.CenterY, nearMidZ),
 	})
 	part({
 		Name = "SidePath",

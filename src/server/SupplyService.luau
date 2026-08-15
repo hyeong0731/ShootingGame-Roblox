@@ -10,6 +10,7 @@ export type SupplyRecord = {
 	label: TextLabel,
 	hitsLeft: number,
 	alive: boolean,
+	kind: "ally" | "bomb",
 }
 
 export type AllyRecord = {
@@ -43,6 +44,7 @@ local allies = {} :: { AllyRecord }
 local recruitsThisMatch = 0
 local onRecruited: ((AllyRecord) -> ())? = nil
 local onAllyDied: ((AllyRecord) -> ())? = nil
+local onBombPicked: (() -> ())? = nil
 
 local function ensureFolder(name: string): Folder
 	local existing = Workspace:FindFirstChild(name)
@@ -132,6 +134,20 @@ local function buildCrateRecruit(parent: Model, root: BasePart)
 	end
 end
 
+local function buildCrateBomb(parent: Model, root: BasePart)
+	local shell = Color3.fromRGB(46, 50, 42)
+	local band = Color3.fromRGB(78, 82, 70)
+	local bomb = makePart(parent, "Bomb", Vector3.new(1.7, 1.7, 1.7), shell, root.CFrame * CFrame.new(0, 2.55, 0), Enum.Material.Metal)
+	bomb.Shape = Enum.PartType.Ball
+	weldConstraint(root, bomb)
+	weldConstraint(root, makePart(parent, "BombBand", Vector3.new(1.75, 0.22, 1.75), band, bomb.CFrame * CFrame.new(0, 0.1, 0), Enum.Material.Metal))
+	weldConstraint(root, makePart(parent, "BombCap", Vector3.new(0.5, 0.32, 0.5), Color3.fromRGB(30, 32, 28), bomb.CFrame * CFrame.new(0, 0.85, 0), Enum.Material.Metal))
+	local fuse = makePart(parent, "BombFuse", Vector3.new(0.14, 0.55, 0.14), Color3.fromRGB(96, 72, 40), bomb.CFrame * CFrame.new(0, 1.25, 0))
+	weldConstraint(root, fuse)
+	local spark = makePart(parent, "BombSpark", Vector3.new(0.2, 0.2, 0.2), Color3.fromRGB(255, 140, 40), bomb.CFrame * CFrame.new(0, 1.55, 0), Enum.Material.Neon)
+	weldConstraint(root, spark)
+end
+
 -- Combat ally: special-forces look + shouldered ADS arm pose.
 local function buildCombatAlly(parent: Model, root: BasePart): (BasePart, Weld, Weld, Weld, Weld, Weld)
 	local skin = Color3.fromRGB(210, 170, 135)
@@ -215,6 +231,10 @@ function SupplyService.onAllyDied(callback: (AllyRecord) -> ())
 	onAllyDied = callback
 end
 
+function SupplyService.onBombPicked(callback: () -> ())
+	onBombPicked = callback
+end
+
 function SupplyService.hasRecruitedThisMatch(): boolean
 	return recruitsThisMatch > 0
 end
@@ -224,6 +244,19 @@ function SupplyService.canSpawn(): boolean
 		return false
 	end
 	return recruitsThisMatch < Config.Supply.MaxRecruitsPerMatch
+end
+
+function SupplyService.canSpawnBomb(): boolean
+	if #supplies >= Config.Supply.MaxAlive then
+		return false
+	end
+	local bombAlive = 0
+	for _, record in supplies do
+		if record.alive and record.kind == "bomb" then
+			bombAlive += 1
+		end
+	end
+	return bombAlive < Config.BombCrate.MaxAlive
 end
 
 function SupplyService.getAlive(): { SupplyRecord }
@@ -360,6 +393,81 @@ function SupplyService.create(): SupplyRecord?
 		label = label,
 		hitsLeft = hits,
 		alive = true,
+		kind = "ally",
+	}
+	table.insert(supplies, record)
+	return record
+end
+
+function SupplyService.createBomb(): SupplyRecord?
+	if not SupplyService.canSpawnBomb() then
+		return nil
+	end
+
+	local folder = ensureFolder("Supplies")
+	local x = Config.sidePathCenterX()
+	local y = Config.Lane.CenterY + 1.6
+	local z = Config.Lane.SpawnZ
+	local position = Vector3.new(x, y, z)
+	local hits = math.random(Config.BombCrate.HitCountMin, Config.BombCrate.HitCountMax)
+
+	local model = Instance.new("Model")
+	model.Name = "BombCrate"
+	model:SetAttribute("IsSupply", true)
+	model:SetAttribute("IsBombCrate", true)
+	model:SetAttribute("HitsLeft", hits)
+
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(3.2, 2.4, 3.2)
+	root.Color = Color3.fromRGB(150, 96, 42)
+	root.Material = Enum.Material.Wood
+	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+	root.Anchored = true
+	root.CanCollide = true
+	root.Parent = model
+
+	local lid = makePart(model, "Lid", Vector3.new(3.4, 0.35, 3.4), Color3.fromRGB(120, 72, 32), root.CFrame * CFrame.new(0, 1.35, 0), Enum.Material.Wood)
+	weldConstraint(root, lid)
+	local stripe = makePart(model, "Stripe", Vector3.new(3.45, 0.55, 0.55), Color3.fromRGB(210, 170, 50), root.CFrame * CFrame.new(0, 0.2, 0), Enum.Material.Metal)
+	weldConstraint(root, stripe)
+	buildCrateBomb(model, root)
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "HitCount"
+	billboard.Size = UDim2.fromOffset(34, 22)
+	billboard.StudsOffset = Vector3.new(0, -1.55, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 220
+	billboard.LightInfluence = 0
+	billboard.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.BorderSizePixel = 0
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBlack
+	label.TextColor3 = Color3.fromRGB(255, 210, 120)
+	label.TextStrokeColor3 = Color3.fromRGB(15, 12, 10)
+	label.TextStrokeTransparency = 0
+	label.TextScaled = true
+	label.Parent = billboard
+	local sizeConstraint = Instance.new("UITextSizeConstraint")
+	sizeConstraint.MaxTextSize = 20
+	sizeConstraint.MinTextSize = 12
+	sizeConstraint.Parent = label
+	setHitLabel(label, hits)
+
+	model.PrimaryPart = root
+	model.Parent = folder
+
+	local record: SupplyRecord = {
+		model = model,
+		root = root,
+		label = label,
+		hitsLeft = hits,
+		alive = true,
+		kind = "bomb",
 	}
 	table.insert(supplies, record)
 	return record
@@ -480,7 +588,14 @@ function SupplyService.damageModel(model: Model, _damage: number): boolean
 			setHitLabel(record.label, record.hitsLeft)
 			if record.hitsLeft <= 0 then
 				record.alive = false
-				recruitFrom(record)
+				if record.kind == "bomb" then
+					record.model:Destroy()
+					if onBombPicked then
+						onBombPicked()
+					end
+				else
+					recruitFrom(record)
+				end
 				local keep = {}
 				for _, other in supplies do
 					if other.alive and other.model.Parent then

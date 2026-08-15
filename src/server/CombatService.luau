@@ -18,6 +18,14 @@ local active = {} :: {
 	}
 }
 
+local bombs = {} :: {
+	{
+		part: BasePart,
+		velocity: Vector3,
+		born: number,
+	}
+}
+
 function CombatService.bind(remotes)
 	CombatService._remotes = remotes
 end
@@ -49,6 +57,61 @@ local function spawnBolt(origin: Vector3, direction: Vector3): BasePart
 	tip.Parent = bolt
 
 	return bolt
+end
+
+local function spawnThrownBomb(origin: Vector3): BasePart
+	local bomb = Instance.new("Part")
+	bomb.Name = "ThrownBomb"
+	bomb.Shape = Enum.PartType.Ball
+	bomb.Size = Vector3.new(1.35, 1.35, 1.35)
+	bomb.Material = Enum.Material.Metal
+	bomb.Color = Color3.fromRGB(48, 52, 44)
+	bomb.Anchored = true
+	bomb.CanCollide = false
+	bomb.CanQuery = false
+	bomb.CFrame = CFrame.new(origin)
+	bomb.Parent = Workspace:FindFirstChild("Fx") or Workspace
+
+	local fuse = Instance.new("Part")
+	fuse.Name = "Fuse"
+	fuse.Size = Vector3.new(0.18, 0.18, 0.18)
+	fuse.Shape = Enum.PartType.Ball
+	fuse.Material = Enum.Material.Neon
+	fuse.Color = Color3.fromRGB(255, 150, 40)
+	fuse.Anchored = true
+	fuse.CanCollide = false
+	fuse.CanQuery = false
+	fuse.CFrame = bomb.CFrame * CFrame.new(0, 0.7, 0)
+	fuse.Parent = bomb
+
+	return bomb
+end
+
+local function explodeAt(position: Vector3)
+	local cfg = Config.BombCrate
+	ZombieService.damageInRadius(position, cfg.Radius, cfg.Damage)
+	if CombatService._remotes then
+		CombatService._remotes.ExplodeFx:FireAllClients(position, cfg.Radius)
+	end
+end
+
+function CombatService.throwBomb(origin: Vector3)
+	local cfg = Config.BombCrate
+	local part = spawnThrownBomb(origin)
+	local target = Vector3.new(origin.X, Config.Lane.CenterY + 1.15, origin.Z + cfg.ThrowDistance)
+	local flight = cfg.FlightTime
+	local gravity = cfg.Gravity
+	local disp = target - origin
+	local velocity = Vector3.new(
+		disp.X / flight,
+		disp.Y / flight + 0.5 * gravity * flight,
+		disp.Z / flight
+	)
+	table.insert(bombs, {
+		part = part,
+		velocity = velocity,
+		born = os.clock(),
+	})
 end
 
 function CombatService.fireStraight(origin: Vector3, damage: number)
@@ -187,9 +250,6 @@ function CombatService.update(dt: number)
 		end
 
 		if damaged then
-			if hitPos and CombatService._remotes then
-				CombatService._remotes.HitFx:FireAllClients(hitPos, hitBoss)
-			end
 			shot.part:Destroy()
 			continue
 		end
@@ -203,6 +263,50 @@ function CombatService.update(dt: number)
 		table.insert(keep, shot)
 	end
 	active = keep
+
+	local groundY = Config.Lane.CenterY + Config.Lane.Thickness * 0.5 + 0.7
+	local bombKeep = {}
+	local bombParams = RaycastParams.new()
+	bombParams.FilterType = Enum.RaycastFilterType.Include
+	local bombFilter = {}
+	local zombiesFolder2 = Workspace:FindFirstChild("Zombies")
+	if zombiesFolder2 then
+		table.insert(bombFilter, zombiesFolder2)
+	end
+	bombParams.FilterDescendantsInstances = bombFilter
+
+	for _, bomb in bombs do
+		if not bomb.part.Parent then
+			continue
+		end
+		if now - bomb.born > 2.4 then
+			local pos = bomb.part.Position
+			bomb.part:Destroy()
+			explodeAt(pos)
+			continue
+		end
+
+		local nextVel = bomb.velocity + Vector3.new(0, -Config.BombCrate.Gravity, 0) * dt
+		local nextPos = bomb.part.Position + nextVel * dt
+		local travel = nextPos - bomb.part.Position
+		local hit = Workspace:Spherecast(bomb.part.Position, 1.15, travel, bombParams)
+		local landed = nextPos.Y <= groundY
+		if hit or landed then
+			local pos = if hit then hit.Position else Vector3.new(nextPos.X, groundY, nextPos.Z)
+			bomb.part:Destroy()
+			explodeAt(pos)
+			continue
+		end
+
+		bomb.velocity = nextVel
+		bomb.part.CFrame = CFrame.new(nextPos)
+		local fuse = bomb.part:FindFirstChild("Fuse")
+		if fuse and fuse:IsA("BasePart") then
+			fuse.CFrame = bomb.part.CFrame * CFrame.new(0, 0.7, 0)
+		end
+		table.insert(bombKeep, bomb)
+	end
+	bombs = bombKeep
 end
 
 function CombatService.clear()
@@ -212,6 +316,12 @@ function CombatService.clear()
 		end
 	end
 	active = {}
+	for _, bomb in bombs do
+		if bomb.part.Parent then
+			bomb.part:Destroy()
+		end
+	end
+	bombs = {}
 	local fx = Workspace:FindFirstChild("Fx")
 	if fx then
 		fx:ClearAllChildren()

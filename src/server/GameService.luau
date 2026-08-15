@@ -13,6 +13,8 @@ type PlayerData = {
 	strafe: number,
 	character: Model?,
 	lastFire: number,
+	bombUntil: number,
+	hadBomb: boolean,
 }
 
 local GameService = {}
@@ -24,9 +26,13 @@ local kills = 0
 local matchStart = 0
 local lastSpawnAt = 0
 local lastSupplySpawnAt = 0
+local lastBombSpawnAt = 0
+local bombRoundArmed = false
+local megaBossSpawned = false
 local nextIsBossAt = Config.Boss.EveryNKills
 local heartbeatConn: RBXScriptConnection?
 local startPadDebounce = false
+local grantBombs: () -> ()
 
 local function setState(key: string, value: any)
 	stateFolder:SetAttribute(key, value)
@@ -177,16 +183,42 @@ local function spawnOne()
 	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 end
 
+local function spawnMegaBoss()
+	local cfg = Config.MegaBoss
+	local slots = Config.Infinite.LaneSlots
+	local x = slots[math.ceil(#slots / 2)]
+	local spawnZ = Config.Lane.SpawnZ
+	local y = Config.Lane.CenterY + 2.4 * cfg.SizeScale
+	local zombie = ZombieService.create(Vector3.new(x, y, spawnZ), {
+		health = cfg.HitCount,
+		walkSpeed = cfg.WalkSpeed,
+		isBoss = true,
+		isMega = true,
+		isDog = false,
+		contactDamage = cfg.ContactDamage,
+		scale = cfg.SizeScale,
+	})
+	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+end
+
 local function beginPlay()
 	phase = "playing"
 	matchStart = os.clock()
 	lastSpawnAt = 0
 	-- First crate at FirstSpawnDelay, then every SpawnInterval after that.
 	lastSupplySpawnAt = matchStart - Config.Supply.SpawnInterval + Config.Supply.FirstSpawnDelay
+	lastBombSpawnAt = 0
+	bombRoundArmed = false
 	setState("Phase", "playing")
 	setState("Kills", kills)
 	setState("Elapsed", 0)
 	setState("Wave", 1)
+	setState("BombLeft", 0)
+	for _, data in playerData do
+		data.bombUntil = 0
+		data.hadBomb = false
+		data.lastFire = 0
+	end
 end
 
 local startCountdown: () -> ()
@@ -240,6 +272,13 @@ local function returnToLobby()
 	setState("Countdown", 0)
 	setState("Elapsed", 0)
 	setState("Wave", 1)
+	setState("BombLeft", 0)
+	bombRoundArmed = false
+	megaBossSpawned = false
+	for _, data in playerData do
+		data.bombUntil = 0
+		data.hadBomb = false
+	end
 
 	for _, player in Players:GetPlayers() do
 		if player.Character then
@@ -317,6 +356,8 @@ local function setupPlayer(player: Player)
 		strafe = 0,
 		character = nil,
 		lastFire = 0,
+		bombUntil = 0,
+		hadBomb = false,
 	}
 
 	player.CharacterAdded:Connect(function(character)
@@ -325,6 +366,28 @@ local function setupPlayer(player: Player)
 	if player.Character then
 		setupCharacter(player, player.Character)
 	end
+end
+
+local function restoreGun(data: PlayerData)
+	if data.hadBomb and data.character then
+		Gun.attach(data.character)
+	end
+	data.hadBomb = false
+	data.bombUntil = 0
+	data.lastFire = 0
+end
+
+grantBombs = function()
+	local untilTime = os.clock() + Config.BombCrate.Duration
+	for _, data in playerData do
+		data.bombUntil = untilTime
+		data.hadBomb = true
+		data.lastFire = 0
+		if data.character then
+			Gun.attachBomb(data.character)
+		end
+	end
+	setState("BombLeft", Config.BombCrate.Duration)
 end
 
 local function tryFire(now: number)
@@ -337,12 +400,15 @@ local function tryFire(now: number)
 		if not character then
 			continue
 		end
-		if now - data.lastFire < Config.Combat.FireInterval then
-			continue
-		end
 
 		local root = character:FindFirstChild("HumanoidRootPart")
 		if not (root and root:IsA("BasePart")) then
+			continue
+		end
+
+		local usingBomb = data.hadBomb and now < data.bombUntil
+		local interval = if usingBomb then Config.BombCrate.ThrowInterval else Config.Combat.FireInterval
+		if now - data.lastFire < interval then
 			continue
 		end
 
@@ -350,7 +416,11 @@ local function tryFire(now: number)
 		local muzzle = Gun.getMuzzlePosition(character)
 			or (root.CFrame * CFrame.new(Config.Combat.MuzzleOffset)).Position
 		local origin = Vector3.new(root.Position.X, muzzle.Y, muzzle.Z)
-		CombatService.fireStraight(origin, Config.Combat.UnitDamage)
+		if usingBomb then
+			CombatService.throwBomb(origin)
+		else
+			CombatService.fireStraight(origin, Config.Combat.UnitDamage)
+		end
 	end
 
 	for _, allyOrigin in SupplyService.allyMuzzlePoints(now) do
@@ -404,6 +474,7 @@ function GameService.start(remotes)
 	setState("Countdown", 0)
 	setState("Elapsed", 0)
 	setState("Wave", 1)
+	setState("BombLeft", 0)
 
 	ZombieService.onDied(function()
 		onZombieDied()
@@ -420,6 +491,11 @@ function GameService.start(remotes)
 			end
 		else
 			damagePlayers(record.contactDamage)
+		end
+	end)
+	SupplyService.onBombPicked(function()
+		if phase == "playing" then
+			grantBombs()
 		end
 	end)
 
@@ -459,6 +535,10 @@ function GameService.start(remotes)
 			local wave = 1 + math.floor(elapsed / waveDuration)
 			if (stateFolder:GetAttribute("Wave") or 1) ~= wave then
 				setState("Wave", wave)
+			end
+			if wave >= Config.MegaBoss.Round and not megaBossSpawned then
+				megaBossSpawned = true
+				spawnMegaBoss()
 			end
 		end
 
@@ -502,6 +582,32 @@ function GameService.start(remotes)
 			if firstReady and intervalReady and SupplyService.canSpawn() then
 				lastSupplySpawnAt = now
 				SupplyService.create()
+			end
+
+			local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
+			if wave >= Config.BombCrate.UnlockRound then
+				if not bombRoundArmed then
+					bombRoundArmed = true
+					lastBombSpawnAt = now - Config.BombCrate.SpawnInterval + Config.BombCrate.FirstSpawnDelay
+				end
+				if (now - lastBombSpawnAt) >= Config.BombCrate.SpawnInterval and SupplyService.canSpawnBomb() then
+					lastBombSpawnAt = now
+					SupplyService.createBomb()
+				end
+			end
+
+			local bombLeft = 0
+			for _, data in playerData do
+				if data.hadBomb then
+					if now >= data.bombUntil then
+						restoreGun(data)
+					else
+						bombLeft = math.max(bombLeft, math.ceil(data.bombUntil - now))
+					end
+				end
+			end
+			if (stateFolder:GetAttribute("BombLeft") or 0) ~= bombLeft then
+				setState("BombLeft", bombLeft)
 			end
 
 			local leaderStrafe = 0

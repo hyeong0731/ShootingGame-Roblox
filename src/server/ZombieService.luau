@@ -40,12 +40,26 @@ export type ZombieRecord = {
 	leftLeg: Weld?,
 	rightLeg: Weld?,
 	motors: ZombieMotors?,
+	motorRest: { [Motor6D]: CFrame },
 	attackTarget: { kind: string, ally: any? },
 	alive: boolean,
+	hp: number,
+	maxHp: number,
+	isMega: boolean?,
+	hitsLeft: number?,
+	hitLabel: TextLabel?,
+	deathT: number,
+	deathStart: CFrame,
+	deathSide: number,
 }
+
+local FALL_TIME = 0.22
+local FADE_START = 0.14
+local DEATH_TIME = 0.42
 
 local ZombieService = {}
 ZombieService._alive = {} :: { ZombieRecord }
+ZombieService._corpses = {} :: { ZombieRecord }
 ZombieService._onDied = nil :: ((ZombieRecord) -> ())?
 ZombieService._onReached = nil :: ((ZombieRecord) -> ())?
 
@@ -88,37 +102,86 @@ local function attachWeld(root: BasePart, child: BasePart, c0: CFrame): Weld
 	return weld
 end
 
-local function motorIn(part: Instance?, name: string): Motor6D?
-	if not part then
-		return nil
+local function nameMatches(instanceName: string, names: { string }): boolean
+	local lower = string.lower(instanceName)
+	for _, name in names do
+		if lower == string.lower(name) then
+			return true
+		end
 	end
-	local found = part:FindFirstChild(name)
-	if found and found:IsA("Motor6D") then
-		return found
+	return false
+end
+
+local function findMotor(model: Model, names: { string }): Motor6D?
+	for _, d in model:GetDescendants() do
+		if d:IsA("Motor6D") and nameMatches(d.Name, names) then
+			return d
+		end
 	end
 	return nil
 end
 
-local function collectMotors(model: Model): ZombieMotors
-	return {
-		neck = motorIn(model:FindFirstChild("Head"), "Neck")
-			or motorIn(model:FindFirstChild("Torso"), "Neck"),
-		waist = motorIn(model:FindFirstChild("UpperTorso"), "Waist"),
-		root = motorIn(model:FindFirstChild("LowerTorso"), "Root")
-			or motorIn(model:FindFirstChild("HumanoidRootPart"), "RootJoint"),
-		leftShoulder = motorIn(model:FindFirstChild("LeftUpperArm"), "LeftShoulder"),
-		rightShoulder = motorIn(model:FindFirstChild("RightUpperArm"), "RightShoulder"),
-		leftElbow = motorIn(model:FindFirstChild("LeftLowerArm"), "LeftElbow"),
-		rightElbow = motorIn(model:FindFirstChild("RightLowerArm"), "RightElbow"),
-		leftHip = motorIn(model:FindFirstChild("LeftUpperLeg"), "LeftHip"),
-		rightHip = motorIn(model:FindFirstChild("RightUpperLeg"), "RightHip"),
-		leftKnee = motorIn(model:FindFirstChild("LeftLowerLeg"), "LeftKnee"),
-		rightKnee = motorIn(model:FindFirstChild("RightLowerLeg"), "RightKnee"),
-		leftArm = motorIn(model:FindFirstChild("Torso"), "Left Shoulder"),
-		rightArm = motorIn(model:FindFirstChild("Torso"), "Right Shoulder"),
-		leftLeg = motorIn(model:FindFirstChild("Torso"), "Left Hip"),
-		rightLeg = motorIn(model:FindFirstChild("Torso"), "Right Hip"),
+local function findMotorForPart(model: Model, partNames: { string }): Motor6D?
+	for _, d in model:GetDescendants() do
+		if d:IsA("Motor6D") and d.Part1 and nameMatches(d.Part1.Name, partNames) then
+			return d
+		end
+	end
+	return nil
+end
+
+local function collectMotors(model: Model): ZombieMotors?
+	local motors: ZombieMotors = {
+		neck = findMotor(model, { "Neck" }) or findMotorForPart(model, { "Head" }),
+		waist = findMotor(model, { "Waist" }),
+		root = findMotor(model, { "Root", "RootJoint" }),
+		leftShoulder = findMotor(model, { "LeftShoulder" }) or findMotorForPart(model, { "LeftUpperArm" }),
+		rightShoulder = findMotor(model, { "RightShoulder" }) or findMotorForPart(model, { "RightUpperArm" }),
+		leftElbow = findMotor(model, { "LeftElbow" }) or findMotorForPart(model, { "LeftLowerArm" }),
+		rightElbow = findMotor(model, { "RightElbow" }) or findMotorForPart(model, { "RightLowerArm" }),
+		leftHip = findMotor(model, { "LeftHip" }) or findMotorForPart(model, { "LeftUpperLeg" }),
+		rightHip = findMotor(model, { "RightHip" }) or findMotorForPart(model, { "RightUpperLeg" }),
+		leftKnee = findMotor(model, { "LeftKnee" }) or findMotorForPart(model, { "LeftLowerLeg" }),
+		rightKnee = findMotor(model, { "RightKnee" }) or findMotorForPart(model, { "RightLowerLeg" }),
+		leftArm = findMotor(model, { "Left Shoulder" }) or findMotorForPart(model, { "Left Arm" }),
+		rightArm = findMotor(model, { "Right Shoulder" }) or findMotorForPart(model, { "Right Arm" }),
+		leftLeg = findMotor(model, { "Left Hip" }) or findMotorForPart(model, { "Left Leg" }),
+		rightLeg = findMotor(model, { "Right Hip" }) or findMotorForPart(model, { "Right Leg" }),
 	}
+	if not (motors.rightShoulder or motors.rightArm) then
+		local fallback: Motor6D? = nil
+		for _, d in model:GetDescendants() do
+			if d:IsA("Motor6D") and d.Part1 then
+				local n = string.lower(d.Part1.Name .. " " .. d.Name)
+				if string.find(n, "right", 1, true)
+					and (string.find(n, "arm", 1, true) or string.find(n, "shoulder", 1, true) or string.find(n, "hand", 1, true))
+				then
+					fallback = d
+					if string.find(n, "upper", 1, true) or string.find(n, "shoulder", 1, true) then
+						break
+					end
+				end
+			end
+		end
+		motors.rightShoulder = fallback
+	end
+	if not (motors.rightShoulder or motors.rightArm) then
+		return nil
+	end
+	return motors
+end
+
+local function poseMotor(record: ZombieRecord, motor: Motor6D?, pose: CFrame)
+	if not motor then
+		return
+	end
+	local rest = record.motorRest[motor]
+	if not rest then
+		rest = motor.C0
+		record.motorRest[motor] = rest
+	end
+	-- C0 replicates to clients; Motor6D.Transform does not.
+	motor.C0 = rest * pose
 end
 
 local function findStorageModel(candidates: { string }): Model?
@@ -186,8 +249,11 @@ local function attachHealthBar(head: BasePart, humanoid: Humanoid, scale: number
 	fill.Parent = bg
 	Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 
-	humanoid.HealthChanged:Connect(function(hp)
-		local ratio = math.clamp(hp / math.max(humanoid.MaxHealth, 1), 0, 1)
+	humanoid.HealthChanged:Connect(function()
+		local model = head.Parent
+		local maxHp = if model then (model:GetAttribute("MaxHp") :: number?) else nil
+		local hp = if model then (model:GetAttribute("Hp") :: number?) else nil
+		local ratio = math.clamp((hp or humanoid.Health) / math.max(maxHp or humanoid.MaxHealth, 1), 0, 1)
 		fill.Size = UDim2.fromScale(ratio, 1)
 	end)
 end
@@ -209,6 +275,34 @@ local function attachHitbox(model: Model, root: BasePart, scale: number, isDog: 
 	weldConstraint(root, hitbox)
 end
 
+local function attachHitCount(adornee: BasePart, hits: number, scale: number): TextLabel
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "HitCount"
+	billboard.Size = UDim2.fromOffset(72, 48)
+	billboard.StudsOffset = Vector3.new(0, 2.4 * scale, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 240
+	billboard.LightInfluence = 0
+	billboard.Parent = adornee
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.BorderSizePixel = 0
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBlack
+	label.Text = tostring(hits)
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeColor3 = Color3.fromRGB(15, 12, 10)
+	label.TextStrokeTransparency = 0
+	label.TextScaled = true
+	label.Parent = billboard
+	local sizeConstraint = Instance.new("UITextSizeConstraint")
+	sizeConstraint.MaxTextSize = 42
+	sizeConstraint.MinTextSize = 18
+	sizeConstraint.Parent = label
+	return label
+end
+
 local function finalizeModel(model: Model, root: BasePart, humanoid: Humanoid, stats: {
 	health: number,
 	walkSpeed: number,
@@ -216,9 +310,21 @@ local function finalizeModel(model: Model, root: BasePart, humanoid: Humanoid, s
 	isDog: boolean,
 	scale: number,
 }, head: BasePart)
+	for _, d in model:GetDescendants() do
+		if d:IsA("Script") or d:IsA("LocalScript") then
+			d:Destroy()
+		end
+	end
+	local description = model:FindFirstChildWhichIsA("HumanoidDescription", true)
+	if description then
+		description:Destroy()
+	end
+
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	humanoid.MaxHealth = stats.health
 	humanoid.Health = stats.health
+	model:SetAttribute("MaxHp", stats.health)
+	model:SetAttribute("Hp", stats.health)
 	humanoid.WalkSpeed = 0
 	humanoid.JumpPower = 0
 	humanoid.JumpHeight = 0
@@ -229,6 +335,10 @@ local function finalizeModel(model: Model, root: BasePart, humanoid: Humanoid, s
 
 	for _, track in humanoid:GetPlayingAnimationTracks() do
 		track:Stop(0)
+	end
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if animator then
+		animator:Destroy()
 	end
 	local animate = model:FindFirstChild("Animate")
 	if animate then
@@ -264,6 +374,35 @@ local function finalizeModel(model: Model, root: BasePart, humanoid: Humanoid, s
 	end
 	root.Anchored = true
 	root.CanCollide = true
+end
+
+local function refreshHealthBar(record: ZombieRecord)
+	record.model:SetAttribute("Hp", record.hp)
+	record.model:SetAttribute("MaxHp", record.maxHp)
+	local bar = record.model:FindFirstChild("HealthBar", true)
+	if not bar then
+		return
+	end
+	local fill = bar:FindFirstChild("Fill", true)
+	if fill and fill:IsA("GuiObject") then
+		fill.Size = UDim2.fromScale(math.clamp(record.hp / math.max(record.maxHp, 1), 0, 1), 1)
+	end
+end
+
+local function bindHealthGuard(record: ZombieRecord)
+	record.humanoid.HealthChanged:Connect(function(hp)
+		if not record.alive then
+			return
+		end
+		if record.humanoid.MaxHealth ~= record.maxHp then
+			record.humanoid.MaxHealth = record.maxHp
+		end
+		if hp > record.hp + 0.05 then
+			record.humanoid.Health = record.hp
+			return
+		end
+		refreshHealthBar(record)
+	end)
 end
 
 local function createDog(position: Vector3, stats: {
@@ -347,12 +486,19 @@ local function createDog(position: Vector3, stats: {
 		leftLeg = leftLegWeld,
 		rightLeg = rightLegWeld,
 		motors = nil,
+		motorRest = {},
 		attackTarget = { kind = "player", ally = nil },
 		alive = true,
+		hp = stats.health,
+		maxHp = stats.health,
+		deathT = 0,
+		deathStart = root.CFrame,
+		deathSide = 1,
 	}
 	humanoid.Died:Connect(function()
 		kill(record)
 	end)
+	bindHealthGuard(record)
 	table.insert(ZombieService._alive, record)
 	return record
 end
@@ -434,12 +580,19 @@ local function createProceduralHuman(position: Vector3, stats: {
 		leftLeg = leftLegWeld,
 		rightLeg = rightLegWeld,
 		motors = nil,
+		motorRest = {},
 		attackTarget = { kind = "player", ally = nil },
 		alive = true,
+		hp = stats.health,
+		maxHp = stats.health,
+		deathT = 0,
+		deathStart = root.CFrame,
+		deathSide = 1,
 	}
 	humanoid.Died:Connect(function()
 		kill(record)
 	end)
+	bindHealthGuard(record)
 	table.insert(ZombieService._alive, record)
 	return record
 end
@@ -448,6 +601,7 @@ local function createFromPrototype(position: Vector3, stats: {
 	health: number,
 	walkSpeed: number,
 	isBoss: boolean,
+	isMega: boolean?,
 	scale: number,
 	contactDamage: number,
 }): ZombieRecord?
@@ -462,7 +616,12 @@ local function createFromPrototype(position: Vector3, stats: {
 
 	local folder = Workspace:WaitForChild("Zombies")
 	local model = proto:Clone()
-	model.Name = if stats.isBoss then "BossZombie" else "Zombie"
+	for _, d in model:GetDescendants() do
+		if d:IsA("Script") or d:IsA("LocalScript") then
+			d:Destroy()
+		end
+	end
+	model.Name = if stats.isMega then "MegaBoss" elseif stats.isBoss then "BossZombie" else "Zombie"
 
 	local root: BasePart? = nil
 	local hrp = model:FindFirstChild("HumanoidRootPart")
@@ -490,21 +649,26 @@ local function createFromPrototype(position: Vector3, stats: {
 		humanoid.Parent = model
 	end
 
+	humanoid.MaxHealth = stats.health
+	humanoid.Health = stats.health
+	humanoid.BreakJointsOnDeath = false
+	humanoid.RequiresNeck = false
+
 	local headInst = model:FindFirstChild("Head")
 	local head: BasePart = if headInst and headInst:IsA("BasePart") then headInst else root
 
-	-- Dedicated big-zombie mesh is already large — don't double ScaleTo.
-	local applyScale = if usingBossMesh then 1 else stats.scale
+	root.Anchored = true
+	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+	model.PrimaryPart = root
+	model.Parent = folder
+
+	-- Scale after parenting so ScaleTo actually applies.
+	local applyScale = if stats.isMega then stats.scale elseif usingBossMesh then 1 else stats.scale
 	if math.abs(applyScale - 1) > 0.01 then
 		pcall(function()
 			model:ScaleTo(applyScale)
 		end)
 	end
-
-	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
-	root.Anchored = true
-	model.PrimaryPart = root
-	model.Parent = folder
 
 	-- Plant feet on the road (prototype pivot heights vary).
 	local bboxCf, bboxSize = model:GetBoundingBox()
@@ -515,7 +679,10 @@ local function createFromPrototype(position: Vector3, stats: {
 		root.CFrame = root.CFrame + Vector3.new(0, lift, 0)
 	end
 
-	local hitScale = if usingBossMesh then math.max(stats.scale, 2.0) else stats.scale
+	local hitScale = if stats.isMega
+		then math.max(stats.scale * 2.2, 3.4)
+		elseif usingBossMesh then math.max(stats.scale, 2.0)
+		else stats.scale
 	finalizeModel(model, root, humanoid, {
 		health = stats.health,
 		walkSpeed = stats.walkSpeed,
@@ -544,20 +711,65 @@ local function createFromPrototype(position: Vector3, stats: {
 		leftLeg = nil,
 		rightLeg = nil,
 		motors = motors,
+		motorRest = {},
 		attackTarget = { kind = "player", ally = nil },
 		alive = true,
+		hp = stats.health,
+		maxHp = stats.health,
+		deathT = 0,
+		deathStart = root.CFrame,
+		deathSide = 1,
 	}
+	humanoid.MaxHealth = stats.health
+	humanoid.Health = stats.health
 	humanoid.Died:Connect(function()
 		kill(record)
 	end)
+	bindHealthGuard(record)
+	task.defer(function()
+		if record.alive and record.model.Parent then
+			record.humanoid.MaxHealth = record.maxHp
+			record.humanoid.Health = record.hp
+			refreshHealthBar(record)
+		end
+	end)
 	table.insert(ZombieService._alive, record)
 	return record
+end
+
+local function setupMegaHits(record: ZombieRecord)
+	local hits = Config.MegaBoss.HitCount
+	record.isMega = true
+	record.hitsLeft = hits
+	record.hp = 9999
+	record.maxHp = 9999
+	record.humanoid.MaxHealth = 9999
+	record.humanoid.Health = 9999
+	record.model:SetAttribute("HitsLeft", hits)
+	record.model:SetAttribute("HitRadius", 10)
+	record.model:SetAttribute("IsBoss", true)
+
+	local bar = record.model:FindFirstChild("HealthBar", true)
+	if bar then
+		bar:Destroy()
+	end
+
+	local head = record.model:FindFirstChild("Head")
+	local adornee = if head and head:IsA("BasePart") then head else record.root
+	record.hitLabel = attachHitCount(adornee, hits, Config.MegaBoss.SizeScale)
+
+	local hitbox = record.model:FindFirstChild("Hitbox")
+	if hitbox and hitbox:IsA("BasePart") then
+		hitbox.Size = Vector3.new(10, 14, 10)
+		hitbox.CanQuery = true
+	end
 end
 
 function ZombieService.create(position: Vector3, stats: {
 	health: number,
 	walkSpeed: number,
 	isBoss: boolean,
+	isMega: boolean?,
 	isDog: boolean?,
 	contactDamage: number,
 	scale: number,
@@ -575,22 +787,30 @@ function ZombieService.create(position: Vector3, stats: {
 	local fromProto = createFromPrototype(position, {
 		health = stats.health,
 		walkSpeed = stats.walkSpeed,
-		isBoss = stats.isBoss,
+		isBoss = stats.isBoss or stats.isMega == true,
+		isMega = stats.isMega,
 		scale = stats.scale,
 		contactDamage = stats.contactDamage,
 	})
 	if fromProto then
+		if stats.isMega == true then
+			setupMegaHits(fromProto)
+		end
 		return fromProto
 	end
 
 	warn("[ZombieService] ReplicatedStorage zombieprototype / killer BIG zombie missing — using procedural zombie")
-	return createProceduralHuman(position, {
+	local fallback = createProceduralHuman(position, {
 		health = stats.health,
 		walkSpeed = stats.walkSpeed,
-		isBoss = stats.isBoss,
+		isBoss = stats.isBoss or stats.isMega == true,
 		scale = stats.scale,
 		contactDamage = stats.contactDamage,
 	})
+	if stats.isMega == true then
+		setupMegaHits(fallback)
+	end
+	return fallback
 end
 
 kill = function(record: ZombieRecord)
@@ -602,23 +822,132 @@ kill = function(record: ZombieRecord)
 	if ZombieService._onDied then
 		ZombieService._onDied(record)
 	end
-	if record.model.Parent then
-		record.model:Destroy()
+
+	local model = record.model
+	if not model.Parent then
+		return
 	end
+
+	record.deathT = 0
+	record.deathStart = record.root.CFrame
+	record.deathSide = if math.random() < 0.5 then -1 else 1
+
+	local bar = model:FindFirstChild("HealthBar", true)
+	if bar then
+		bar:Destroy()
+	end
+
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc:SetAttribute("DeathBaseT", desc.Transparency)
+			desc.CanQuery = false
+			desc.CanCollide = false
+		elseif desc:IsA("Decal") or desc:IsA("Texture") then
+			desc:SetAttribute("DeathBaseT", desc.Transparency)
+		end
+	end
+
+	table.insert(ZombieService._corpses, record)
+end
+
+local function easeOutCubic(t: number): number
+	local u = 1 - t
+	return 1 - u * u * u
+end
+
+local function applyDeathVisual(record: ZombieRecord)
+	local t = math.clamp(record.deathT / FALL_TIME, 0, 1)
+	local fall = easeOutCubic(t)
+	local start = record.deathStart
+	local side = record.deathSide
+	local pitch: number
+	local roll: number
+	local drop: number
+	if record.isDog then
+		pitch = math.rad(-28) * fall
+		roll = math.rad(82) * side * fall
+		drop = 0.35 * fall
+	else
+		pitch = math.rad(-86) * fall
+		roll = math.rad(16) * side * fall
+		drop = (if record.isBoss then 1.8 else 1.15) * fall
+	end
+
+	record.root.CFrame = start * CFrame.Angles(pitch, 0, roll) + Vector3.new(0, -drop, 0)
+
+	local fade = 0
+	if record.deathT > FADE_START then
+		fade = math.clamp((record.deathT - FADE_START) / (DEATH_TIME - FADE_START), 0, 1)
+		fade = fade * fade
+	end
+	if fade <= 0 then
+		return
+	end
+	for _, desc in record.model:GetDescendants() do
+		if desc:IsA("BasePart") or desc:IsA("Decal") or desc:IsA("Texture") then
+			local base = (desc:GetAttribute("DeathBaseT") :: number?) or 0
+			desc.Transparency = base + (1 - base) * fade
+		end
+	end
+end
+
+local function updateCorpses(dt: number)
+	local keep = {}
+	for _, record in ZombieService._corpses do
+		if not record.model.Parent then
+			continue
+		end
+		record.deathT += dt
+		if record.deathT >= DEATH_TIME then
+			record.model:Destroy()
+			continue
+		end
+		applyDeathVisual(record)
+		table.insert(keep, record)
+	end
+	ZombieService._corpses = keep
 end
 
 function ZombieService.damageModel(model: Model, amount: number): boolean
 	for _, record in ZombieService._alive do
 		if record.model == model and record.alive then
-			local nextHealth = record.humanoid.Health - amount
-			record.humanoid.Health = nextHealth
-			if nextHealth <= 0 then
+			if record.isMega == true then
+				record.hitsLeft = math.max(0, (record.hitsLeft or 1) - 1)
+				model:SetAttribute("HitsLeft", record.hitsLeft)
+				if record.hitLabel then
+					record.hitLabel.Text = tostring(record.hitsLeft)
+				end
+				if record.hitsLeft <= 0 then
+					kill(record)
+				end
+				return true
+			end
+			record.hp = math.max(0, record.hp - amount)
+			record.humanoid.MaxHealth = record.maxHp
+			record.humanoid.Health = record.hp
+			refreshHealthBar(record)
+			if record.hp <= 0 then
 				kill(record)
 			end
 			return true
 		end
 	end
 	return false
+end
+
+function ZombieService.damageInRadius(position: Vector3, radius: number, amount: number): number
+	local hit = 0
+	local snapshot = ZombieService.getAlive()
+	for _, record in snapshot do
+		local offset = record.root.Position - position
+		local reach = radius + ((record.model:GetAttribute("HitRadius") :: number?) or 0) * 0.3
+		if offset.X * offset.X + offset.Z * offset.Z <= reach * reach then
+			if ZombieService.damageModel(record.model, amount) then
+				hit += 1
+			end
+		end
+	end
+	return hit
 end
 
 function ZombieService.onDied(callback: (ZombieRecord) -> ())
@@ -673,7 +1002,7 @@ local function resolveTargetPosition(record: ZombieRecord, playerPosition: Vecto
 	return playerPosition
 end
 
-local function applyPrototypePose(record: ZombieRecord, moving: boolean, attacking: boolean, lean: number)
+local function applyPrototypePose(record: ZombieRecord, moving: boolean, attacking: boolean, attackT: number)
 	local m = record.motors
 	if not m then
 		return
@@ -685,87 +1014,84 @@ local function applyPrototypePose(record: ZombieRecord, moving: boolean, attacki
 	local drag = math.sin(p * 0.55 + 0.4)
 	local lurch = math.max(0, math.sin(p * 0.9))
 	local moveScale = if moving then 1 else 0.35
-	local attackReach = if attacking then 1 else 0
+	local t = math.clamp(attackT, 0, 1)
+	local claw = if attacking then math.sin(t * math.pi) else 0
+	-- 0 = arm cocked to the right, 1 = follow-through across the body.
+	local sweep = if attacking then t else 0
 
-	-- R15 zombie shambling
-	if m.rightShoulder then
-		m.rightShoulder.Transform = CFrame.Angles(
-			math.rad(-95 - 18 * attackReach + 10 * swing * moveScale),
-			math.rad(-22 + 8 * drag),
-			math.rad(12 + 6 * limp)
+	-- R15 zombie shambling; attack = right-hand rake, not a kick.
+	-- Poses go through C0 so clients actually see them.
+	poseMotor(
+		record,
+		m.rightShoulder,
+		CFrame.Angles(
+			math.rad(-70 + 10 * swing * moveScale - 85 * claw),
+			math.rad(-18 + 8 * drag + 55 * claw - 130 * sweep),
+			math.rad(14 + 6 * limp + 55 * claw)
 		)
-	end
-	if m.leftShoulder then
-		m.leftShoulder.Transform = CFrame.Angles(
-			math.rad(-88 - 22 * attackReach - 8 * swing * moveScale),
+	)
+	poseMotor(
+		record,
+		m.leftShoulder,
+		CFrame.Angles(
+			math.rad(-88 - 8 * swing * moveScale - 10 * claw),
 			math.rad(28 - 6 * drag),
 			math.rad(-16 - 4 * limp)
 		)
-	end
-	if m.rightElbow then
-		m.rightElbow.Transform = CFrame.Angles(math.rad(-28 - 10 * lurch), math.rad(8), 0)
-	end
-	if m.leftElbow then
-		m.leftElbow.Transform = CFrame.Angles(math.rad(-22 - 14 * lurch), math.rad(-6), 0)
-	end
-	if m.rightHip then
-		m.rightHip.Transform = CFrame.Angles(
-			math.rad(38 * swing * moveScale * limp) + math.rad(6),
-			math.rad(4),
-			math.rad(6)
-		)
-	end
-	if m.leftHip then
-		-- Heavier limp on one side
-		m.leftHip.Transform = CFrame.Angles(
-			math.rad(-22 * swing * moveScale) + math.rad(10 * limp),
-			math.rad(-6),
-			math.rad(-8)
-		)
-	end
-	if m.rightKnee then
-		m.rightKnee.Transform = CFrame.Angles(math.rad(-18 - 20 * math.max(0, swing) * moveScale), 0, 0)
-	end
-	if m.leftKnee then
-		m.leftKnee.Transform = CFrame.Angles(math.rad(-28 - 12 * math.max(0, -swing) * moveScale), 0, 0)
-	end
-	if m.waist then
-		m.waist.Transform = CFrame.Angles(
-			math.rad(10 + 6 * lurch + lean * 20),
-			math.rad(12 * drag),
-			math.rad(-5 * swing)
-		)
-	end
-	if m.neck then
-		m.neck.Transform = CFrame.Angles(math.rad(14 + 8 * lurch), math.rad(-16 * drag), math.rad(8 * limp - 4))
-	end
-	if m.root then
-		m.root.Transform = CFrame.Angles(math.rad(4 + 3 * lurch), math.rad(5 * drag), math.rad(3 * swing))
-	end
+	)
+	poseMotor(
+		record,
+		m.rightElbow,
+		CFrame.Angles(math.rad(-22 - 10 * lurch - 20 * claw + 70 * sweep), math.rad(8 + 35 * claw), math.rad(-18 * claw))
+	)
+	poseMotor(record, m.leftElbow, CFrame.Angles(math.rad(-22 - 14 * lurch), math.rad(-6), 0))
+	poseMotor(
+		record,
+		m.rightHip,
+		CFrame.Angles(math.rad(38 * swing * moveScale * limp) + math.rad(6), math.rad(4), math.rad(6))
+	)
+	poseMotor(
+		record,
+		m.leftHip,
+		CFrame.Angles(math.rad(-22 * swing * moveScale) + math.rad(10 * limp), math.rad(-6), math.rad(-8))
+	)
+	poseMotor(record, m.rightKnee, CFrame.Angles(math.rad(-18 - 20 * math.max(0, swing) * moveScale), 0, 0))
+	poseMotor(record, m.leftKnee, CFrame.Angles(math.rad(-28 - 12 * math.max(0, -swing) * moveScale), 0, 0))
+	poseMotor(
+		record,
+		m.waist,
+		CFrame.Angles(math.rad(10 + 6 * lurch + 12 * claw), math.rad(12 * drag - 28 * claw), math.rad(-5 * swing + 14 * claw))
+	)
+	poseMotor(
+		record,
+		m.neck,
+		CFrame.Angles(math.rad(14 + 8 * lurch), math.rad(-16 * drag - 8 * claw), math.rad(8 * limp - 4))
+	)
+	poseMotor(record, m.root, CFrame.Angles(math.rad(4 + 3 * lurch), math.rad(5 * drag - 8 * claw), math.rad(3 * swing)))
 
 	-- R6 fallback motors
-	if m.rightArm then
-		m.rightArm.Transform = CFrame.Angles(math.rad(-100 - 15 * attackReach + 8 * swing), 0, math.rad(20))
-	end
-	if m.leftArm then
-		m.leftArm.Transform = CFrame.Angles(math.rad(-95 - 18 * attackReach - 6 * swing), 0, math.rad(-24))
-	end
-	if m.rightLeg then
-		m.rightLeg.Transform = CFrame.Angles(math.rad(32 * swing * moveScale * limp), 0, math.rad(6))
-	end
-	if m.leftLeg then
-		m.leftLeg.Transform = CFrame.Angles(math.rad(-20 * swing * moveScale) + math.rad(8), 0, math.rad(-8))
-	end
+	poseMotor(
+		record,
+		m.rightArm,
+		CFrame.Angles(
+			math.rad(-80 + 8 * swing - 70 * claw),
+			math.rad(25 * claw - 95 * sweep),
+			math.rad(22 + 50 * claw)
+		)
+	)
+	poseMotor(record, m.leftArm, CFrame.Angles(math.rad(-95 - 6 * swing), 0, math.rad(-24)))
+	poseMotor(record, m.rightLeg, CFrame.Angles(math.rad(32 * swing * moveScale * limp), 0, math.rad(6)))
+	poseMotor(record, m.leftLeg, CFrame.Angles(math.rad(-20 * swing * moveScale) + math.rad(8), 0, math.rad(-8)))
 end
 
-local function applyWeldPose(record: ZombieRecord, moving: boolean, attacking: boolean)
+local function applyWeldPose(record: ZombieRecord, moving: boolean, attacking: boolean, attackT: number)
 	if not (record.leftArm and record.rightArm and record.leftLeg and record.rightLeg) then
 		return
 	end
 	local swing = math.sin(record.phase)
 	local swing2 = math.sin(record.phase * 1.35 + 0.6)
 	local moveScale = if moving then 1 else 0.4
-	local reach = if attacking then 1 else 0
+	local claw = if attacking then math.sin(math.clamp(attackT, 0, 1) * math.pi) else 0
 
 	if record.isDog then
 		record.leftArm.C1 = CFrame.Angles(math.rad(38) * swing, 0, 0)
@@ -773,14 +1099,19 @@ local function applyWeldPose(record: ZombieRecord, moving: boolean, attacking: b
 		record.leftLeg.C1 = CFrame.Angles(math.rad(-38) * swing, 0, 0)
 		record.rightLeg.C1 = CFrame.Angles(math.rad(38) * swing, 0, 0)
 	else
-		record.leftArm.C1 = CFrame.Angles(math.rad(18 * swing2 * moveScale - 12 * reach), math.rad(14) * swing, math.rad(-10) * swing)
-		record.rightArm.C1 = CFrame.Angles(math.rad(-20 * swing2 * moveScale - 14 * reach), math.rad(-16) * swing, math.rad(10) * swing)
+		record.leftArm.C1 = CFrame.Angles(math.rad(18 * swing2 * moveScale), math.rad(14) * swing, math.rad(-10) * swing)
+		record.rightArm.C1 = CFrame.Angles(
+			math.rad(-20 * swing2 * moveScale - 95 * claw),
+			math.rad(-16 * swing - 40 * claw),
+			math.rad(10 * swing + 48 * claw)
+		)
 		record.leftLeg.C1 = CFrame.Angles(math.rad(34 * swing * moveScale * record.limp), 0, math.rad(-6))
 		record.rightLeg.C1 = CFrame.Angles(math.rad(-26 * swing * moveScale) + math.rad(6), 0, math.rad(5))
 	end
 end
 
 function ZombieService.update(dt: number, playerPosition: Vector3?)
+	updateCorpses(dt)
 	if not playerPosition then
 		return
 	end
@@ -789,11 +1120,27 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 	local stopZ = Config.Lane.PlayerZ + Config.Zombie.StopDistance
 
 	for _, record in ZombieService.getAlive() do
+		if record.humanoid.MaxHealth ~= record.maxHp or record.humanoid.Health > record.hp + 0.05 then
+			record.humanoid.MaxHealth = record.maxHp
+			record.humanoid.Health = record.hp
+			refreshHealthBar(record)
+		end
+
 		local pos = record.root.Position
 		local focus = resolveTargetPosition(record, playerPosition)
 		local targetX = pos.X
+		local moving = pos.Z > stopZ + 0.15
+		local nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
+		if nextZ < stopZ then
+			nextZ = stopZ
+		end
+
+		local minX, maxX = Config.zombieXBounds(nextZ)
 		if pos.Z <= Config.Zombie.ChaseStartZ then
 			local chaseSpeed = record.walkSpeed * Config.Zombie.ChaseSpeedScale
+			if math.abs(focus.X - pos.X) > 6 then
+				chaseSpeed = record.walkSpeed * 1.15
+			end
 			local dx = focus.X - pos.X
 			local maxStep = chaseSpeed * dt
 			if math.abs(dx) > 0.08 then
@@ -801,21 +1148,16 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 			else
 				targetX = focus.X
 			end
-			local half = Config.Lane.Width / 2 - 3
-			targetX = math.clamp(targetX, -half, half)
 		end
-
-		local moving = pos.Z > stopZ + 0.15
-		local nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
-		if nextZ < stopZ then
-			nextZ = stopZ
-		end
+		targetX = math.clamp(targetX, minX, maxX)
 
 		local attacking = now < record.attackUntil
+		local attackT = 0
 		local lean = 0
 		if attacking then
-			local t = 1 - (record.attackUntil - now) / Config.Zombie.AttackDuration
-			lean = math.sin(t * math.pi) * math.rad(28)
+			attackT = 1 - (record.attackUntil - now) / Config.Zombie.AttackDuration
+			-- Slight lunge only; the claw is on the right arm, not a kick.
+			lean = math.sin(math.clamp(attackT, 0, 1) * math.pi) * math.rad(if record.isDog then 16 else 6)
 		end
 
 		local shamble = Config.Zombie.ShambleSpeed * (if moving then 1.15 else 0.55) * (if record.isDog then 1.45 else record.limp)
@@ -826,9 +1168,9 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		local lurch = math.max(0, math.sin(record.phase * 0.9)) * (if record.isDog then 0 else 0.08)
 
 		if record.motors then
-			applyPrototypePose(record, moving, attacking, lean)
+			applyPrototypePose(record, moving, attacking, attackT)
 		else
-			applyWeldPose(record, moving, attacking)
+			applyWeldPose(record, moving, attacking, attackT)
 		end
 
 		local nextPos = Vector3.new(targetX, record.baseY + bob + lurch, nextZ)
@@ -860,7 +1202,13 @@ function ZombieService.clear()
 			record.model:Destroy()
 		end
 	end
+	for _, record in ZombieService._corpses do
+		if record.model.Parent then
+			record.model:Destroy()
+		end
+	end
 	ZombieService._alive = {}
+	ZombieService._corpses = {}
 	local folder = Workspace:FindFirstChild("Zombies")
 	if folder then
 		folder:ClearAllChildren()

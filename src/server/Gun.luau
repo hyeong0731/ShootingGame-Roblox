@@ -109,6 +109,63 @@ function Gun.attach(character: Model)
 	grip.Parent = handle
 end
 
+function Gun.attachBomb(character: Model)
+	Gun.remove(character)
+
+	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso") or character:FindFirstChild("HumanoidRootPart")
+	if not (torso and torso:IsA("BasePart")) then
+		return
+	end
+
+	local model = Instance.new("Model")
+	model.Name = "Gun"
+	model.Parent = character
+
+	local shell = Color3.fromRGB(42, 46, 40)
+	local metal = Color3.fromRGB(70, 74, 68)
+	local handle = makePart(model, "Handle", Vector3.new(0.9, 1.15, 0.9), shell, Enum.Material.Metal)
+	handle.Shape = Enum.PartType.Ball
+	handle.CFrame = torso.CFrame
+	model.PrimaryPart = handle
+
+	weldTo(handle, makePart(model, "Band", Vector3.new(0.95, 0.16, 0.95), metal, Enum.Material.Metal), CFrame.new(0, 0.12, 0))
+	local cap = makePart(model, "Cap", Vector3.new(0.42, 0.28, 0.42), Color3.fromRGB(28, 30, 26), Enum.Material.Metal)
+	weldTo(handle, cap, CFrame.new(0, 0.62, 0))
+	local fuse = makePart(model, "Fuse", Vector3.new(0.12, 0.45, 0.12), Color3.fromRGB(90, 70, 40), Enum.Material.SmoothPlastic)
+	weldTo(handle, fuse, CFrame.new(0, 0.95, 0))
+	local spark = makePart(model, "Spark", Vector3.new(0.16, 0.16, 0.16), Color3.fromRGB(255, 140, 40), Enum.Material.Neon)
+	weldTo(handle, spark, CFrame.new(0, 1.18, 0))
+
+	local muzzle = makePart(model, "Muzzle", Vector3.new(0.2, 0.2, 0.2), Color3.fromRGB(255, 180, 60), Enum.Material.SmoothPlastic)
+	muzzle.Transparency = 1
+	weldTo(handle, muzzle, CFrame.new(0, 0.2, -0.7))
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "MuzzlePoint"
+	attachment.Parent = muzzle
+
+	local rightGrip = Instance.new("Attachment")
+	rightGrip.Name = "RightGrip"
+	rightGrip.CFrame = CFrame.new(0.2, -0.1, 0.05) * CFrame.Angles(math.rad(90), math.rad(90), 0)
+	rightGrip.Parent = handle
+	local leftGrip = Instance.new("Attachment")
+	leftGrip.Name = "LeftGrip"
+	leftGrip.CFrame = CFrame.new(-0.18, 0.05, 0.05) * CFrame.Angles(math.rad(90), math.rad(90), 0)
+	leftGrip.Parent = handle
+
+	local grip = Instance.new("Weld")
+	grip.Name = "Grip"
+	grip.Part0 = torso
+	grip.Part1 = handle
+	if torso.Name == "UpperTorso" then
+		grip.C0 = CFrame.new(0.55, 0.35, -1.05)
+	elseif torso.Name == "Torso" then
+		grip.C0 = CFrame.new(0.5, 0.4, -0.95)
+	else
+		grip.C0 = CFrame.new(0.5, 1.0, -1.05)
+	end
+	grip.Parent = handle
+end
+
 function Gun.getMuzzlePosition(character: Model): Vector3?
 	local gun = character:FindFirstChild("Gun")
 	if not gun then
