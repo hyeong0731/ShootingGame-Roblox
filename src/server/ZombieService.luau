@@ -908,11 +908,12 @@ local function updateCorpses(dt: number)
 	ZombieService._corpses = keep
 end
 
-function ZombieService.damageModel(model: Model, amount: number): boolean
+function ZombieService.damageModel(model: Model, amount: number, hits: number?): boolean
 	for _, record in ZombieService._alive do
 		if record.model == model and record.alive then
 			if record.isMega == true then
-				record.hitsLeft = math.max(0, (record.hitsLeft or 1) - 1)
+				local hitPower = math.max(1, math.floor(hits or 1))
+				record.hitsLeft = math.max(0, (record.hitsLeft or 1) - hitPower)
 				model:SetAttribute("HitsLeft", record.hitsLeft)
 				if record.hitLabel then
 					record.hitLabel.Text = tostring(record.hitsLeft)

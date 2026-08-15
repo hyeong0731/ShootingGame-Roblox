@@ -4,6 +4,22 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Gun = require(script.Parent.Gun)
 
+local function liveConfig()
+	local module = ReplicatedStorage:FindFirstChild("Shared")
+	local scriptInst = if module then module:FindFirstChild("Config") else nil
+	if not (scriptInst and scriptInst:IsA("ModuleScript")) then
+		return Config
+	end
+	local clone = scriptInst:Clone()
+	clone.Parent = scriptInst.Parent
+	local ok, fresh = pcall(require, clone)
+	clone:Destroy()
+	if ok and typeof(fresh) == "table" then
+		return fresh
+	end
+	return Config
+end
+
 export type SupplyRecord = {
 	model: Model,
 	root: BasePart,
@@ -108,6 +124,53 @@ end
 
 local function setHitLabel(label: TextLabel, hits: number)
 	label.Text = tostring(math.max(0, math.floor(hits)))
+end
+
+local function attachOverheadHits(adornee: BasePart, hits: number, offsetY: number, textColor: Color3, sizeScale: number): TextLabel
+	local s = math.clamp(sizeScale, 0.4, 2.5)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "HitCount"
+	billboard.Size = UDim2.fromOffset(math.floor(52 * s), math.floor(34 * s))
+	billboard.StudsOffset = Vector3.new(0, offsetY, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 240
+	billboard.LightInfluence = 0
+	billboard.Parent = adornee
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.BorderSizePixel = 0
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBlack
+	label.TextColor3 = textColor
+	label.TextStrokeColor3 = Color3.fromRGB(15, 12, 10)
+	label.TextStrokeTransparency = 0
+	label.TextScaled = true
+	label.Parent = billboard
+	local cap = Instance.new("UITextSizeConstraint")
+	cap.MaxTextSize = math.floor(30 * s)
+	cap.MinTextSize = 14
+	cap.Parent = label
+	setHitLabel(label, hits)
+	return label
+end
+
+local function overheadOffset(model: Model, root: BasePart): number
+	local bboxCf, bboxSize = model:GetBoundingBox()
+	return (bboxCf.Position.Y + bboxSize.Y * 0.5) - root.Position.Y + 0.7
+end
+
+local function plantCrate(model: Model, root: BasePart)
+	local scale = Config.Supply.SizeScale
+	if math.abs(scale - 1) > 0.01 then
+		pcall(function()
+			model:ScaleTo(scale)
+		end)
+	end
+	local bboxCf, bboxSize = model:GetBoundingBox()
+	local groundY = Config.Lane.CenterY + Config.Lane.Thickness * 0.5
+	local bottomY = bboxCf.Position.Y - bboxSize.Y * 0.5
+	root.CFrame = root.CFrame + Vector3.new(0, groundY - bottomY, 0)
 end
 
 -- Standing recruit on the crate (idle pose).
@@ -359,33 +422,18 @@ function SupplyService.create(): SupplyRecord?
 
 	buildCrateRecruit(model, root)
 
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "HitCount"
-	billboard.Size = UDim2.fromOffset(34, 22)
-	billboard.StudsOffset = Vector3.new(0, -1.55, 0)
-	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 220
-	billboard.LightInfluence = 0
-	billboard.Parent = root
-
-	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.BorderSizePixel = 0
-	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.GothamBlack
-	label.TextColor3 = Color3.fromRGB(255, 255, 255)
-	label.TextStrokeColor3 = Color3.fromRGB(15, 12, 10)
-	label.TextStrokeTransparency = 0
-	label.TextScaled = true
-	label.Parent = billboard
-	local sizeConstraint = Instance.new("UITextSizeConstraint")
-	sizeConstraint.MaxTextSize = 20
-	sizeConstraint.MinTextSize = 12
-	sizeConstraint.Parent = label
-	setHitLabel(label, hits)
-
 	model.PrimaryPart = root
 	model.Parent = folder
+	plantCrate(model, root)
+
+	local hitScale = liveConfig().Supply.HitLabelScale or 1
+	local label = attachOverheadHits(
+		root,
+		hits,
+		overheadOffset(model, root),
+		Color3.fromRGB(255, 255, 255),
+		hitScale
+	)
 
 	local record: SupplyRecord = {
 		model = model,
@@ -409,7 +457,7 @@ function SupplyService.createBomb(): SupplyRecord?
 	local y = Config.Lane.CenterY + 1.6
 	local z = Config.Lane.SpawnZ
 	local position = Vector3.new(x, y, z)
-	local hits = math.random(Config.BombCrate.HitCountMin, Config.BombCrate.HitCountMax)
+	local hits = Config.BombCrate.HitCount
 
 	local model = Instance.new("Model")
 	model.Name = "BombCrate"
@@ -433,33 +481,18 @@ function SupplyService.createBomb(): SupplyRecord?
 	weldConstraint(root, stripe)
 	buildCrateBomb(model, root)
 
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "HitCount"
-	billboard.Size = UDim2.fromOffset(34, 22)
-	billboard.StudsOffset = Vector3.new(0, -1.55, 0)
-	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 220
-	billboard.LightInfluence = 0
-	billboard.Parent = root
-
-	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.BorderSizePixel = 0
-	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.GothamBlack
-	label.TextColor3 = Color3.fromRGB(255, 210, 120)
-	label.TextStrokeColor3 = Color3.fromRGB(15, 12, 10)
-	label.TextStrokeTransparency = 0
-	label.TextScaled = true
-	label.Parent = billboard
-	local sizeConstraint = Instance.new("UITextSizeConstraint")
-	sizeConstraint.MaxTextSize = 20
-	sizeConstraint.MinTextSize = 12
-	sizeConstraint.Parent = label
-	setHitLabel(label, hits)
-
 	model.PrimaryPart = root
 	model.Parent = folder
+	plantCrate(model, root)
+
+	local hitScale = liveConfig().BombCrate.HitLabelScale or 1
+	local label = attachOverheadHits(
+		root,
+		hits,
+		overheadOffset(model, root),
+		Color3.fromRGB(255, 210, 120),
+		hitScale
+	)
 
 	local record: SupplyRecord = {
 		model = model,
@@ -580,10 +613,11 @@ local function recruitFrom(record: SupplyRecord)
 	end
 end
 
-function SupplyService.damageModel(model: Model, _damage: number): boolean
+function SupplyService.damageModel(model: Model, hits: number?): boolean
+	local hitPower = math.max(1, math.floor(hits or 1))
 	for _, record in supplies do
 		if record.model == model and record.alive then
-			record.hitsLeft -= 1
+			record.hitsLeft -= hitPower
 			model:SetAttribute("HitsLeft", record.hitsLeft)
 			setHitLabel(record.label, record.hitsLeft)
 			if record.hitsLeft <= 0 then

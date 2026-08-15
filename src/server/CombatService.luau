@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local ZombieService = require(script.Parent.ZombieService)
 local SupplyService = require(script.Parent.SupplyService)
+local NumberGate = require(script.Parent.NumberGate)
 
 local CombatService = {}
 CombatService._remotes = nil :: any
@@ -14,6 +15,7 @@ local active = {} :: {
 		direction: Vector3,
 		speed: number,
 		damage: number,
+		hits: number,
 		born: number,
 	}
 }
@@ -114,7 +116,7 @@ function CombatService.throwBomb(origin: Vector3)
 	})
 end
 
-function CombatService.fireStraight(origin: Vector3, damage: number)
+function CombatService.fireStraight(origin: Vector3, damage: number, hits: number?)
 	local direction = Vector3.new(0, 0, 1)
 	local part = spawnBolt(origin, direction)
 	table.insert(active, {
@@ -122,8 +124,19 @@ function CombatService.fireStraight(origin: Vector3, damage: number)
 		direction = direction,
 		speed = Config.Combat.ProjectileSpeed,
 		damage = damage,
+		hits = math.max(1, math.floor(hits or 1)),
 		born = os.clock(),
 	})
+end
+
+local function applyShot(model: Model, damage: number, hits: number): boolean
+	if model:GetAttribute("IsNumberGate") == true then
+		return NumberGate.damageModel(model, hits)
+	end
+	if model:GetAttribute("IsSupply") == true then
+		return SupplyService.damageModel(model, hits)
+	end
+	return ZombieService.damageModel(model, damage, hits)
 end
 
 local function pointToSegmentDist(point: Vector3, a: Vector3, b: Vector3): (number, Vector3)
@@ -138,7 +151,7 @@ local function pointToSegmentDist(point: Vector3, a: Vector3, b: Vector3): (numb
 end
 
 -- Backup when spherecast misses thin/low targets (esp. dogs).
-local function proximityHit(from: Vector3, to: Vector3, damage: number): (boolean, Vector3?, boolean?)
+local function proximityHit(from: Vector3, to: Vector3, damage: number, hits: number): (boolean, Vector3?, boolean?)
 	local bestDist = math.huge
 	local bestPos: Vector3? = nil
 	local bestModel: Model? = nil
@@ -166,7 +179,27 @@ local function proximityHit(from: Vector3, to: Vector3, damage: number): (boolea
 				if root and root:IsA("BasePart") then
 					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
 					local dist, closest = pointToSegmentDist(flatPoint, from, to)
-					if dist <= 3.4 and dist < bestDist then
+					if dist <= 3.4 * Config.Supply.SizeScale and dist < bestDist then
+						bestDist = dist
+						bestPos = closest
+						bestModel = child
+						bestBoss = false
+					end
+				end
+			end
+		end
+	end
+
+	local gatesFolder = Workspace:FindFirstChild("NumberGates")
+	if gatesFolder then
+		for _, child in gatesFolder:GetChildren() do
+			if child:IsA("Model") and child:GetAttribute("IsNumberGate") == true then
+				local root = child.PrimaryPart or child:FindFirstChild("HumanoidRootPart")
+				if root and root:IsA("BasePart") then
+					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
+					local dist, closest = pointToSegmentDist(flatPoint, from, to)
+					local reach = Config.NumberGate.Width * 0.5 + 1.2
+					if dist <= reach and dist < bestDist then
 						bestDist = dist
 						bestPos = closest
 						bestModel = child
@@ -178,13 +211,7 @@ local function proximityHit(from: Vector3, to: Vector3, damage: number): (boolea
 	end
 
 	if bestModel and bestPos then
-		local damaged = false
-		if bestModel:GetAttribute("IsSupply") == true then
-			damaged = SupplyService.damageModel(bestModel, damage)
-		else
-			damaged = ZombieService.damageModel(bestModel, damage)
-		end
-		return damaged, bestPos, bestBoss
+		return applyShot(bestModel, damage, hits), bestPos, bestBoss
 	end
 	return false, nil, nil
 end
@@ -201,6 +228,10 @@ function CombatService.update(dt: number)
 	local suppliesFolder = Workspace:FindFirstChild("Supplies")
 	if suppliesFolder then
 		table.insert(filter, suppliesFolder)
+	end
+	local gatesFolder = Workspace:FindFirstChild("NumberGates")
+	if gatesFolder then
+		table.insert(filter, gatesFolder)
 	end
 	params.FilterDescendantsInstances = filter
 
@@ -230,18 +261,14 @@ function CombatService.update(dt: number)
 				model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
 			end
 			if model then
-				if model:GetAttribute("IsSupply") == true then
-					damaged = SupplyService.damageModel(model, shot.damage)
-				else
-					damaged = ZombieService.damageModel(model, shot.damage)
-				end
+				damaged = applyShot(model, shot.damage, shot.hits)
 				hitPos = result.Position
 				hitBoss = model:GetAttribute("IsBoss") == true
 			end
 		end
 
 		if not damaged then
-			local ok, pos, boss = proximityHit(castFrom, nextPos + shot.direction * 2, shot.damage)
+			local ok, pos, boss = proximityHit(castFrom, nextPos + shot.direction * 2, shot.damage, shot.hits)
 			if ok and pos then
 				damaged = true
 				hitPos = pos

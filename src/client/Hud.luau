@@ -289,6 +289,70 @@ local function createWeaponButton(parent: Instance): Frame
 	return btn
 end
 
+local function createHitCountBadge(parent: Instance): Frame
+	local weaponSize = Config.Hud.WeaponButtonSize
+	local badge = Instance.new("Frame")
+	badge.Name = "CurrentHits"
+	badge.BackgroundColor3 = Color3.fromRGB(168, 212, 236)
+	badge.BorderSizePixel = 0
+	badge.Size = UDim2.fromOffset(math.floor(weaponSize * 1.45), weaponSize)
+	badge.Position = UDim2.new(0.02, weaponSize + 12, 0.22, 0)
+	badge.ZIndex = 1
+	badge.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.16, 0)
+	corner.Parent = badge
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = math.max(3, math.floor(weaponSize / 22))
+	stroke.Color = Color3.fromRGB(0, 0, 0)
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = badge
+
+	addStuds(badge)
+
+	local value = Instance.new("TextLabel")
+	value.Name = "Value"
+	value.BackgroundTransparency = 1
+	value.Size = UDim2.new(1, -8, 0.58, 0)
+	value.Position = UDim2.new(0.5, 0, 0.08, 0)
+	value.AnchorPoint = Vector2.new(0.5, 0)
+	value.Font = Enum.Font.GothamBlack
+	value.Text = "현재타수 : 1"
+	value.TextColor3 = Color3.fromRGB(20, 28, 48)
+	value.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+	value.TextStrokeTransparency = 0.35
+	value.TextScaled = true
+	value.ZIndex = 5
+	value.Parent = badge
+	local valueConstraint = Instance.new("UITextSizeConstraint")
+	valueConstraint.MaxTextSize = 22
+	valueConstraint.MinTextSize = 11
+	valueConstraint.Parent = value
+
+	local caption = Instance.new("TextLabel")
+	caption.Name = "Caption"
+	caption.BackgroundTransparency = 1
+	caption.Size = UDim2.new(1, -6, 0.3, 0)
+	caption.Position = UDim2.new(0.5, 0, 0.98, 0)
+	caption.AnchorPoint = Vector2.new(0.5, 1)
+	caption.Font = Enum.Font.GothamBlack
+	caption.Text = "현재 타수"
+	caption.TextColor3 = Color3.fromRGB(255, 255, 255)
+	caption.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	caption.TextStrokeTransparency = 0
+	caption.TextScaled = true
+	caption.ZIndex = 5
+	caption.Parent = badge
+	local capConstraint = Instance.new("UITextSizeConstraint")
+	capConstraint.MaxTextSize = 22
+	capConstraint.MinTextSize = 12
+	capConstraint.Parent = caption
+
+	return badge
+end
+
 function Hud.start()
 	local player = Players.LocalPlayer
 	local gui = Instance.new("ScreenGui")
@@ -331,16 +395,176 @@ function Hud.start()
 	bombOutline.Parent = bombTime
 
 	local timer = textLabel(gui, "Timer", {
-		Size = UDim2.new(0.28, 0, 0.04, 0),
-		Position = UDim2.new(0.5, 0, 0.185, 0),
-		AnchorPoint = Vector2.new(0.5, 0),
-		Align = Enum.TextXAlignment.Center,
+		Size = UDim2.new(0.16, 0, 0.055, 0),
+		Position = UDim2.new(0.67, 0, 0.04, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		Align = Enum.TextXAlignment.Right,
 	})
 	timer.Text = "0:00"
 	timer.TextTransparency = 0.1
 
 	local weaponBtn = createWeaponButton(gui)
 	weaponBtn.Visible = false
+	local hitBadge = createHitCountBadge(gui)
+	hitBadge.Visible = false
+
+	if Config.Debug.Enabled then
+		local debugPanel = Instance.new("Frame")
+		debugPanel.Name = "DevRounds"
+		debugPanel.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
+		debugPanel.BackgroundTransparency = 0.25
+		debugPanel.BorderSizePixel = 0
+		debugPanel.Size = UDim2.fromOffset(168, 214)
+		debugPanel.Position = UDim2.new(1, -12, 0.22, 0)
+		debugPanel.AnchorPoint = Vector2.new(1, 0)
+		debugPanel.ZIndex = 8
+		debugPanel.Parent = gui
+		Instance.new("UICorner", debugPanel).CornerRadius = UDim.new(0, 10)
+		local debugStroke = Instance.new("UIStroke")
+		debugStroke.Color = Color3.fromRGB(255, 180, 40)
+		debugStroke.Thickness = 2
+		debugStroke.Parent = debugPanel
+
+		local title = Instance.new("TextLabel")
+		title.Name = "Title"
+		title.BackgroundTransparency = 1
+		title.Size = UDim2.new(1, -8, 0, 22)
+		title.Position = UDim2.fromOffset(4, 4)
+		title.Font = Enum.Font.GothamBlack
+		title.Text = "DEV 라운드"
+		title.TextColor3 = Color3.fromRGB(255, 200, 70)
+		title.TextScaled = true
+		title.ZIndex = 9
+		title.Parent = debugPanel
+
+		local grid = Instance.new("Frame")
+		grid.Name = "Buttons"
+		grid.BackgroundTransparency = 1
+		grid.Size = UDim2.new(1, -12, 1, -78)
+		grid.Position = UDim2.fromOffset(6, 28)
+		grid.ZIndex = 9
+		grid.Parent = debugPanel
+		local layout = Instance.new("UIGridLayout")
+		layout.CellSize = UDim2.fromOffset(48, 32)
+		layout.CellPadding = UDim2.fromOffset(6, 6)
+		layout.FillDirectionMaxCells = 3
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Parent = grid
+
+		local remotes = ReplicatedStorage:WaitForChild("Remotes")
+		local setRound = remotes:WaitForChild("DebugSetRound")
+		for i, round in Config.Debug.RoundButtons do
+			local btn = Instance.new("TextButton")
+			btn.Name = `Round{round}`
+			btn.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
+			btn.BorderSizePixel = 0
+			btn.Font = Enum.Font.GothamBold
+			btn.Text = tostring(round)
+			btn.TextColor3 = Color3.new(1, 1, 1)
+			btn.TextScaled = true
+			btn.AutoButtonColor = true
+			btn.LayoutOrder = i
+			btn.ZIndex = 10
+			btn.Parent = grid
+			Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+			btn.MouseButton1Click:Connect(function()
+				if setRound:IsA("RemoteEvent") then
+					setRound:FireServer(round)
+				end
+			end)
+		end
+
+		local scaleRow = Instance.new("Frame")
+		scaleRow.Name = "GateScale"
+		scaleRow.BackgroundTransparency = 1
+		scaleRow.Size = UDim2.new(1, -12, 0, 44)
+		scaleRow.Position = UDim2.new(0, 6, 1, -50)
+		scaleRow.ZIndex = 9
+		scaleRow.Parent = debugPanel
+
+		local scaleTitle = Instance.new("TextLabel")
+		scaleTitle.BackgroundTransparency = 1
+		scaleTitle.Size = UDim2.new(1, 0, 0, 16)
+		scaleTitle.Font = Enum.Font.GothamBold
+		scaleTitle.Text = "x2 크기"
+		scaleTitle.TextColor3 = Color3.fromRGB(255, 200, 70)
+		scaleTitle.TextScaled = true
+		scaleTitle.ZIndex = 10
+		scaleTitle.Parent = scaleRow
+
+		local minus = Instance.new("TextButton")
+		minus.Name = "Minus"
+		minus.Size = UDim2.fromOffset(32, 24)
+		minus.Position = UDim2.new(0, 0, 0, 18)
+		minus.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
+		minus.BorderSizePixel = 0
+		minus.Font = Enum.Font.GothamBold
+		minus.Text = "-"
+		minus.TextColor3 = Color3.new(1, 1, 1)
+		minus.TextScaled = true
+		minus.ZIndex = 10
+		minus.Parent = scaleRow
+		Instance.new("UICorner", minus).CornerRadius = UDim.new(0, 6)
+
+		local scaleValue = Instance.new("TextLabel")
+		scaleValue.Name = "Value"
+		scaleValue.BackgroundTransparency = 1
+		scaleValue.Size = UDim2.new(1, -72, 0, 24)
+		scaleValue.Position = UDim2.new(0, 36, 0, 18)
+		scaleValue.Font = Enum.Font.GothamBlack
+		scaleValue.Text = "1.00"
+		scaleValue.TextColor3 = Color3.new(1, 1, 1)
+		scaleValue.TextScaled = true
+		scaleValue.ZIndex = 10
+		scaleValue.Parent = scaleRow
+
+		local plus = Instance.new("TextButton")
+		plus.Name = "Plus"
+		plus.Size = UDim2.fromOffset(32, 24)
+		plus.Position = UDim2.new(1, -32, 0, 18)
+		plus.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
+		plus.BorderSizePixel = 0
+		plus.Font = Enum.Font.GothamBold
+		plus.Text = "+"
+		plus.TextColor3 = Color3.new(1, 1, 1)
+		plus.TextScaled = true
+		plus.ZIndex = 10
+		plus.Parent = scaleRow
+		Instance.new("UICorner", plus).CornerRadius = UDim.new(0, 6)
+
+		local setScale = remotes:WaitForChild("DebugGateLabel")
+		local function currentScale(): number
+			local state = ReplicatedStorage:FindFirstChild("GameState")
+			local value = if state then state:GetAttribute("GateLabelScale") else nil
+			if typeof(value) == "number" then
+				return value
+			end
+			return Config.NumberGate.LabelScale
+		end
+		local function refreshScale()
+			scaleValue.Text = string.format("%.2f", currentScale())
+		end
+		refreshScale()
+		task.spawn(function()
+			local state = ReplicatedStorage:WaitForChild("GameState")
+			state.AttributeChanged:Connect(function(name)
+				if name == "GateLabelScale" then
+					refreshScale()
+				end
+			end)
+			refreshScale()
+		end)
+		minus.MouseButton1Click:Connect(function()
+			if setScale:IsA("RemoteEvent") then
+				setScale:FireServer(currentScale() - 0.1)
+			end
+		end)
+		plus.MouseButton1Click:Connect(function()
+			if setScale:IsA("RemoteEvent") then
+				setScale:FireServer(currentScale() + 0.1)
+			end
+		end)
+	end
 
 	local banner = textLabel(gui, "Banner", {
 		Size = UDim2.new(0.7, 0, 0.1, 0),
@@ -411,11 +635,17 @@ function Hud.start()
 		timer.Text = string.format("%d:%02d", minutes, seconds)
 		waveLabel.Text = `라운드 {wave}`
 		kills.Text = `처치 {formatKills(killCount)}`
+		local hitPower = state:GetAttribute("HitPower") or 1
+		local hitValue = hitBadge:FindFirstChild("Value")
+		if hitValue and hitValue:IsA("TextLabel") then
+			hitValue.Text = `현재타수 : {hitPower}`
+		end
 		local isLobby = currentPhase == "lobby"
 		kills.Visible = not isLobby
 		timer.Visible = not isLobby
 		waveLabel.Visible = not isLobby
 		weaponBtn.Visible = not isLobby
+		hitBadge.Visible = not isLobby
 		ensureWorldBar(currentPhase)
 
 		local bombLeft = state:GetAttribute("BombLeft") or 0
@@ -423,11 +653,9 @@ function Hud.start()
 		if currentPhase == "playing" and bombLeft > 0 then
 			bombTime.Visible = true
 			bombTime.Text = `폭탄 {bombLeft}초`
-			timer.Position = UDim2.new(0.5, 0, 0.185, 0)
 		else
 			bombTime.Visible = false
 			bombTime.Text = ""
-			timer.Position = UDim2.new(0.5, 0, 0.088, 0)
 		end
 
 		if currentPhase == "lobby" then
