@@ -457,7 +457,7 @@ function SupplyService.createBomb(): SupplyRecord?
 	local y = Config.Lane.CenterY + 1.6
 	local z = Config.Lane.SpawnZ
 	local position = Vector3.new(x, y, z)
-	local hits = Config.BombCrate.HitCount
+	local hits = math.random(Config.BombCrate.HitCountMin, Config.BombCrate.HitCountMax)
 
 	local model = Instance.new("Model")
 	model.Name = "BombCrate"
@@ -642,6 +642,27 @@ function SupplyService.damageModel(model: Model, hits: number?): boolean
 		end
 	end
 	return false
+end
+
+function SupplyService.damageInRadius(position: Vector3, radius: number, hits: number): number
+	local hit = 0
+	local snapshot = {}
+	for _, record in supplies do
+		table.insert(snapshot, record)
+	end
+	local reach = radius + 3.4 * Config.Supply.SizeScale
+	for _, record in snapshot do
+		if not (record.alive and record.model.Parent) then
+			continue
+		end
+		local offset = record.root.Position - position
+		if offset.X * offset.X + offset.Z * offset.Z <= reach * reach then
+			if SupplyService.damageModel(record.model, hits) then
+				hit += 1
+			end
+		end
+	end
+	return hit
 end
 
 local ALLY_STRAFE_YAW = math.rad(38)

@@ -23,8 +23,11 @@ local active = {} :: {
 local bombs = {} :: {
 	{
 		part: BasePart,
-		velocity: Vector3,
+		direction: Vector3,
+		speed: number,
 		born: number,
+		hits: number,
+		startZ: number,
 	}
 }
 
@@ -89,30 +92,29 @@ local function spawnThrownBomb(origin: Vector3): BasePart
 	return bomb
 end
 
-local function explodeAt(position: Vector3)
+local function explodeAt(position: Vector3, hits: number)
 	local cfg = Config.BombCrate
-	ZombieService.damageInRadius(position, cfg.Radius, cfg.Damage)
+	local numberedHits = math.max(cfg.HitDamage, math.max(1, math.floor(hits)))
+	ZombieService.damageInRadius(position, cfg.Radius, cfg.Damage, numberedHits)
+	SupplyService.damageInRadius(position, cfg.Radius, numberedHits)
+	NumberGate.damageInRadius(position, cfg.Radius, numberedHits)
 	if CombatService._remotes then
 		CombatService._remotes.ExplodeFx:FireAllClients(position, cfg.Radius)
 	end
 end
 
-function CombatService.throwBomb(origin: Vector3)
+function CombatService.throwBomb(origin: Vector3, hits: number?)
 	local cfg = Config.BombCrate
 	local part = spawnThrownBomb(origin)
-	local target = Vector3.new(origin.X, Config.Lane.CenterY + 1.15, origin.Z + cfg.ThrowDistance)
-	local flight = cfg.FlightTime
-	local gravity = cfg.Gravity
-	local disp = target - origin
-	local velocity = Vector3.new(
-		disp.X / flight,
-		disp.Y / flight + 0.5 * gravity * flight,
-		disp.Z / flight
-	)
+	local direction = Vector3.new(0, 0, 1)
+	local speed = cfg.ThrowDistance / math.max(0.05, cfg.FlightTime)
 	table.insert(bombs, {
 		part = part,
-		velocity = velocity,
+		direction = direction,
+		speed = speed,
 		born = os.clock(),
+		hits = math.max(1, math.floor(hits or 1)),
+		startZ = origin.Z,
 	})
 end
 
@@ -216,6 +218,59 @@ local function proximityHit(from: Vector3, to: Vector3, damage: number, hits: nu
 	return false, nil, nil
 end
 
+local function bombProximityHit(from: Vector3, to: Vector3): Vector3?
+	local bestDist = math.huge
+	local bestPos: Vector3? = nil
+
+	for _, record in ZombieService.getAlive() do
+		local radius = (record.model:GetAttribute("HitRadius") :: number?) or Config.Zombie.HitRadius
+		local flatPoint = Vector3.new(record.root.Position.X, from.Y, record.root.Position.Z)
+		local dist, closest = pointToSegmentDist(flatPoint, from, to)
+		local pad = if record.isDog then 1.6 else 0.85
+		if dist <= radius + pad and dist < bestDist then
+			bestDist = dist
+			bestPos = Vector3.new(closest.X, record.root.Position.Y + 1.2, closest.Z)
+		end
+	end
+
+	local suppliesFolder = Workspace:FindFirstChild("Supplies")
+	if suppliesFolder then
+		for _, child in suppliesFolder:GetChildren() do
+			if child:IsA("Model") and child:GetAttribute("IsSupply") == true then
+				local root = child.PrimaryPart or child:FindFirstChild("HumanoidRootPart")
+				if root and root:IsA("BasePart") then
+					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
+					local dist, closest = pointToSegmentDist(flatPoint, from, to)
+					if dist <= 3.4 * Config.Supply.SizeScale and dist < bestDist then
+						bestDist = dist
+						bestPos = closest
+					end
+				end
+			end
+		end
+	end
+
+	local gatesFolder = Workspace:FindFirstChild("NumberGates")
+	if gatesFolder then
+		for _, child in gatesFolder:GetChildren() do
+			if child:IsA("Model") and child:GetAttribute("IsNumberGate") == true then
+				local root = child.PrimaryPart or child:FindFirstChild("HumanoidRootPart")
+				if root and root:IsA("BasePart") then
+					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
+					local dist, closest = pointToSegmentDist(flatPoint, from, to)
+					local reach = Config.NumberGate.Width * 0.5 + 1.2
+					if dist <= reach and dist < bestDist then
+						bestDist = dist
+						bestPos = closest
+					end
+				end
+			end
+		end
+	end
+
+	return bestPos
+end
+
 function CombatService.update(dt: number)
 	local keep = {}
 	local params = RaycastParams.new()
@@ -291,7 +346,6 @@ function CombatService.update(dt: number)
 	end
 	active = keep
 
-	local groundY = Config.Lane.CenterY + Config.Lane.Thickness * 0.5 + 0.7
 	local bombKeep = {}
 	local bombParams = RaycastParams.new()
 	bombParams.FilterType = Enum.RaycastFilterType.Include
@@ -299,6 +353,14 @@ function CombatService.update(dt: number)
 	local zombiesFolder2 = Workspace:FindFirstChild("Zombies")
 	if zombiesFolder2 then
 		table.insert(bombFilter, zombiesFolder2)
+	end
+	local suppliesFolder2 = Workspace:FindFirstChild("Supplies")
+	if suppliesFolder2 then
+		table.insert(bombFilter, suppliesFolder2)
+	end
+	local gatesFolder2 = Workspace:FindFirstChild("NumberGates")
+	if gatesFolder2 then
+		table.insert(bombFilter, gatesFolder2)
 	end
 	bombParams.FilterDescendantsInstances = bombFilter
 
@@ -309,24 +371,24 @@ function CombatService.update(dt: number)
 		if now - bomb.born > 2.4 then
 			local pos = bomb.part.Position
 			bomb.part:Destroy()
-			explodeAt(pos)
+			explodeAt(pos, bomb.hits)
 			continue
 		end
 
-		local nextVel = bomb.velocity + Vector3.new(0, -Config.BombCrate.Gravity, 0) * dt
-		local nextPos = bomb.part.Position + nextVel * dt
+		local nextPos = bomb.part.Position + bomb.direction * bomb.speed * dt
 		local travel = nextPos - bomb.part.Position
-		local hit = Workspace:Spherecast(bomb.part.Position, 1.15, travel, bombParams)
-		local landed = nextPos.Y <= groundY
-		if hit or landed then
-			local pos = if hit then hit.Position else Vector3.new(nextPos.X, groundY, nextPos.Z)
+		local hit = Workspace:Spherecast(bomb.part.Position, 1.35, travel, bombParams)
+		local nearPos = bombProximityHit(bomb.part.Position, nextPos + bomb.direction * 2)
+		local reachedEnd = nextPos.Z >= bomb.startZ + Config.BombCrate.ThrowDistance
+		if hit or nearPos or reachedEnd then
+			local pos = if hit then hit.Position elseif nearPos then nearPos else nextPos
 			bomb.part:Destroy()
-			explodeAt(pos)
+			explodeAt(pos, bomb.hits)
 			continue
 		end
 
-		bomb.velocity = nextVel
-		bomb.part.CFrame = CFrame.new(nextPos)
+		local spin = (now - bomb.born) * 10
+		bomb.part.CFrame = CFrame.new(nextPos) * CFrame.Angles(spin, 0, spin * 0.35)
 		local fuse = bomb.part:FindFirstChild("Fuse")
 		if fuse and fuse:IsA("BasePart") then
 			fuse.CFrame = bomb.part.CFrame * CFrame.new(0, 0.7, 0)

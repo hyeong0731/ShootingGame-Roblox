@@ -28,9 +28,15 @@ local matchStart = 0
 local lastSpawnAt = 0
 local lastSupplySpawnAt = 0
 local lastBombSpawnAt = 0
+local lastGateSpawnAt = 0
+local lastSidePathSpawnAt = 0
 local bombRoundArmed = false
 local megaBossSpawned = false
-local numberGateSpawned = false
+local eliteBossesSpawned = false
+local finalBossSpawned = false
+local introGateSpawned = false
+local plusGateSpawned = false
+local gatePlayArmed = false
 local hitPower = 1
 local nextIsBossAt = Config.Boss.EveryNKills
 local heartbeatConn: RBXScriptConnection?
@@ -117,6 +123,24 @@ local function teleportToLane(character: Model)
 	Gun.attach(character)
 end
 
+local function currentUnitDamage(): number
+	local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
+	return Config.unitDamageForWave(wave)
+end
+
+local function delayBombAfterGate()
+	lastBombSpawnAt = os.clock() - Config.BombCrate.SpawnInterval + Config.BombCrate.AfterGateDelay
+	bombRoundArmed = true
+end
+
+local function markSidePathSpawn()
+	lastSidePathSpawnAt = os.clock()
+end
+
+local function sidePathReady(now: number): boolean
+	return (now - lastSidePathSpawnAt) >= Config.BombCrate.AfterGateDelay
+end
+
 local function currentStats()
 	local elapsed = math.max(0, os.clock() - matchStart)
 	local health = Config.Zombie.Health + kills * Config.Infinite.HealthPerKill
@@ -135,6 +159,10 @@ local function currentStats()
 		gap *= Config.Pressure.SpawnGapScale
 		maxAlive += Config.Pressure.MaxAliveBonus
 	end
+	if wave >= Config.FinalBoss.Round then
+		maxAlive = Config.FinalBoss.MaxAlive
+		gap = Config.FinalBoss.SpawnGap
+	end
 	return {
 		health = health,
 		speed = speed,
@@ -147,13 +175,13 @@ local function spawnOne()
 	local stats = currentStats()
 	local slots = Config.Infinite.LaneSlots
 	local x = slots[math.random(1, #slots)]
-	local isBoss = kills >= nextIsBossAt
+	local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
+	local isBoss = wave < Config.FinalBoss.Round and kills >= nextIsBossAt
 	if isBoss then
 		nextIsBossAt += Config.Boss.EveryNKills
 		x = slots[math.ceil(#slots / 2)]
 	end
 
-	local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
 	local dogCfg = Config.ZombieDog
 	local dogChance = if wave >= Config.Pressure.UnlockRound
 		then Config.Pressure.DogSpawnChance
@@ -194,46 +222,140 @@ local function spawnOne()
 	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 end
 
-local function spawnMegaBoss()
+local function spawnMegaBossAt(x: number, hitCount: number, elite: boolean, appearance: {
+	scale: number?,
+	walkSpeed: number?,
+	contactDamage: number?,
+}?)
 	local cfg = Config.MegaBoss
-	local slots = Config.Infinite.LaneSlots
-	local x = slots[math.ceil(#slots / 2)]
+	local scale = if appearance and appearance.scale then appearance.scale else cfg.SizeScale
+	local walkSpeed = if appearance and appearance.walkSpeed then appearance.walkSpeed else cfg.WalkSpeed
+	local contactDamage = if appearance and appearance.contactDamage then appearance.contactDamage else cfg.ContactDamage
 	local spawnZ = Config.Lane.SpawnZ
-	local y = Config.Lane.CenterY + 2.4 * cfg.SizeScale
+	local y = Config.Lane.CenterY + 2.4 * scale
 	local zombie = ZombieService.create(Vector3.new(x, y, spawnZ), {
-		health = cfg.HitCount,
-		walkSpeed = cfg.WalkSpeed,
+		health = hitCount,
+		walkSpeed = walkSpeed,
 		isBoss = true,
 		isMega = true,
 		isDog = false,
-		contactDamage = cfg.ContactDamage,
-		scale = cfg.SizeScale,
+		contactDamage = contactDamage,
+		scale = scale,
+		hitCount = hitCount,
 	})
+	if elite then
+		zombie.model:SetAttribute("IsEliteBoss", true)
+	end
 	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 end
 
-local function spawnNumberGate()
-	if numberGateSpawned then
+local function spawnMegaBoss()
+	local slots = Config.Infinite.LaneSlots
+	local x = slots[math.ceil(#slots / 2)]
+	spawnMegaBossAt(x, Config.MegaBoss.HitCount, false)
+end
+
+local function spawnFinalBoss()
+	local cfg = Config.FinalBoss
+	local hits = math.random(cfg.HitCountMin, cfg.HitCountMax)
+	local slots = Config.Infinite.LaneSlots
+	local x = slots[math.ceil(#slots / 2)]
+	spawnMegaBossAt(x, hits, false, {
+		scale = cfg.SizeScale,
+		walkSpeed = cfg.WalkSpeed,
+		contactDamage = cfg.ContactDamage,
+	})
+end
+
+local function spawnEliteBosses()
+	local cfg = Config.EliteBosses
+	local minHits = math.max(1, math.floor(cfg.HitCountMin))
+	local maxHits = math.max(minHits, math.floor(cfg.HitCountMax))
+	local slots = Config.Infinite.LaneSlots
+	local count = math.max(1, math.floor(cfg.Count))
+	for i = 1, count do
+		local t = if count == 1 then 0.5 else (i - 1) / (count - 1)
+		local index = 1 + math.floor(t * (#slots - 1) + 0.5)
+		local hits = math.random(minHits, maxHits)
+		spawnMegaBossAt(slots[index], hits, true)
+	end
+end
+
+local function spawnIntroGate()
+	if introGateSpawned then
 		return
 	end
-	if NumberGate.create() then
-		numberGateSpawned = true
+	if NumberGate.createIntro() then
+		introGateSpawned = true
+		markSidePathSpawn()
+		delayBombAfterGate()
+	end
+end
+
+local function spawnPlusGate()
+	if plusGateSpawned then
+		return
+	end
+	if NumberGate.createPlusIntro() then
+		plusGateSpawned = true
+		markSidePathSpawn()
+		delayBombAfterGate()
 	end
 end
 
 local function respawnNumberGate()
 	NumberGate.clear()
-	numberGateSpawned = false
-	spawnNumberGate()
+	local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
+	if wave >= Config.NumberGate.PlayRound then
+		NumberGate.createRandom()
+	elseif wave >= Config.NumberGate.PlusRound then
+		plusGateSpawned = false
+		spawnPlusGate()
+	elseif wave >= Config.NumberGate.UnlockRound then
+		introGateSpawned = false
+		spawnIntroGate()
+	end
 end
 
 local function applyRoundFeatures(wave: number)
-	if wave >= Config.MegaBoss.Round and not megaBossSpawned then
+	if wave >= Config.FinalBoss.Round then
+		if not finalBossSpawned then
+			finalBossSpawned = true
+			eliteBossesSpawned = true
+			megaBossSpawned = true
+			setState("Announce", Config.FinalBoss.IntroText)
+			spawnFinalBoss()
+			task.delay(Config.FinalBoss.IntroDuration, function()
+				if (stateFolder:GetAttribute("Announce") or "") == Config.FinalBoss.IntroText then
+					setState("Announce", "")
+				end
+			end)
+		end
+	elseif wave >= Config.EliteBosses.UnlockRound then
+		if not eliteBossesSpawned then
+			eliteBossesSpawned = true
+			megaBossSpawned = true
+			spawnEliteBosses()
+		end
+	elseif wave >= Config.MegaBoss.Round and not megaBossSpawned then
 		megaBossSpawned = true
 		spawnMegaBoss()
 	end
-	if wave >= Config.NumberGate.UnlockRound then
-		spawnNumberGate()
+	if wave >= Config.NumberGate.PlayRound then
+		if not gatePlayArmed then
+			gatePlayArmed = true
+			if NumberGate.createRandom() then
+				lastGateSpawnAt = os.clock()
+				markSidePathSpawn()
+				delayBombAfterGate()
+			else
+				lastGateSpawnAt = os.clock() - Config.NumberGate.SpawnInterval
+			end
+		end
+	elseif wave >= Config.NumberGate.PlusRound then
+		spawnPlusGate()
+	elseif wave >= Config.NumberGate.UnlockRound then
+		spawnIntroGate()
 	end
 	if wave >= Config.BombCrate.UnlockRound and not bombRoundArmed then
 		bombRoundArmed = true
@@ -248,8 +370,12 @@ local function beginPlay()
 	-- First crate at FirstSpawnDelay, then every SpawnInterval after that.
 	lastSupplySpawnAt = matchStart - Config.Supply.SpawnInterval + Config.Supply.FirstSpawnDelay
 	lastBombSpawnAt = 0
+	lastSidePathSpawnAt = 0
 	bombRoundArmed = false
-	numberGateSpawned = false
+	introGateSpawned = false
+	plusGateSpawned = false
+	gatePlayArmed = false
+	lastGateSpawnAt = 0
 	hitPower = 1
 	setState("Phase", "playing")
 	setState("Kills", kills)
@@ -266,6 +392,7 @@ end
 
 local function jumpToRound(round: number)
 	round = math.clamp(math.floor(round), 1, 20)
+	local keptHitPower = hitPower
 	if phase == "lobby" then
 		kills = 0
 		nextIsBossAt = Config.Boss.EveryNKills
@@ -275,7 +402,11 @@ local function jumpToRound(round: number)
 		NumberGate.clear()
 		hitPower = 1
 		megaBossSpawned = false
-		numberGateSpawned = false
+		eliteBossesSpawned = false
+		finalBossSpawned = false
+		introGateSpawned = false
+		plusGateSpawned = false
+		gatePlayArmed = false
 		bombRoundArmed = false
 		setState("Kills", 0)
 		setState("HitPower", 1)
@@ -292,15 +423,16 @@ local function jumpToRound(round: number)
 		return
 	end
 
-	hitPower = 1
-	setState("HitPower", 1)
-	local waveDuration = math.max(1, Config.Waves.Duration)
-	matchStart = os.clock() - (round - 1) * waveDuration
-	setState("Elapsed", (round - 1) * waveDuration)
+	hitPower = math.max(1, math.floor(keptHitPower))
+	setState("HitPower", hitPower)
+	matchStart = os.clock() - Config.elapsedAtWaveStart(round)
+	setState("Elapsed", math.floor(Config.elapsedAtWaveStart(round)))
 	setState("Wave", round)
 
 	NumberGate.clear()
-	numberGateSpawned = false
+	introGateSpawned = false
+	plusGateSpawned = false
+	gatePlayArmed = false
 	applyRoundFeatures(round)
 end
 
@@ -358,9 +490,14 @@ local function returnToLobby()
 	setState("Wave", 1)
 	setState("BombLeft", 0)
 	setState("HitPower", 1)
+	setState("Announce", "")
 	bombRoundArmed = false
 	megaBossSpawned = false
-	numberGateSpawned = false
+	eliteBossesSpawned = false
+	finalBossSpawned = false
+	introGateSpawned = false
+	plusGateSpawned = false
+	gatePlayArmed = false
 	hitPower = 1
 	for _, data in playerData do
 		data.bombUntil = 0
@@ -389,7 +526,11 @@ local function startMatch()
 	setState("HitPower", 1)
 	hitPower = 1
 	megaBossSpawned = false
-	numberGateSpawned = false
+	eliteBossesSpawned = false
+	finalBossSpawned = false
+	introGateSpawned = false
+	plusGateSpawned = false
+	gatePlayArmed = false
 	bombRoundArmed = false
 
 	for _, player in Players:GetPlayers() do
@@ -510,14 +651,14 @@ local function tryFire(now: number)
 			or (root.CFrame * CFrame.new(Config.Combat.MuzzleOffset)).Position
 		local origin = Vector3.new(root.Position.X, muzzle.Y, muzzle.Z)
 		if usingBomb then
-			CombatService.throwBomb(origin)
+			CombatService.throwBomb(origin, hitPower)
 		else
-			CombatService.fireStraight(origin, Config.Combat.UnitDamage * hitPower, hitPower)
+			CombatService.fireStraight(origin, currentUnitDamage(), hitPower)
 		end
 	end
 
 	for _, allyOrigin in SupplyService.allyMuzzlePoints(now) do
-		CombatService.fireStraight(allyOrigin, Config.Combat.UnitDamage, 1)
+		CombatService.fireStraight(allyOrigin, currentUnitDamage(), 1)
 	end
 end
 
@@ -570,6 +711,7 @@ function GameService.start(remotes)
 	setState("BombLeft", 0)
 	setState("HitPower", 1)
 	setState("GateLabelScale", Config.NumberGate.LabelScale)
+	setState("Announce", "")
 
 	ZombieService.onDied(function()
 		onZombieDied()
@@ -588,16 +730,33 @@ function GameService.start(remotes)
 			damagePlayers(record.contactDamage)
 		end
 	end)
+	SupplyService.onRecruited(function()
+		ZombieService.retargetApproaching(function()
+			return SupplyService.pickAttackTarget()
+		end)
+	end)
+	SupplyService.onAllyDied(function(dead)
+		for _, record in ZombieService.getAlive() do
+			local target = record.attackTarget
+			if target.kind == "ally" and target.ally == dead then
+				ZombieService.setAttackTarget(record, SupplyService.pickAttackTarget())
+			end
+		end
+	end)
 	SupplyService.onBombPicked(function()
 		if phase == "playing" then
 			grantBombs()
 		end
 	end)
-	NumberGate.onCollected(function()
+	NumberGate.onCollected(function(kind)
 		if phase ~= "playing" then
 			return
 		end
-		hitPower = math.max(1, math.floor(hitPower * Config.NumberGate.Multiplier))
+		if kind.Op == "mul" then
+			hitPower = math.max(1, math.floor(hitPower * kind.Value))
+		else
+			hitPower = math.max(1, math.floor(hitPower + kind.Value))
+		end
 		setState("HitPower", hitPower)
 	end)
 
@@ -626,6 +785,13 @@ function GameService.start(remotes)
 				respawnNumberGate()
 			end
 		end)
+		remotes.DebugHitPower.OnServerEvent:Connect(function(_player: Player, value: unknown)
+			if not Config.Debug.Enabled or typeof(value) ~= "number" then
+				return
+			end
+			hitPower = math.clamp(math.floor(value :: number), 1, 999)
+			setState("HitPower", hitPower)
+		end)
 	end
 
 	Players.RespawnTime = 2
@@ -652,8 +818,7 @@ function GameService.start(remotes)
 			if (stateFolder:GetAttribute("Elapsed") or 0) ~= elapsed then
 				setState("Elapsed", elapsed)
 			end
-			local waveDuration = math.max(1, Config.Waves.Duration)
-			local wave = 1 + math.floor(elapsed / waveDuration)
+			local wave = Config.waveFromElapsed(elapsed)
 			if (stateFolder:GetAttribute("Wave") or 1) ~= wave then
 				setState("Wave", wave)
 			end
@@ -703,13 +868,37 @@ function GameService.start(remotes)
 			end
 
 			local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
-			if wave >= Config.BombCrate.UnlockRound then
+			if wave >= Config.NumberGate.PlayRound then
+				if not gatePlayArmed then
+					gatePlayArmed = true
+					if NumberGate.createRandom() then
+						lastGateSpawnAt = now
+						markSidePathSpawn()
+						delayBombAfterGate()
+					else
+						lastGateSpawnAt = now - Config.NumberGate.SpawnInterval
+					end
+				elseif (now - lastGateSpawnAt) >= Config.NumberGate.SpawnInterval
+					and sidePathReady(now)
+					and NumberGate.canSpawn()
+				then
+					lastGateSpawnAt = now
+					markSidePathSpawn()
+					NumberGate.createRandom()
+				end
+			end
+
+			if wave >= Config.BombCrate.UnlockRound and wave < Config.FinalBoss.Round then
 				if not bombRoundArmed then
 					bombRoundArmed = true
 					lastBombSpawnAt = now - Config.BombCrate.SpawnInterval + Config.BombCrate.FirstSpawnDelay
 				end
-				if (now - lastBombSpawnAt) >= Config.BombCrate.SpawnInterval and SupplyService.canSpawnBomb() then
+				if (now - lastBombSpawnAt) >= Config.BombCrate.SpawnInterval
+					and sidePathReady(now)
+					and SupplyService.canSpawnBomb()
+				then
 					lastBombSpawnAt = now
+					markSidePathSpawn()
 					SupplyService.createBomb()
 				end
 			end

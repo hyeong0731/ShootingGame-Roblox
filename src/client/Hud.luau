@@ -353,12 +353,75 @@ local function createHitCountBadge(parent: Instance): Frame
 	return badge
 end
 
+local function createDevStepper(parent: Instance, name: string, titleText: string, y: number): (TextLabel, TextButton, TextButton)
+	local row = Instance.new("Frame")
+	row.Name = name
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, -12, 0, 44)
+	row.Position = UDim2.new(0, 6, 0, y)
+	row.ZIndex = 9
+	row.Parent = parent
+
+	local title = Instance.new("TextLabel")
+	title.BackgroundTransparency = 1
+	title.Size = UDim2.new(1, 0, 0, 16)
+	title.Font = Enum.Font.GothamBold
+	title.Text = titleText
+	title.TextColor3 = Color3.fromRGB(255, 200, 70)
+	title.TextScaled = true
+	title.ZIndex = 10
+	title.Parent = row
+
+	local minus = Instance.new("TextButton")
+	minus.Name = "Minus"
+	minus.Size = UDim2.fromOffset(32, 24)
+	minus.Position = UDim2.new(0, 0, 0, 18)
+	minus.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
+	minus.BorderSizePixel = 0
+	minus.Font = Enum.Font.GothamBold
+	minus.Text = "-"
+	minus.TextColor3 = Color3.new(1, 1, 1)
+	minus.TextScaled = true
+	minus.ZIndex = 10
+	minus.Parent = row
+	Instance.new("UICorner", minus).CornerRadius = UDim.new(0, 6)
+
+	local value = Instance.new("TextLabel")
+	value.Name = "Value"
+	value.BackgroundTransparency = 1
+	value.Size = UDim2.new(1, -72, 0, 24)
+	value.Position = UDim2.new(0, 36, 0, 18)
+	value.Font = Enum.Font.GothamBlack
+	value.Text = "0"
+	value.TextColor3 = Color3.new(1, 1, 1)
+	value.TextScaled = true
+	value.ZIndex = 10
+	value.Parent = row
+
+	local plus = Instance.new("TextButton")
+	plus.Name = "Plus"
+	plus.Size = UDim2.fromOffset(32, 24)
+	plus.Position = UDim2.new(1, -32, 0, 18)
+	plus.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
+	plus.BorderSizePixel = 0
+	plus.Font = Enum.Font.GothamBold
+	plus.Text = "+"
+	plus.TextColor3 = Color3.new(1, 1, 1)
+	plus.TextScaled = true
+	plus.ZIndex = 10
+	plus.Parent = row
+	Instance.new("UICorner", plus).CornerRadius = UDim.new(0, 6)
+
+	return value, minus, plus
+end
+
 function Hud.start()
 	local player = Players.LocalPlayer
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "LaneHud"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 5
 	gui.Parent = player:WaitForChild("PlayerGui")
 
 	local kills = textLabel(gui, "Kills", {
@@ -414,7 +477,7 @@ function Hud.start()
 		debugPanel.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
 		debugPanel.BackgroundTransparency = 0.25
 		debugPanel.BorderSizePixel = 0
-		debugPanel.Size = UDim2.fromOffset(168, 214)
+		debugPanel.Size = UDim2.fromOffset(168, 252)
 		debugPanel.Position = UDim2.new(1, -12, 0.22, 0)
 		debugPanel.AnchorPoint = Vector2.new(1, 0)
 		debugPanel.ZIndex = 8
@@ -564,10 +627,73 @@ function Hud.start()
 				setScale:FireServer(currentScale() + 0.1)
 			end
 		end)
+
+		local hitsPanel = Instance.new("Frame")
+		hitsPanel.Name = "DevHitPower"
+		hitsPanel.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
+		hitsPanel.BackgroundTransparency = 0.25
+		hitsPanel.BorderSizePixel = 0
+		hitsPanel.Size = UDim2.fromOffset(168, 80)
+		hitsPanel.Position = UDim2.new(1, -12, 0.22, 264)
+		hitsPanel.AnchorPoint = Vector2.new(1, 0)
+		hitsPanel.ZIndex = 8
+		hitsPanel.Parent = gui
+		Instance.new("UICorner", hitsPanel).CornerRadius = UDim.new(0, 10)
+		local hitsStroke = Instance.new("UIStroke")
+		hitsStroke.Color = Color3.fromRGB(255, 180, 40)
+		hitsStroke.Thickness = 2
+		hitsStroke.Parent = hitsPanel
+
+		local hitsTitle = Instance.new("TextLabel")
+		hitsTitle.Name = "Title"
+		hitsTitle.BackgroundTransparency = 1
+		hitsTitle.Size = UDim2.new(1, -8, 0, 22)
+		hitsTitle.Position = UDim2.fromOffset(4, 4)
+		hitsTitle.Font = Enum.Font.GothamBlack
+		hitsTitle.Text = "DEV 총알 타수"
+		hitsTitle.TextColor3 = Color3.fromRGB(255, 200, 70)
+		hitsTitle.TextScaled = true
+		hitsTitle.ZIndex = 9
+		hitsTitle.Parent = hitsPanel
+
+		local powerValue, powerMinus, powerPlus = createDevStepper(hitsPanel, "HitPower", "현재 타수", 28)
+
+		local setHitPower = remotes:WaitForChild("DebugHitPower")
+		local function currentHitPower(): number
+			local state = ReplicatedStorage:FindFirstChild("GameState")
+			local value = if state then state:GetAttribute("HitPower") else nil
+			if typeof(value) == "number" then
+				return value
+			end
+			return 1
+		end
+		local function refreshHitPower()
+			powerValue.Text = tostring(currentHitPower())
+		end
+		refreshHitPower()
+		task.spawn(function()
+			local state = ReplicatedStorage:WaitForChild("GameState")
+			state.AttributeChanged:Connect(function(name)
+				if name == "HitPower" then
+					refreshHitPower()
+				end
+			end)
+			refreshHitPower()
+		end)
+		powerMinus.MouseButton1Click:Connect(function()
+			if setHitPower:IsA("RemoteEvent") then
+				setHitPower:FireServer(currentHitPower() - 1)
+			end
+		end)
+		powerPlus.MouseButton1Click:Connect(function()
+			if setHitPower:IsA("RemoteEvent") then
+				setHitPower:FireServer(currentHitPower() + 1)
+			end
+		end)
 	end
 
 	local banner = textLabel(gui, "Banner", {
-		Size = UDim2.new(0.7, 0, 0.1, 0),
+		Size = UDim2.new(0.82, 0, 0.12, 0),
 		Position = UDim2.new(0.5, 0, 0.42, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Align = Enum.TextXAlignment.Center,
@@ -668,7 +794,8 @@ function Hud.start()
 			banner.Text = `게임 오버  ·  처치 {formatKills(killCount)}`
 			hint.Text = "로비로 돌아갑니다"
 		else
-			banner.Text = ""
+			local announce = state:GetAttribute("Announce") or ""
+			banner.Text = if typeof(announce) == "string" then announce else ""
 			hint.Text = ""
 		end
 	end

@@ -278,7 +278,7 @@ end
 local function attachHitCount(adornee: BasePart, hits: number, scale: number): TextLabel
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "HitCount"
-	billboard.Size = UDim2.fromOffset(72, 48)
+	billboard.Size = UDim2.fromOffset(math.max(72, 22 * #tostring(hits)), 48)
 	billboard.StudsOffset = Vector3.new(0, 2.4 * scale, 0)
 	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = 240
@@ -737,8 +737,9 @@ local function createFromPrototype(position: Vector3, stats: {
 	return record
 end
 
-local function setupMegaHits(record: ZombieRecord)
-	local hits = Config.MegaBoss.HitCount
+local function setupMegaHits(record: ZombieRecord, hitCount: number?, scale: number?)
+	local hits = math.max(1, math.floor(hitCount or Config.MegaBoss.HitCount))
+	local s = scale or Config.MegaBoss.SizeScale
 	record.isMega = true
 	record.hitsLeft = hits
 	record.hp = 9999
@@ -746,7 +747,7 @@ local function setupMegaHits(record: ZombieRecord)
 	record.humanoid.MaxHealth = 9999
 	record.humanoid.Health = 9999
 	record.model:SetAttribute("HitsLeft", hits)
-	record.model:SetAttribute("HitRadius", 10)
+	record.model:SetAttribute("HitRadius", 8 + 2 * s)
 	record.model:SetAttribute("IsBoss", true)
 
 	local bar = record.model:FindFirstChild("HealthBar", true)
@@ -756,11 +757,11 @@ local function setupMegaHits(record: ZombieRecord)
 
 	local head = record.model:FindFirstChild("Head")
 	local adornee = if head and head:IsA("BasePart") then head else record.root
-	record.hitLabel = attachHitCount(adornee, hits, Config.MegaBoss.SizeScale)
+	record.hitLabel = attachHitCount(adornee, hits, s)
 
 	local hitbox = record.model:FindFirstChild("Hitbox")
 	if hitbox and hitbox:IsA("BasePart") then
-		hitbox.Size = Vector3.new(10, 14, 10)
+		hitbox.Size = Vector3.new(3.4 * s, 4.8 * s, 3.4 * s)
 		hitbox.CanQuery = true
 	end
 end
@@ -773,6 +774,7 @@ function ZombieService.create(position: Vector3, stats: {
 	isDog: boolean?,
 	contactDamage: number,
 	scale: number,
+	hitCount: number?,
 }): ZombieRecord
 	if stats.isDog == true then
 		return createDog(position, {
@@ -794,7 +796,7 @@ function ZombieService.create(position: Vector3, stats: {
 	})
 	if fromProto then
 		if stats.isMega == true then
-			setupMegaHits(fromProto)
+			setupMegaHits(fromProto, stats.hitCount, stats.scale)
 		end
 		return fromProto
 	end
@@ -808,7 +810,7 @@ function ZombieService.create(position: Vector3, stats: {
 		contactDamage = stats.contactDamage,
 	})
 	if stats.isMega == true then
-		setupMegaHits(fallback)
+		setupMegaHits(fallback, stats.hitCount, stats.scale)
 	end
 	return fallback
 end
@@ -936,19 +938,28 @@ function ZombieService.damageModel(model: Model, amount: number, hits: number?):
 	return false
 end
 
-function ZombieService.damageInRadius(position: Vector3, radius: number, amount: number): number
+function ZombieService.damageInRadius(position: Vector3, radius: number, amount: number, hits: number?): number
 	local hit = 0
 	local snapshot = ZombieService.getAlive()
 	for _, record in snapshot do
 		local offset = record.root.Position - position
 		local reach = radius + ((record.model:GetAttribute("HitRadius") :: number?) or 0) * 0.3
 		if offset.X * offset.X + offset.Z * offset.Z <= reach * reach then
-			if ZombieService.damageModel(record.model, amount) then
+			if ZombieService.damageModel(record.model, amount, hits) then
 				hit += 1
 			end
 		end
 	end
 	return hit
+end
+
+function ZombieService.retargetApproaching(assign: (ZombieRecord) -> { kind: string, ally: any? })
+	local meleeZ = Config.Lane.PlayerZ + Config.Zombie.StopDistance + 6
+	for _, record in ZombieService.getAlive() do
+		if record.root.Position.Z > meleeZ then
+			record.attackTarget = assign(record)
+		end
+	end
 end
 
 function ZombieService.onDied(callback: (ZombieRecord) -> ())
@@ -1118,7 +1129,6 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 	end
 
 	local now = os.clock()
-	local stopZ = Config.Lane.PlayerZ + Config.Zombie.StopDistance
 
 	for _, record in ZombieService.getAlive() do
 		if record.humanoid.MaxHealth ~= record.maxHp or record.humanoid.Health > record.hp + 0.05 then
@@ -1130,6 +1140,7 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		local pos = record.root.Position
 		local focus = resolveTargetPosition(record, playerPosition)
 		local targetX = pos.X
+		local stopZ = focus.Z + Config.Zombie.StopDistance
 		local moving = pos.Z > stopZ + 0.15
 		local nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
 		if nextZ < stopZ then
@@ -1137,10 +1148,10 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		end
 
 		local minX, maxX = Config.zombieXBounds(nextZ)
-		if pos.Z <= Config.Zombie.ChaseStartZ then
-			local chaseSpeed = record.walkSpeed * Config.Zombie.ChaseSpeedScale
+		if pos.Z <= Config.chaseStartZ() then
+			local chaseSpeed = record.walkSpeed * Config.Zombie.ChaseStrafeScale
 			if math.abs(focus.X - pos.X) > 6 then
-				chaseSpeed = record.walkSpeed * 1.15
+				chaseSpeed = record.walkSpeed * Config.Zombie.ChaseStrafeFarScale
 			end
 			local dx = focus.X - pos.X
 			local maxStep = chaseSpeed * dt

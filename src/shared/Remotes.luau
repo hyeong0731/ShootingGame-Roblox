@@ -35,6 +35,7 @@ function Remotes.serverInit()
 		ExplodeFx = ensureRemote(folder, "ExplodeFx"),
 		DebugSetRound = ensureRemote(folder, "DebugSetRound"),
 		DebugGateLabel = ensureRemote(folder, "DebugGateLabel"),
+		DebugHitPower = ensureRemote(folder, "DebugHitPower"),
 	}
 end
 
@@ -47,6 +48,7 @@ function Remotes.clientWait()
 		ExplodeFx = folder:WaitForChild("ExplodeFx"),
 		DebugSetRound = folder:WaitForChild("DebugSetRound"),
 		DebugGateLabel = folder:WaitForChild("DebugGateLabel"),
+		DebugHitPower = folder:WaitForChild("DebugHitPower"),
 	}
 end
 

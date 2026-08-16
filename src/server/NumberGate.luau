@@ -19,18 +19,37 @@ local function liveNumberGate()
 	return Config.NumberGate
 end
 
+export type GateKind = {
+	Id: string,
+	Op: string,
+	Value: number,
+	Label: string,
+	HitCountMin: number,
+	HitCountMax: number,
+	Weight: number,
+	WalkSpeedScale: number,
+	PanelColor: Color3,
+	FrameColor: Color3,
+	GlowColor: Color3,
+	StrokeColor: Color3,
+	BoltColor: Color3,
+	LightColor: Color3,
+}
+
 export type GateRecord = {
 	model: Model,
 	root: BasePart,
 	label: TextLabel,
 	hitsLeft: number,
 	alive: boolean,
+	kind: GateKind,
+	walkSpeed: number,
 }
 
 local NumberGate = {}
 
 local gates = {} :: { GateRecord }
-local onCollected: (() -> ())? = nil
+local onCollected: ((GateKind) -> ())? = nil
 
 local function ensureFolder(): Folder
 	local existing = Workspace:FindFirstChild("NumberGates")
@@ -72,9 +91,9 @@ local function makePart(parent: Instance, name: string, size: Vector3, color: Co
 	return p
 end
 
-local function addCorner(parent: Model, root: BasePart, xSign: number, ySign: number, cfg)
-	local frame = Color3.fromRGB(18, 58, 150)
-	local bolt = Color3.fromRGB(210, 230, 255)
+local function addCorner(parent: Model, root: BasePart, xSign: number, ySign: number, cfg, kind: GateKind)
+	local frame = kind.FrameColor
+	local bolt = kind.BoltColor
 	local insetX = cfg.Width * 0.5 - 0.28
 	local insetY = cfg.Height * 0.5 - 0.28
 	local origin = root.CFrame * CFrame.new(xSign * insetX, ySign * insetY, 0)
@@ -142,8 +161,7 @@ local function attachOverheadHits(adornee: BasePart, hits: number, offsetY: numb
 	return label
 end
 
--- TextSize caps at 100; UIScale on the TextLabel is the bypass (100 * Scale).
-local function attachFaceLabel(panel: BasePart, multiplier: number, cfg)
+local function attachFaceLabel(panel: BasePart, kind: GateKind, cfg)
 	local fill = 1.5
 	local pixelsPerStud = 70
 	local canvasH = math.max(1, (cfg.Height - 0.55) * pixelsPerStud)
@@ -168,7 +186,7 @@ local function attachFaceLabel(panel: BasePart, multiplier: number, cfg)
 		label.Position = UDim2.fromScale(0.5, 0.5)
 		label.Size = UDim2.fromScale(0.9 / uiScale, 0.82 / uiScale)
 		label.Font = Enum.Font.FredokaOne
-		label.Text = `x{multiplier}`
+		label.Text = kind.Label
 		label.TextColor3 = color
 		label.TextSize = 100
 		label.TextXAlignment = Enum.TextXAlignment.Center
@@ -181,10 +199,10 @@ local function attachFaceLabel(panel: BasePart, multiplier: number, cfg)
 		return label
 	end
 
-	local glow = makeGlyph("Glow", 1, Color3.fromRGB(150, 220, 255))
+	local glow = makeGlyph("Glow", 1, kind.GlowColor)
 	glow.TextTransparency = 0.28
 	local glowStroke = Instance.new("UIStroke")
-	glowStroke.Color = Color3.fromRGB(90, 195, 255)
+	glowStroke.Color = kind.GlowColor
 	glowStroke.Thickness = 6
 	glowStroke.Transparency = 0.35
 	glowStroke.LineJoinMode = Enum.LineJoinMode.Round
@@ -192,7 +210,7 @@ local function attachFaceLabel(panel: BasePart, multiplier: number, cfg)
 
 	local face = makeGlyph("Text", 3, Color3.fromRGB(255, 255, 255))
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(16, 48, 130)
+	stroke.Color = kind.StrokeColor
 	stroke.Thickness = 4.2
 	stroke.LineJoinMode = Enum.LineJoinMode.Round
 	stroke.Parent = face
@@ -200,12 +218,12 @@ local function attachFaceLabel(panel: BasePart, multiplier: number, cfg)
 	gradient.Rotation = 90
 	gradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(205, 232, 255)),
+		ColorSequenceKeypoint.new(1, kind.GlowColor),
 	})
 	gradient.Parent = face
 end
 
-function NumberGate.onCollected(callback: () -> ())
+function NumberGate.onCollected(callback: (GateKind) -> ())
 	onCollected = callback
 end
 
@@ -223,24 +241,58 @@ function NumberGate.canSpawn(): boolean
 	return NumberGate.aliveCount() < liveNumberGate().MaxAlive
 end
 
-function NumberGate.create(): GateRecord?
+local function kindById(id: string): GateKind
+	local kinds = liveNumberGate().Kinds
+	for _, kind in kinds do
+		if kind.Id == id then
+			return kind
+		end
+	end
+	return kinds[1]
+end
+
+local function pickRandomKind(): GateKind
+	local kinds = liveNumberGate().Kinds
+	local total = 0
+	for _, kind in kinds do
+		total += math.max(0, kind.Weight)
+	end
+	if total <= 0 then
+		return kinds[1]
+	end
+	local roll = math.random() * total
+	local acc = 0
+	for _, kind in kinds do
+		acc += math.max(0, kind.Weight)
+		if roll <= acc then
+			return kind
+		end
+	end
+	return kinds[1]
+end
+
+function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?): GateRecord?
 	if not NumberGate.canSpawn() then
 		return nil
 	end
 
 	local cfg = liveNumberGate()
+	local gateKind = kind or pickRandomKind()
 	local folder = ensureFolder()
 	local x = Config.sidePathCenterX()
 	local y = Config.Lane.CenterY + Config.Lane.Thickness * 0.5 + cfg.Height * 0.5 + 0.15
 	local z = Config.Lane.SpawnZ
 	local position = Vector3.new(x, y, z)
 
-	local hits = math.random(cfg.HitCountMin, cfg.HitCountMax)
+	local minHits = math.max(1, math.floor(hitMin or gateKind.HitCountMin))
+	local maxHits = math.max(minHits, math.floor(hitMax or gateKind.HitCountMax))
+	local hits = math.random(minHits, maxHits)
+	local walkSpeed = cfg.WalkSpeed * (gateKind.WalkSpeedScale or 1)
 
 	local model = Instance.new("Model")
 	model.Name = "NumberGate"
 	model:SetAttribute("IsNumberGate", true)
-	model:SetAttribute("Multiplier", cfg.Multiplier)
+	model:SetAttribute("GateId", gateKind.Id)
 	model:SetAttribute("HitsLeft", hits)
 	model:SetAttribute("LabelScale", cfg.LabelScale)
 
@@ -254,26 +306,23 @@ function NumberGate.create(): GateRecord?
 	root.CFrame = gateCFrame(position)
 	root.Parent = model
 
-	local frameColor = Color3.fromRGB(22, 72, 175)
-	local panelColor = Color3.fromRGB(110, 185, 230)
-
 	local panel = makePart(
 		model,
 		"Panel",
 		Vector3.new(cfg.Width - 0.55, cfg.Height - 0.55, cfg.Depth * 0.45),
-		panelColor,
+		gateKind.PanelColor,
 		root.CFrame,
 		Enum.Material.SmoothPlastic
 	)
 	panel.Transparency = 0.22
 	weldTo(root, panel, true)
-	attachFaceLabel(panel, cfg.Multiplier, cfg)
+	attachFaceLabel(panel, gateKind, cfg)
 
 	local top = makePart(
 		model,
 		"FrameTop",
 		Vector3.new(cfg.Width, 0.28, cfg.Depth + 0.08),
-		frameColor,
+		gateKind.FrameColor,
 		root.CFrame * CFrame.new(0, cfg.Height * 0.5 - 0.12, 0),
 		Enum.Material.Metal
 	)
@@ -282,7 +331,7 @@ function NumberGate.create(): GateRecord?
 		model,
 		"FrameBottom",
 		Vector3.new(cfg.Width, 0.28, cfg.Depth + 0.08),
-		frameColor,
+		gateKind.FrameColor,
 		root.CFrame * CFrame.new(0, -(cfg.Height * 0.5 - 0.12), 0),
 		Enum.Material.Metal
 	)
@@ -291,7 +340,7 @@ function NumberGate.create(): GateRecord?
 		model,
 		"FrameLeft",
 		Vector3.new(0.28, cfg.Height - 0.2, cfg.Depth + 0.08),
-		frameColor,
+		gateKind.FrameColor,
 		root.CFrame * CFrame.new(-(cfg.Width * 0.5 - 0.12), 0, 0),
 		Enum.Material.Metal
 	)
@@ -300,20 +349,20 @@ function NumberGate.create(): GateRecord?
 		model,
 		"FrameRight",
 		Vector3.new(0.28, cfg.Height - 0.2, cfg.Depth + 0.08),
-		frameColor,
+		gateKind.FrameColor,
 		root.CFrame * CFrame.new(cfg.Width * 0.5 - 0.12, 0, 0),
 		Enum.Material.Metal
 	)
 	weldTo(root, right)
 
-	addCorner(model, root, -1, 1, cfg)
-	addCorner(model, root, 1, 1, cfg)
-	addCorner(model, root, -1, -1, cfg)
-	addCorner(model, root, 1, -1, cfg)
+	addCorner(model, root, -1, 1, cfg, gateKind)
+	addCorner(model, root, 1, 1, cfg, gateKind)
+	addCorner(model, root, -1, -1, cfg, gateKind)
+	addCorner(model, root, 1, -1, cfg, gateKind)
 
 	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(110, 185, 230)
-	light.Brightness = 0.35
+	light.Color = gateKind.LightColor
+	light.Brightness = if gateKind.Id == "minus" then 0.55 else 0.35
 	light.Range = 8
 	light.Parent = panel
 
@@ -329,9 +378,25 @@ function NumberGate.create(): GateRecord?
 		label = label,
 		hitsLeft = hits,
 		alive = true,
+		kind = gateKind,
+		walkSpeed = walkSpeed,
 	}
 	table.insert(gates, record)
 	return record
+end
+
+function NumberGate.createIntro(): GateRecord?
+	local cfg = liveNumberGate()
+	return NumberGate.create(kindById("x2"), cfg.IntroHitCountMin, cfg.IntroHitCountMax)
+end
+
+function NumberGate.createPlusIntro(): GateRecord?
+	local cfg = liveNumberGate()
+	return NumberGate.create(kindById("plus"), cfg.PlusIntroHitCountMin, cfg.PlusIntroHitCountMax)
+end
+
+function NumberGate.createRandom(): GateRecord?
+	return NumberGate.create(pickRandomKind())
 end
 
 local function collect(record: GateRecord)
@@ -339,11 +404,12 @@ local function collect(record: GateRecord)
 		return
 	end
 	record.alive = false
+	local kind = record.kind
 	if record.model.Parent then
 		record.model:Destroy()
 	end
 	if onCollected then
-		onCollected()
+		onCollected(kind)
 	end
 end
 
@@ -363,6 +429,27 @@ function NumberGate.damageModel(model: Model, hits: number?): boolean
 	return false
 end
 
+function NumberGate.damageInRadius(position: Vector3, radius: number, hits: number): number
+	local hit = 0
+	local snapshot = {}
+	for _, record in gates do
+		table.insert(snapshot, record)
+	end
+	local reach = radius + Config.NumberGate.Width * 0.5
+	for _, record in snapshot do
+		if not (record.alive and record.model.Parent) then
+			continue
+		end
+		local offset = record.root.Position - position
+		if offset.X * offset.X + offset.Z * offset.Z <= reach * reach then
+			if NumberGate.damageModel(record.model, hits) then
+				hit += 1
+			end
+		end
+	end
+	return hit
+end
+
 function NumberGate.update(dt: number, _playerPosition: Vector3?)
 	local keep = {}
 	for _, record in gates do
@@ -371,7 +458,7 @@ function NumberGate.update(dt: number, _playerPosition: Vector3?)
 		end
 
 		local pos = record.root.Position
-		local nextZ = pos.Z - Config.NumberGate.WalkSpeed * dt
+		local nextZ = pos.Z - record.walkSpeed * dt
 		if nextZ < Config.Supply.DespawnZ then
 			record.alive = false
 			record.model:Destroy()

@@ -111,11 +111,12 @@ function Input.start(remotes)
 	gui.Name = "StrafeControls"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 2
 	gui.Enabled = false
 	gui.Parent = player:WaitForChild("PlayerGui")
 
-	local left = makeButton(gui, "Left", "◀", UDim2.new(0.12, 0, 0.82, 0))
-	local right = makeButton(gui, "Right", "▶", UDim2.new(0.88, 0, 0.82, 0))
+	local left = makeButton(gui, "Left", "◀", UDim2.new(0.12, 0, 0.92, 0))
+	local right = makeButton(gui, "Right", "▶", UDim2.new(0.88, 0, 0.92, 0))
 
 	local function bind(button: TextButton, which: string)
 		button.MouseButton1Down:Connect(function()
