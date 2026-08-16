@@ -34,7 +34,7 @@ function Remotes.serverInit()
 		FireFx = ensureRemote(folder, "FireFx"),
 		ExplodeFx = ensureRemote(folder, "ExplodeFx"),
 		DebugSetRound = ensureRemote(folder, "DebugSetRound"),
-		DebugGateLabel = ensureRemote(folder, "DebugGateLabel"),
+		DebugSetChapter = ensureRemote(folder, "DebugSetChapter"),
 		DebugHitPower = ensureRemote(folder, "DebugHitPower"),
 	}
 end
@@ -47,7 +47,7 @@ function Remotes.clientWait()
 		FireFx = folder:WaitForChild("FireFx"),
 		ExplodeFx = folder:WaitForChild("ExplodeFx"),
 		DebugSetRound = folder:WaitForChild("DebugSetRound"),
-		DebugGateLabel = folder:WaitForChild("DebugGateLabel"),
+		DebugSetChapter = folder:WaitForChild("DebugSetChapter"),
 		DebugHitPower = folder:WaitForChild("DebugHitPower"),
 	}
 end

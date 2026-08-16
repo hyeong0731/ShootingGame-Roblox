@@ -242,7 +242,7 @@ function NumberGate.canSpawn(): boolean
 end
 
 local function kindById(id: string): GateKind
-	local kinds = liveNumberGate().Kinds
+	local kinds = Config.NumberGate.Kinds
 	for _, kind in kinds do
 		if kind.Id == id then
 			return kind
@@ -271,8 +271,8 @@ local function pickRandomKind(): GateKind
 	return kinds[1]
 end
 
-function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?): GateRecord?
-	if not NumberGate.canSpawn() then
+function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?, force: boolean?): GateRecord?
+	if not force and not NumberGate.canSpawn() then
 		return nil
 	end
 
@@ -280,12 +280,16 @@ function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?): G
 	local gateKind = kind or pickRandomKind()
 	local folder = ensureFolder()
 	local x = Config.sidePathCenterX()
-	local y = Config.Lane.CenterY + Config.Lane.Thickness * 0.5 + cfg.Height * 0.5 + 0.15
-	local z = Config.Lane.SpawnZ
+	local lane = Config.activeLane()
+	local y = lane.CenterY + lane.Thickness * 0.5 + cfg.Height * 0.5 + 0.15
+	local z = lane.SpawnZ
 	local position = Vector3.new(x, y, z)
 
 	local minHits = math.max(1, math.floor(hitMin or gateKind.HitCountMin))
 	local maxHits = math.max(minHits, math.floor(hitMax or gateKind.HitCountMax))
+	local state = ReplicatedStorage:FindFirstChild("GameState")
+	local wave = if state then (state:GetAttribute("Wave") :: number?) else nil
+	minHits, maxHits = Config.pickupHitsForWave(wave or 1, minHits, maxHits)
 	local hits = math.random(minHits, maxHits)
 	local walkSpeed = cfg.WalkSpeed * (gateKind.WalkSpeedScale or 1)
 
@@ -293,6 +297,8 @@ function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?): G
 	model.Name = "NumberGate"
 	model:SetAttribute("IsNumberGate", true)
 	model:SetAttribute("GateId", gateKind.Id)
+	model:SetAttribute("GateOp", gateKind.Op)
+	model:SetAttribute("GateValue", gateKind.Value)
 	model:SetAttribute("HitsLeft", hits)
 	model:SetAttribute("LabelScale", cfg.LabelScale)
 
@@ -378,7 +384,22 @@ function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?): G
 		label = label,
 		hitsLeft = hits,
 		alive = true,
-		kind = gateKind,
+		kind = {
+			Id = gateKind.Id,
+			Op = gateKind.Op,
+			Value = gateKind.Value,
+			Label = gateKind.Label,
+			HitCountMin = gateKind.HitCountMin,
+			HitCountMax = gateKind.HitCountMax,
+			Weight = gateKind.Weight,
+			WalkSpeedScale = gateKind.WalkSpeedScale,
+			PanelColor = gateKind.PanelColor,
+			FrameColor = gateKind.FrameColor,
+			GlowColor = gateKind.GlowColor,
+			StrokeColor = gateKind.StrokeColor,
+			BoltColor = gateKind.BoltColor,
+			LightColor = gateKind.LightColor,
+		},
 		walkSpeed = walkSpeed,
 	}
 	table.insert(gates, record)
@@ -386,13 +407,18 @@ function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?): G
 end
 
 function NumberGate.createIntro(): GateRecord?
-	local cfg = liveNumberGate()
+	local cfg = Config.NumberGate
 	return NumberGate.create(kindById("x2"), cfg.IntroHitCountMin, cfg.IntroHitCountMax)
 end
 
 function NumberGate.createPlusIntro(): GateRecord?
-	local cfg = liveNumberGate()
+	local cfg = Config.NumberGate
 	return NumberGate.create(kindById("plus"), cfg.PlusIntroHitCountMin, cfg.PlusIntroHitCountMax)
+end
+
+function NumberGate.createExtraIntro(): GateRecord?
+	local cfg = Config.NumberGate
+	return NumberGate.create(kindById("x2"), cfg.ExtraX2HitCountMin, cfg.ExtraX2HitCountMax, true)
 end
 
 function NumberGate.createRandom(): GateRecord?

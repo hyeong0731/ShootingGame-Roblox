@@ -7,7 +7,8 @@ local Config = {}
 -- 라운드
 Config.Waves = {
 	Countdown = 3, -- 시작 카운트(초)
-	Duration = 40, -- 기본 라운드 길이(초)
+	Duration = 50, -- 1~6라운드 길이(초)
+	Round7Duration = 55, -- 7라운드 길이(초)
 	LongFrom = 8, -- 긴 라운드 시작
 	LongUntil = 9, -- 긴 라운드 끝
 	LongDuration = 60, -- 8~9라운드 길이(초)
@@ -21,7 +22,7 @@ Config.Zombie = {
 	ContactCooldown = 0.95, -- 공격 간격
 	HitRadius = 3.1, -- 피격 판정
 	SpawnGap = 0.9,
-	ChaseProgress = 0.7, -- 스폰부터 플레이어까지 이 비율 지나면 따라옴
+	ChaseProgress = 0.8, -- 스폰부터 플레이어까지 이 비율 지나면 따라옴
 	ChaseStrafeScale = 0.22, -- 따라올 때 좌우(A/D) 속도 (WalkSpeed 배수)
 	ChaseStrafeFarScale = 0.42, -- 옆으로 많이 벌어졌을 때 좌우 속도
 	StopDistance = 7.5, -- 플레이어 앞에서 멈추는 거리
@@ -73,15 +74,15 @@ Config.EliteBosses = {
 -- 10라운드 최종보스
 Config.FinalBoss = {
 	Round = 10,
-	HitCountMin = 1150,
-	HitCountMax = 1250,
+	HitCountMin = 7200,
+	HitCountMax = 8200,
 	SizeScale = 4.0,
 	WalkSpeed = 2.4,
 	ContactDamage = 24,
 	IntroText = "약한 총알은 통하지 않습니다. 준비되셨나요?",
 	IntroDuration = 5, -- 멘트 표시 시간(초)
-	MaxAlive = 6, -- 보스 포함 동시 최대 (일반 좀비/개는 조금)
-	SpawnGap = 3.2, -- 일반 좀비 스폰 간격
+	MaxAlive = 7, -- 보스 포함 동시 최대 (일반 좀비/개는 조금)
+	SpawnGap = 2.8, -- 일반 좀비 스폰 간격
 }
 
 -- 스폰 (기본)
@@ -96,17 +97,18 @@ Config.Infinite = {
 	AllyMaxAliveBonus = 3, -- 지원군 뽑은 뒤 추가 마리 수
 }
 
--- 7라운드부터 더 빡세게
+-- 7~9라운드는 스폰율·개 비율 그대로
 Config.Pressure = {
 	UnlockRound = 7, -- 적용 라운드
-	SpawnGapScale = 0.58, -- 스폰 간격 배수 (낮을수록 자주)
-	MaxAliveBonus = 5, -- 추가 마리 수
-	DogSpawnChance = 0.52, -- 개 확률 (0~1)
+	SpawnGapScale = 1, -- 스폰 간격 유지
+	MaxAliveBonus = 0, -- 추가 마리 없음
+	DogSpawnChance = 0.32, -- 개 확률 (ZombieDog와 동일)
 }
 
 -- 보급상자 (지원군)
 Config.Supply = {
-	FirstSpawnDelay = 28, -- 첫 등장까지(초)
+	UnlockRound = 2, -- 등장 라운드
+	FirstSpawnDelay = 2, -- 라운드 진입 후 첫 등장(초)
 	SpawnInterval = 40, -- 등장 간격(초)
 	HitCountMin = 9, -- 타수 최소
 	HitCountMax = 25, -- 타수 최대
@@ -118,6 +120,8 @@ Config.Supply = {
 	DespawnZ = -12, -- 이 위치 지나면 삭제
 	MaxRecruitsPerMatch = 1, -- 한 판에 뽑는 횟수
 	AllyHealth = 100, -- 지원군 체력
+	AllyRegenDelay = 5, -- 피격 후 이 시간(초) 지나야 회복
+	AllyRegenPerSecond = 8, -- 초당 회복량
 	HitLabelScale = 1, -- 위 타수 숫자 크기 (1 = 예시 통 숫자)
 }
 
@@ -135,8 +139,8 @@ Config.BombCrate = {
 	Damage = 320, -- 폭발 데미지 (체력형 좀비)
 	HitDamage = 40, -- 폭발 시 깎는 타수 (숫자 뜨는 대상)
 	Radius = 16, -- 폭발 범위
-	ThrowDistance = 70, -- 던지는 거리
-	FlightTime = 0.85,
+	ThrowDistance = 90, -- 던지는 거리
+	FlightTime = 0.95,
 	Gravity = 95,
 	HitLabelScale = 1, -- 위 타수 숫자 크기 (1 = 예시 통 숫자)
 }
@@ -145,6 +149,7 @@ Config.BombCrate = {
 Config.NumberGate = {
 	UnlockRound = 5, -- 첫 x2 등장
 	PlusRound = 6, -- 첫 +1 등장
+	ExtraX2Delay = 10, -- 6라운드 시작 후 추가 x2
 	PlayRound = 8, -- x2 / +1 / -1 랜덤 시작
 	WalkSpeed = 8,
 	Width = 11, -- 가로
@@ -156,8 +161,11 @@ Config.NumberGate = {
 	MaxAlive = 1,
 	SpawnInterval = 14, -- 8라운드부터 등장 간격
 	FirstSpawnDelay = 0, -- 라운드 시작 즉시 등장
-	IntroHitCountMin = 20, -- 5라운드 첫 x2 타수 최소
-	IntroHitCountMax = 30, -- 5라운드 첫 x2 타수 최대
+	IntroAfterBombDelay = 5, -- 5라운드: 폭탄 먼저, 이 시간 뒤 x2
+	IntroHitCountMin = 40, -- 5라운드 첫 x2 타수 최소
+	IntroHitCountMax = 50, -- 5라운드 첫 x2 타수 최대
+	ExtraX2HitCountMin = 55, -- 6라운드 추가 x2 타수 최소
+	ExtraX2HitCountMax = 75, -- 6라운드 추가 x2 타수 최대
 	PlusIntroHitCountMin = 20, -- 6라운드 첫 +1 타수 최소
 	PlusIntroHitCountMax = 30, -- 6라운드 첫 +1 타수 최대
 	Kinds = {
@@ -168,7 +176,7 @@ Config.NumberGate = {
 			Label = "x2",
 			HitCountMin = 80,
 			HitCountMax = 100,
-			Weight = 3,
+			Weight = 34,
 			WalkSpeedScale = 1,
 			PanelColor = Color3.fromRGB(110, 185, 230),
 			FrameColor = Color3.fromRGB(22, 72, 175),
@@ -184,7 +192,7 @@ Config.NumberGate = {
 			Label = "+1",
 			HitCountMin = 70,
 			HitCountMax = 90,
-			Weight = 3,
+			Weight = 40,
 			WalkSpeedScale = 1,
 			PanelColor = Color3.fromRGB(96, 210, 130),
 			FrameColor = Color3.fromRGB(18, 120, 62),
@@ -200,7 +208,7 @@ Config.NumberGate = {
 			Label = "-1",
 			HitCountMin = 35,
 			HitCountMax = 45,
-			Weight = 2,
+			Weight = 26,
 			WalkSpeedScale = 2.0, -- 함정: 더 빠름
 			PanelColor = Color3.fromRGB(220, 72, 68),
 			FrameColor = Color3.fromRGB(150, 22, 22),
@@ -210,6 +218,14 @@ Config.NumberGate = {
 			LightColor = Color3.fromRGB(255, 80, 70),
 		},
 	},
+}
+
+-- 7~9라운드 폭탄/게이트 타수
+Config.LatePickup = {
+	FromRound = 7,
+	UntilRound = 9,
+	HitCountMin = 150,
+	HitCountMax = 220,
 }
 
 -- 플레이어 / 총
@@ -229,7 +245,7 @@ Config.Combat = {
 	DamageByRound = {
 		{ Round = 5, Damage = 18 }, -- 5~6라운드
 		{ Round = 7, Damage = 20 }, -- 7라운드
-		{ Round = 8, Damage = 22 }, -- 8라운드부터
+		{ Round = 8, Damage = 24 }, -- 8라운드부터
 	},
 	ProjectileSpeed = 270, -- 탄속
 	ProjectileLifetime = 0.9,
@@ -263,6 +279,65 @@ Config.Lane = {
 	MergeUntilZ = 33, -- 초록 중앙분리대 시작 (작을수록 캐릭터에 가까움)
 }
 
+-- 2챕터 (11~20) — 좀비 숫자는 1챕터와 같게 시작, 여기만 바꿔서 조절
+Config.Chapter2 = {
+	Waves = {
+		From = 11,
+		Until = 20,
+		Duration = 50, -- 11~19라운드 길이(초)
+	},
+	Zombie = {
+		Health = 36,
+		WalkSpeed = 6.2,
+		ContactDamage = 7,
+		ContactCooldown = 0.95,
+		HitRadius = 3.1,
+		SpawnGap = 0.9,
+		ChaseProgress = 0.8,
+		ChaseStrafeScale = 0.22,
+		ChaseStrafeFarScale = 0.42,
+		StopDistance = 7.5,
+		AttackDuration = 0.55,
+		ShambleSpeed = 2.4,
+		BodyColor = Color3.fromRGB(72, 112, 58),
+		ClothesColor = Color3.fromRGB(62, 48, 40),
+	},
+	ZombieDog = {
+		UnlockWave = 11,
+		SpawnChance = 0.32,
+		Health = 28,
+		WalkSpeed = 9.4,
+		ContactDamage = 6,
+		HitRadius = 4.2,
+		SizeScale = 0.85,
+		BodyColor = Color3.fromRGB(58, 72, 48),
+		SpeedPerSecond = 0.028,
+	},
+	Infinite = {
+		MaxAlive = 10,
+		SpawnGapStart = 1.15,
+		SpawnGapMin = 0.42,
+		LaneSlots = { -8, -4, 0, 4, 8 },
+		HealthPerKill = 0.3,
+		SpeedPerSecond = 0.022,
+		AllySpawnGapScale = 0.62,
+		AllyMaxAliveBonus = 3,
+	},
+	Lane = {
+		Width = 24,
+		Length = 210,
+		Thickness = 1.6,
+		CenterY = 36,
+		PlayerZ = 6512,
+		SpawnZ = 6690,
+		SidePathWidth = 8,
+		GapWidth = 4,
+		MergeUntilZ = 6538,
+	},
+}
+
+Config._chapter = 1
+
 Config.Lobby = {
 	Center = Vector3.new(0, 1, 4000),
 	Size = Vector3.new(400, 1, 400),
@@ -284,6 +359,50 @@ Config.Camera = {
 	Lerp = 1,
 }
 
+function Config.setChapter(chapter: number)
+	Config._chapter = math.max(1, math.floor(chapter))
+end
+
+function Config.chapter(): number
+	return Config._chapter
+end
+
+function Config.activeLane()
+	if Config._chapter >= 2 then
+		return Config.Chapter2.Lane
+	end
+	return Config.Lane
+end
+
+function Config.activeZombie()
+	if Config._chapter >= 2 then
+		return Config.Chapter2.Zombie
+	end
+	return Config.Zombie
+end
+
+function Config.activeDog()
+	if Config._chapter >= 2 then
+		return Config.Chapter2.ZombieDog
+	end
+	return Config.ZombieDog
+end
+
+function Config.activeInfinite()
+	if Config._chapter >= 2 then
+		return Config.Chapter2.Infinite
+	end
+	return Config.Infinite
+end
+
+function Config.playerStandY(): number
+	local lane = Config.activeLane()
+	if Config._chapter <= 1 then
+		return Config.Player.Height
+	end
+	return lane.CenterY + lane.Thickness * 0.5 + 2.2
+end
+
 function Config.unitDamageForWave(wave: number): number
 	local damage = Config.Combat.UnitDamage
 	for _, step in Config.Combat.DamageByRound do
@@ -294,31 +413,63 @@ function Config.unitDamageForWave(wave: number): number
 	return damage
 end
 
+function Config.pickupHitsForWave(wave: number, fallbackMin: number, fallbackMax: number): (number, number)
+	local late = Config.LatePickup
+	if wave >= late.FromRound and wave <= late.UntilRound then
+		return late.HitCountMin, late.HitCountMax
+	end
+	return fallbackMin, fallbackMax
+end
+
 function Config.chaseStartZ(): number
-	local spawnZ = Config.Lane.SpawnZ
-	local playerZ = Config.Lane.PlayerZ
-	return spawnZ + (playerZ - spawnZ) * Config.Zombie.ChaseProgress
+	local lane = Config.activeLane()
+	local zombie = Config.activeZombie()
+	return lane.SpawnZ + (lane.PlayerZ - lane.SpawnZ) * zombie.ChaseProgress
 end
 
 function Config.durationForWave(wave: number): number
+	if wave >= Config.Chapter2.Waves.From then
+		if wave >= Config.Chapter2.Waves.Until then
+			return 1e9
+		end
+		return Config.Chapter2.Waves.Duration
+	end
 	if wave >= Config.FinalBoss.Round then
 		return 1e9
 	end
 	if wave >= Config.Waves.LongFrom and wave <= Config.Waves.LongUntil then
 		return Config.Waves.LongDuration
 	end
+	if wave == 7 then
+		return Config.Waves.Round7Duration
+	end
 	return Config.Waves.Duration
 end
 
 function Config.elapsedAtWaveStart(wave: number): number
+	local startWave = if wave >= Config.Chapter2.Waves.From then Config.Chapter2.Waves.From else 1
 	local total = 0
-	for w = 1, math.max(1, math.floor(wave)) - 1 do
+	for w = startWave, math.max(startWave, math.floor(wave)) - 1 do
 		total += Config.durationForWave(w)
 	end
 	return total
 end
 
-function Config.waveFromElapsed(elapsed: number): number
+function Config.waveFromElapsed(elapsed: number, chapter: number?): number
+	local ch = chapter or Config.chapter()
+	if ch >= 2 then
+		local from = Config.Chapter2.Waves.From
+		local last = Config.Chapter2.Waves.Until
+		local t = 0
+		for w = from, last - 1 do
+			local d = Config.durationForWave(w)
+			if elapsed < t + d then
+				return w
+			end
+			t += d
+		end
+		return last
+	end
 	local t = 0
 	local last = Config.FinalBoss.Round
 	for w = 1, last - 1 do
@@ -332,19 +483,19 @@ function Config.waveFromElapsed(elapsed: number): number
 end
 
 function Config.laneXBounds(): (number, number)
-	local lane = Config.Lane
+	local lane = Config.activeLane()
 	local minX = -(lane.Width / 2 + lane.GapWidth + lane.SidePathWidth - 2)
 	local maxX = lane.Width / 2 - 4
 	return minX, maxX
 end
 
 function Config.sidePathCenterX(): number
-	local lane = Config.Lane
+	local lane = Config.activeLane()
 	return -(lane.Width / 2 + lane.GapWidth + lane.SidePathWidth / 2)
 end
 
 function Config.zombieXBounds(z: number): (number, number)
-	local lane = Config.Lane
+	local lane = Config.activeLane()
 	local mainMin = -(lane.Width / 2 - 2.4)
 	local mainMax = lane.Width / 2 - 3
 	if z <= lane.MergeUntilZ then

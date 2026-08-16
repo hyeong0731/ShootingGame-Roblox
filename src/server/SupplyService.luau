@@ -46,6 +46,7 @@ export type AllyRecord = {
 	leftLegBaseC0: CFrame,
 	strafeYaw: number,
 	walkPhase: number,
+	lastHurtAt: number,
 }
 
 export type AttackTarget = {
@@ -168,7 +169,7 @@ local function plantCrate(model: Model, root: BasePart)
 		end)
 	end
 	local bboxCf, bboxSize = model:GetBoundingBox()
-	local groundY = Config.Lane.CenterY + Config.Lane.Thickness * 0.5
+	local groundY = Config.activeLane().CenterY + Config.activeLane().Thickness * 0.5
 	local bottomY = bboxCf.Position.Y - bboxSize.Y * 0.5
 	root.CFrame = root.CFrame + Vector3.new(0, groundY - bottomY, 0)
 end
@@ -387,6 +388,20 @@ function SupplyService.clear()
 	end
 end
 
+function SupplyService.clearCrates()
+	for _, record in supplies do
+		record.alive = false
+		if record.model.Parent then
+			record.model:Destroy()
+		end
+	end
+	supplies = {}
+	local suppliesFolder = Workspace:FindFirstChild("Supplies")
+	if suppliesFolder then
+		suppliesFolder:ClearAllChildren()
+	end
+end
+
 function SupplyService.create(): SupplyRecord?
 	if not SupplyService.canSpawn() then
 		return nil
@@ -394,11 +409,18 @@ function SupplyService.create(): SupplyRecord?
 
 	local folder = ensureFolder("Supplies")
 	local x = Config.sidePathCenterX()
-	local y = Config.Lane.CenterY + 1.6
-	local z = Config.Lane.SpawnZ
+	local lane = Config.activeLane()
+	local y = lane.CenterY + 1.6
+	local z = lane.SpawnZ
 	local position = Vector3.new(x, y, z)
-
-	local hits = math.random(Config.Supply.HitCountMin, Config.Supply.HitCountMax)
+	local state = ReplicatedStorage:FindFirstChild("GameState")
+	local wave = if state then (state:GetAttribute("Wave") :: number?) else nil
+	local minHits, maxHits = Config.pickupHitsForWave(
+		wave or 1,
+		Config.Supply.HitCountMin,
+		Config.Supply.HitCountMax
+	)
+	local hits = math.random(minHits, maxHits)
 
 	local model = Instance.new("Model")
 	model.Name = "SupplyCrate"
@@ -454,10 +476,18 @@ function SupplyService.createBomb(): SupplyRecord?
 
 	local folder = ensureFolder("Supplies")
 	local x = Config.sidePathCenterX()
-	local y = Config.Lane.CenterY + 1.6
-	local z = Config.Lane.SpawnZ
+	local lane = Config.activeLane()
+	local y = lane.CenterY + 1.6
+	local z = lane.SpawnZ
 	local position = Vector3.new(x, y, z)
-	local hits = math.random(Config.BombCrate.HitCountMin, Config.BombCrate.HitCountMax)
+	local state = ReplicatedStorage:FindFirstChild("GameState")
+	local wave = if state then (state:GetAttribute("Wave") :: number?) else nil
+	local minHits, maxHits = Config.pickupHitsForWave(
+		wave or 1,
+		Config.BombCrate.HitCountMin,
+		Config.BombCrate.HitCountMax
+	)
+	local hits = math.random(minHits, maxHits)
 
 	local model = Instance.new("Model")
 	model.Name = "BombCrate"
@@ -527,6 +557,7 @@ function SupplyService.damageAlly(ally: AllyRecord, amount: number): boolean
 	if not ally.alive or not ally.model.Parent then
 		return false
 	end
+	ally.lastHurtAt = os.clock()
 	local nextHealth = ally.humanoid.Health - amount
 	ally.humanoid.Health = nextHealth
 	if nextHealth <= 0 then
@@ -598,6 +629,7 @@ local function recruitFrom(record: SupplyRecord)
 		leftLegBaseC0 = leftLegWeld.C0,
 		strafeYaw = 0,
 		walkPhase = 0,
+		lastHurtAt = 0,
 	}
 	table.insert(allies, ally)
 	recruitsThisMatch += 1
@@ -705,11 +737,22 @@ function SupplyService.update(dt: number, playerPosition: Vector3?, strafe: numb
 	end
 
 	for _, ally in SupplyService.getAllies() do
+		local now = os.clock()
+		local regenDelay = Config.Supply.AllyRegenDelay
+		local regenRate = Config.Supply.AllyRegenPerSecond
+		if now - ally.lastHurtAt >= regenDelay then
+			local hp = ally.humanoid.Health
+			local maxHp = ally.humanoid.MaxHealth
+			if hp > 0 and hp < maxHp then
+				ally.humanoid.Health = math.min(maxHp, hp + regenRate * dt)
+			end
+		end
+
 		local offset = allySlotOffset(ally.slot)
 		local target = Vector3.new(
 			playerPosition.X + offset.X,
-			Config.Player.Height,
-			Config.Lane.PlayerZ + offset.Z
+			playerPosition.Y,
+			playerPosition.Z + offset.Z
 		)
 
 		local alpha = 1 - math.exp(-ALLY_YAW_LERP * dt)

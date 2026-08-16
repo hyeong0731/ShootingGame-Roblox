@@ -315,9 +315,9 @@ local function createHitCountBadge(parent: Instance): Frame
 	local value = Instance.new("TextLabel")
 	value.Name = "Value"
 	value.BackgroundTransparency = 1
-	value.Size = UDim2.new(1, -8, 0.58, 0)
-	value.Position = UDim2.new(0.5, 0, 0.08, 0)
-	value.AnchorPoint = Vector2.new(0.5, 0)
+	value.Size = UDim2.new(1, -10, 0.72, 0)
+	value.Position = UDim2.new(0.5, 0, 0.5, 0)
+	value.AnchorPoint = Vector2.new(0.5, 0.5)
 	value.Font = Enum.Font.GothamBlack
 	value.Text = "현재타수 : 1"
 	value.TextColor3 = Color3.fromRGB(20, 28, 48)
@@ -330,25 +330,6 @@ local function createHitCountBadge(parent: Instance): Frame
 	valueConstraint.MaxTextSize = 22
 	valueConstraint.MinTextSize = 11
 	valueConstraint.Parent = value
-
-	local caption = Instance.new("TextLabel")
-	caption.Name = "Caption"
-	caption.BackgroundTransparency = 1
-	caption.Size = UDim2.new(1, -6, 0.3, 0)
-	caption.Position = UDim2.new(0.5, 0, 0.98, 0)
-	caption.AnchorPoint = Vector2.new(0.5, 1)
-	caption.Font = Enum.Font.GothamBlack
-	caption.Text = "현재 타수"
-	caption.TextColor3 = Color3.fromRGB(255, 255, 255)
-	caption.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-	caption.TextStrokeTransparency = 0
-	caption.TextScaled = true
-	caption.ZIndex = 5
-	caption.Parent = badge
-	local capConstraint = Instance.new("UITextSizeConstraint")
-	capConstraint.MaxTextSize = 22
-	capConstraint.MinTextSize = 12
-	capConstraint.Parent = caption
 
 	return badge
 end
@@ -503,7 +484,7 @@ function Hud.start()
 		local grid = Instance.new("Frame")
 		grid.Name = "Buttons"
 		grid.BackgroundTransparency = 1
-		grid.Size = UDim2.new(1, -12, 1, -78)
+		grid.Size = UDim2.new(1, -12, 1, -72)
 		grid.Position = UDim2.fromOffset(6, 28)
 		grid.ZIndex = 9
 		grid.Parent = debugPanel
@@ -537,94 +518,24 @@ function Hud.start()
 			end)
 		end
 
-		local scaleRow = Instance.new("Frame")
-		scaleRow.Name = "GateScale"
-		scaleRow.BackgroundTransparency = 1
-		scaleRow.Size = UDim2.new(1, -12, 0, 44)
-		scaleRow.Position = UDim2.new(0, 6, 1, -50)
-		scaleRow.ZIndex = 9
-		scaleRow.Parent = debugPanel
-
-		local scaleTitle = Instance.new("TextLabel")
-		scaleTitle.BackgroundTransparency = 1
-		scaleTitle.Size = UDim2.new(1, 0, 0, 16)
-		scaleTitle.Font = Enum.Font.GothamBold
-		scaleTitle.Text = "x2 크기"
-		scaleTitle.TextColor3 = Color3.fromRGB(255, 200, 70)
-		scaleTitle.TextScaled = true
-		scaleTitle.ZIndex = 10
-		scaleTitle.Parent = scaleRow
-
-		local minus = Instance.new("TextButton")
-		minus.Name = "Minus"
-		minus.Size = UDim2.fromOffset(32, 24)
-		minus.Position = UDim2.new(0, 0, 0, 18)
-		minus.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
-		minus.BorderSizePixel = 0
-		minus.Font = Enum.Font.GothamBold
-		minus.Text = "-"
-		minus.TextColor3 = Color3.new(1, 1, 1)
-		minus.TextScaled = true
-		minus.ZIndex = 10
-		minus.Parent = scaleRow
-		Instance.new("UICorner", minus).CornerRadius = UDim.new(0, 6)
-
-		local scaleValue = Instance.new("TextLabel")
-		scaleValue.Name = "Value"
-		scaleValue.BackgroundTransparency = 1
-		scaleValue.Size = UDim2.new(1, -72, 0, 24)
-		scaleValue.Position = UDim2.new(0, 36, 0, 18)
-		scaleValue.Font = Enum.Font.GothamBlack
-		scaleValue.Text = "1.00"
-		scaleValue.TextColor3 = Color3.new(1, 1, 1)
-		scaleValue.TextScaled = true
-		scaleValue.ZIndex = 10
-		scaleValue.Parent = scaleRow
-
-		local plus = Instance.new("TextButton")
-		plus.Name = "Plus"
-		plus.Size = UDim2.fromOffset(32, 24)
-		plus.Position = UDim2.new(1, -32, 0, 18)
-		plus.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
-		plus.BorderSizePixel = 0
-		plus.Font = Enum.Font.GothamBold
-		plus.Text = "+"
-		plus.TextColor3 = Color3.new(1, 1, 1)
-		plus.TextScaled = true
-		plus.ZIndex = 10
-		plus.Parent = scaleRow
-		Instance.new("UICorner", plus).CornerRadius = UDim.new(0, 6)
-
-		local setScale = remotes:WaitForChild("DebugGateLabel")
-		local function currentScale(): number
-			local state = ReplicatedStorage:FindFirstChild("GameState")
-			local value = if state then state:GetAttribute("GateLabelScale") else nil
-			if typeof(value) == "number" then
-				return value
-			end
-			return Config.NumberGate.LabelScale
-		end
-		local function refreshScale()
-			scaleValue.Text = string.format("%.2f", currentScale())
-		end
-		refreshScale()
-		task.spawn(function()
-			local state = ReplicatedStorage:WaitForChild("GameState")
-			state.AttributeChanged:Connect(function(name)
-				if name == "GateLabelScale" then
-					refreshScale()
-				end
-			end)
-			refreshScale()
-		end)
-		minus.MouseButton1Click:Connect(function()
-			if setScale:IsA("RemoteEvent") then
-				setScale:FireServer(currentScale() - 0.1)
-			end
-		end)
-		plus.MouseButton1Click:Connect(function()
-			if setScale:IsA("RemoteEvent") then
-				setScale:FireServer(currentScale() + 0.1)
+		local chapter2 = Instance.new("TextButton")
+		chapter2.Name = "Chapter2"
+		chapter2.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
+		chapter2.BorderSizePixel = 0
+		chapter2.Font = Enum.Font.GothamBold
+		chapter2.Text = "챕터 2"
+		chapter2.TextColor3 = Color3.new(1, 1, 1)
+		chapter2.TextScaled = true
+		chapter2.AutoButtonColor = true
+		chapter2.Size = UDim2.new(1, -12, 0, 32)
+		chapter2.Position = UDim2.new(0, 6, 1, -40)
+		chapter2.ZIndex = 10
+		chapter2.Parent = debugPanel
+		Instance.new("UICorner", chapter2).CornerRadius = UDim.new(0, 6)
+		local setChapter = remotes:WaitForChild("DebugSetChapter")
+		chapter2.MouseButton1Click:Connect(function()
+			if setChapter:IsA("RemoteEvent") then
+				setChapter:FireServer(2)
 			end
 		end)
 
@@ -767,10 +678,11 @@ function Hud.start()
 			hitValue.Text = `현재타수 : {hitPower}`
 		end
 		local isLobby = currentPhase == "lobby"
+		local isClear = currentPhase == "chapterClear"
 		kills.Visible = not isLobby
 		timer.Visible = not isLobby
 		waveLabel.Visible = not isLobby
-		weaponBtn.Visible = not isLobby
+		weaponBtn.Visible = not isLobby and not isClear
 		hitBadge.Visible = not isLobby
 		ensureWorldBar(currentPhase)
 
@@ -787,6 +699,9 @@ function Hud.start()
 		if currentPhase == "lobby" then
 			banner.Text = ""
 			hint.Text = "초록 발판에 올라가면 게임이 시작됩니다"
+		elseif currentPhase == "chapterClear" then
+			banner.Text = "1챕터 클리어"
+			hint.Text = "도로를 따라 걸어가 파란 발판을 밟으세요"
 		elseif currentPhase == "countdown" then
 			banner.Text = "A / D 를 사용해서 좀비를 무찌르세요"
 			hint.Text = if countdown > 0 then `시작 {countdown}` else "시작!"

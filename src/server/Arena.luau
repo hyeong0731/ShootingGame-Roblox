@@ -4,6 +4,7 @@ local PhysicsService = game:GetService("PhysicsService")
 
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local Ruins = require(script.Parent.Ruins)
+local Bridge = require(script.Parent.Bridge)
 
 local Arena = {}
 
@@ -153,6 +154,7 @@ function Arena.build(): Folder
 	}).Transparency = 1
 
 	Ruins.build(folder)
+	Bridge.build(folder)
 
 	-- open lobby field, far from the lane
 	local lobby = Config.Lobby

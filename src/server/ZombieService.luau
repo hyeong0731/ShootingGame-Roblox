@@ -352,7 +352,7 @@ local function finalizeModel(model: Model, root: BasePart, humanoid: Humanoid, s
 	attachHitbox(model, root, stats.scale, stats.isDog)
 
 	model.PrimaryPart = root
-	local hitRadius = if stats.isDog then Config.ZombieDog.HitRadius else Config.Zombie.HitRadius
+	local hitRadius = if stats.isDog then Config.activeDog().HitRadius else Config.activeZombie().HitRadius
 	model:SetAttribute("HitRadius", hitRadius * stats.scale)
 	if stats.isBoss then
 		model:SetAttribute("IsBoss", true)
@@ -672,7 +672,7 @@ local function createFromPrototype(position: Vector3, stats: {
 
 	-- Plant feet on the road (prototype pivot heights vary).
 	local bboxCf, bboxSize = model:GetBoundingBox()
-	local groundY = Config.Lane.CenterY + Config.Lane.Thickness * 0.5
+	local groundY = Config.activeLane().CenterY + Config.activeLane().Thickness * 0.5
 	local bottomY = bboxCf.Position.Y - bboxSize.Y * 0.5
 	local lift = groundY - bottomY
 	if math.abs(lift) > 0.01 then
@@ -954,7 +954,7 @@ function ZombieService.damageInRadius(position: Vector3, radius: number, amount:
 end
 
 function ZombieService.retargetApproaching(assign: (ZombieRecord) -> { kind: string, ally: any? })
-	local meleeZ = Config.Lane.PlayerZ + Config.Zombie.StopDistance + 6
+	local meleeZ = Config.activeLane().PlayerZ + Config.activeZombie().StopDistance + 6
 	for _, record in ZombieService.getAlive() do
 		if record.root.Position.Z > meleeZ then
 			record.attackTarget = assign(record)
@@ -1129,6 +1129,7 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 	end
 
 	local now = os.clock()
+	local zombieCfg = Config.activeZombie()
 
 	for _, record in ZombieService.getAlive() do
 		if record.humanoid.MaxHealth ~= record.maxHp or record.humanoid.Health > record.hp + 0.05 then
@@ -1140,7 +1141,7 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		local pos = record.root.Position
 		local focus = resolveTargetPosition(record, playerPosition)
 		local targetX = pos.X
-		local stopZ = focus.Z + Config.Zombie.StopDistance
+		local stopZ = focus.Z + zombieCfg.StopDistance
 		local moving = pos.Z > stopZ + 0.15
 		local nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
 		if nextZ < stopZ then
@@ -1149,9 +1150,9 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 
 		local minX, maxX = Config.zombieXBounds(nextZ)
 		if pos.Z <= Config.chaseStartZ() then
-			local chaseSpeed = record.walkSpeed * Config.Zombie.ChaseStrafeScale
+			local chaseSpeed = record.walkSpeed * zombieCfg.ChaseStrafeScale
 			if math.abs(focus.X - pos.X) > 6 then
-				chaseSpeed = record.walkSpeed * Config.Zombie.ChaseStrafeFarScale
+				chaseSpeed = record.walkSpeed * zombieCfg.ChaseStrafeFarScale
 			end
 			local dx = focus.X - pos.X
 			local maxStep = chaseSpeed * dt
@@ -1167,12 +1168,12 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		local attackT = 0
 		local lean = 0
 		if attacking then
-			attackT = 1 - (record.attackUntil - now) / Config.Zombie.AttackDuration
+			attackT = 1 - (record.attackUntil - now) / zombieCfg.AttackDuration
 			-- Slight lunge only; the claw is on the right arm, not a kick.
 			lean = math.sin(math.clamp(attackT, 0, 1) * math.pi) * math.rad(if record.isDog then 16 else 6)
 		end
 
-		local shamble = Config.Zombie.ShambleSpeed * (if moving then 1.15 else 0.55) * (if record.isDog then 1.45 else record.limp)
+		local shamble = zombieCfg.ShambleSpeed * (if moving then 1.15 else 0.55) * (if record.isDog then 1.45 else record.limp)
 		record.phase += dt * shamble
 		local swing = math.sin(record.phase)
 		local sway = math.sin(record.phase * 0.55) * math.rad(if record.isDog then 3 else 10)
@@ -1197,9 +1198,9 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		local inFront = pos.Z <= stopZ + 1.2
 		local flatX = math.abs(pos.X - focus.X)
 		local reachX = (record.model:GetAttribute("HitRadius") :: number) + 2.2
-		if inFront and flatX <= reachX and now - record.lastContact >= Config.Zombie.ContactCooldown then
+		if inFront and flatX <= reachX and now - record.lastContact >= zombieCfg.ContactCooldown then
 			record.lastContact = now
-			record.attackUntil = now + Config.Zombie.AttackDuration
+			record.attackUntil = now + zombieCfg.AttackDuration
 			if ZombieService._onReached then
 				ZombieService._onReached(record)
 			end
