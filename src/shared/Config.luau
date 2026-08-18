@@ -145,6 +145,28 @@ Config.BombCrate = {
 	HitLabelScale = 1, -- 위 타수 숫자 크기 (1 = 예시 통 숫자)
 }
 
+-- 스나이퍼 상자 (챕터2만)
+Config.SniperCrate = {
+	Chapter = 2, -- 이 챕터에서만 등장
+	FirstSpawnDelay = 5, -- 챕터 시작 후 첫 등장(초)
+	SpawnInterval = 32, -- 등장 간격(초)
+	HitCount = 40, -- 상자 타수
+	HitDamage = 40, -- 스나이퍼 한 발이 깎는 타수 (방패/숫자 대상)
+	MaxAlive = 1,
+	Duration = 10, -- 스나이퍼 지속(초)
+	FireInterval = 0.7, -- 연사 간격
+	AfterDurationPlusDelay = 5, -- 스나이퍼 끝난 뒤 +1까지
+	AfterPlusX2Delay = 3, -- +1 나온 뒤 x2까지
+	PlusHitCountMin = 20,
+	PlusHitCountMax = 32,
+	X2HitCountMin = 40,
+	X2HitCountMax = 55,
+	ProjectileSpeed = 320, -- 탄속
+	ProjectileRadius = 0.7, -- 피격 가로 두께
+	BoltSize = Vector3.new(0.48, 0.48, 6.4), -- 총알 크기
+	HitLabelScale = 1,
+}
+
 -- 타수 게이트 (5라운드 x2, 6라운드 +1, 8라운드부터 x2/+1/-1 랜덤)
 Config.NumberGate = {
 	UnlockRound = 5, -- 첫 x2 등장
@@ -257,6 +279,13 @@ Config.Hud = {
 	WeaponButtonSize = 78, -- 현재무기 버튼 크기
 }
 
+-- 타수 숫자 (상자/게이트/보스/방패)
+Config.HitLabel = {
+	Scale = 0.48, -- 1 = 예전 크기, 낮출수록 작아짐
+	CrateFront = Vector3.new(0, 0.35, -2.8), -- 상자 앞면 (로컬, -Z가 플레이어 쪽)
+	ShieldScale = 0.62, -- 방패 타수 추가 배수 (전체 Scale에 곱함)
+}
+
 -- 개발용 (끝나면 Enabled = false)
 Config.Debug = {
 	Enabled = true,
@@ -279,12 +308,22 @@ Config.Lane = {
 	MergeUntilZ = 33, -- 초록 중앙분리대 시작 (작을수록 캐릭터에 가까움)
 }
 
--- 2챕터 (11~20) — 좀비 숫자는 1챕터와 같게 시작, 여기만 바꿔서 조절
+-- 방패 좀비 (챕터2, 라운드2 시작 10초 전부터)
+Config.ShieldZombie = {
+	Chapter = 2,
+	UnlockRound = 2, -- 챕터 안 라운드
+	LeadSeconds = 10, -- 그 라운드 시작 이만큼 전부터
+	HitCountMin = 30, -- 방패 내구도 최소
+	HitCountMax = 50, -- 방패 내구도 최대
+	SpawnChance = 0.28, -- 일반 좀비 중 방패 확률
+}
+
+-- 2챕터 (표시는 1~10) — 좀비 숫자는 1챕터와 같게 시작, 여기만 바꿔서 조절
 Config.Chapter2 = {
 	Waves = {
 		From = 11,
 		Until = 20,
-		Duration = 50, -- 11~19라운드 길이(초)
+		Duration = 60, -- 각 라운드 1분
 	},
 	Zombie = {
 		Health = 36,
@@ -314,17 +353,17 @@ Config.Chapter2 = {
 		SpeedPerSecond = 0.028,
 	},
 	Infinite = {
-		MaxAlive = 10,
-		SpawnGapStart = 1.15,
-		SpawnGapMin = 0.42,
-		LaneSlots = { -8, -4, 0, 4, 8 },
-		HealthPerKill = 0.3,
+		MaxAlive = 20, -- 1챕터보다 많이
+		SpawnGapStart = 0.5, -- 스폰 간격(초), 낮을수록 빽빽
+		SpawnGapMin = 0.2,
+		LaneSlots = { -10, -5, 0, 5, 10 },
+		HealthPerKill = 0.17, -- 킬당 체력 증가
 		SpeedPerSecond = 0.022,
 		AllySpawnGapScale = 0.62,
-		AllyMaxAliveBonus = 3,
+		AllyMaxAliveBonus = 4,
 	},
 	Lane = {
-		Width = 24,
+		Width = 28,
 		Length = 210,
 		Thickness = 1.6,
 		CenterY = 36,
@@ -333,6 +372,43 @@ Config.Chapter2 = {
 		SidePathWidth = 8,
 		GapWidth = 4,
 		MergeUntilZ = 6538,
+	},
+	-- 챕터2 로컬 라운드2 (내부 wave 12). 시각은 그 라운드 시작 기준
+	Round2 = {
+		Round = 2,
+		MinusAt = 5,
+		BombAt = 14,
+		PlusAt = 30,
+		BigZombieAt = 45, -- 이때부터 1챕터식 큰 좀비 섞임
+		PlusAgainAt = 55,
+		MinusHitCountMin = 18,
+		MinusHitCountMax = 28,
+		PlusHitCountMin = 20,
+		PlusHitCountMax = 32,
+	},
+	-- 개/방패가 아닌 일반 중 큰 좀비 확률 (크기·체력은 Config.Boss)
+	BigZombie = {
+		SpawnChance = 0.20,
+	},
+	-- 챕터2 로컬 라운드3. 시각은 그 라운드 시작 기준
+	Round3 = {
+		Round = 3,
+		PlusAt = 0,
+		AllyAt = 10,
+		CrateAt = 12, -- 폭탄 또는 스나이퍼
+		MinusAt = 17,
+		CrateAgainAt = 40,
+		MinusAgainAt = 44,
+		ShieldBoostAt = 50,
+		AllyHitCountMin = 120,
+		AllyHitCountMax = 150,
+		ShieldHitCountMin = 50,
+		ShieldHitCountMax = 70,
+		ShieldSpawnChance = 0.25, -- 전체 스폰 중 방패 비율
+		PlusHitCountMin = 20,
+		PlusHitCountMax = 32,
+		MinusHitCountMin = 18,
+		MinusHitCountMax = 28,
 	},
 }
 
@@ -351,11 +427,14 @@ Config.Squad = {
 }
 
 Config.Camera = {
-	Offset = Vector3.new(0, 30, -16),
-	LookAhead = Vector3.new(0, 1.5, 28),
+	-- 캐릭터는 화면 아래 끝, 위쪽에는 도로가 끝까지 보이는 눕힌 시야
+	Offset = Vector3.new(0, 23, -27), -- 카메라 위치 (Y 올리면 위에서 보고, Z 뒤일수록 등이 안 잘림)
+	LookAhead = Vector3.new(0, 2, 22), -- 보는 지점 (Z 멀수록 캐릭터가 아래로 내려가고 멀리 보임)
 	LobbyOffset = Vector3.new(0, 16, -14),
 	LobbyLookAhead = Vector3.new(0, 1, 16),
-	FieldOfView = 64,
+	FieldOfView = 42, -- 낮을수록 줌인 (41 아래로 내리면 발이 잘림)
+	Distance = 1, -- 앞뒤 거리 배수 (낮출수록 가까이)
+	Height = 1, -- 높이 배수 (낮출수록 더 눕음)
 	Lerp = 1,
 }
 
@@ -403,6 +482,10 @@ function Config.playerStandY(): number
 	return lane.CenterY + lane.Thickness * 0.5 + 2.2
 end
 
+function Config.crateDespawnZ(): number
+	return Config.activeLane().PlayerZ - 20
+end
+
 function Config.unitDamageForWave(wave: number): number
 	local damage = Config.Combat.UnitDamage
 	for _, step in Config.Combat.DamageByRound do
@@ -427,9 +510,22 @@ function Config.chaseStartZ(): number
 	return lane.SpawnZ + (lane.PlayerZ - lane.SpawnZ) * zombie.ChaseProgress
 end
 
+function Config.hitLabelScale(extra: number?): number
+	local base = Config.HitLabel.Scale
+	return math.clamp(base * (extra or 1), 0.15, 3)
+end
+
+function Config.chapterRound(wave: number, chapter: number?): number
+	local ch = chapter or Config.chapter()
+	if ch >= 2 then
+		return math.max(1, math.floor(wave) - Config.Chapter2.Waves.From + 1)
+	end
+	return math.max(1, math.floor(wave))
+end
+
 function Config.durationForWave(wave: number): number
 	if wave >= Config.Chapter2.Waves.From then
-		if wave >= Config.Chapter2.Waves.Until then
+		if wave > Config.Chapter2.Waves.Until then
 			return 1e9
 		end
 		return Config.Chapter2.Waves.Duration
@@ -461,7 +557,7 @@ function Config.waveFromElapsed(elapsed: number, chapter: number?): number
 		local from = Config.Chapter2.Waves.From
 		local last = Config.Chapter2.Waves.Until
 		local t = 0
-		for w = from, last - 1 do
+		for w = from, last do
 			local d = Config.durationForWave(w)
 			if elapsed < t + d then
 				return w

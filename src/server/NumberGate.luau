@@ -133,10 +133,10 @@ local function gateCFrame(position: Vector3): CFrame
 end
 
 local function attachOverheadHits(adornee: BasePart, hits: number, offsetY: number, sizeScale: number): TextLabel
-	local s = math.clamp(sizeScale, 0.4, 2.5)
+	local s = math.clamp(sizeScale, 0.15, 3)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "HitCount"
-	billboard.Size = UDim2.fromOffset(math.floor(52 * s), math.floor(34 * s))
+	billboard.Size = UDim2.fromOffset(math.max(28, math.floor(52 * s)), math.max(18, math.floor(34 * s)))
 	billboard.StudsOffset = Vector3.new(0, offsetY, 0)
 	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = 240
@@ -154,8 +154,8 @@ local function attachOverheadHits(adornee: BasePart, hits: number, offsetY: numb
 	label.TextScaled = true
 	label.Parent = billboard
 	local cap = Instance.new("UITextSizeConstraint")
-	cap.MaxTextSize = math.floor(30 * s)
-	cap.MinTextSize = 14
+	cap.MaxTextSize = math.max(10, math.floor(30 * s))
+	cap.MinTextSize = math.max(8, math.floor(12 * s))
 	cap.Parent = label
 	setHitLabel(label, hits)
 	return label
@@ -372,7 +372,7 @@ function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?, fo
 	light.Range = 8
 	light.Parent = panel
 
-	local hitScale = cfg.HitLabelScale or 1
+	local hitScale = Config.hitLabelScale(cfg.HitLabelScale)
 	local label = attachOverheadHits(root, hits, cfg.Height * 0.5 + cfg.HitLabelOffset, hitScale)
 
 	model.PrimaryPart = root
@@ -414,6 +414,18 @@ end
 function NumberGate.createPlusIntro(): GateRecord?
 	local cfg = Config.NumberGate
 	return NumberGate.create(kindById("plus"), cfg.PlusIntroHitCountMin, cfg.PlusIntroHitCountMax)
+end
+
+function NumberGate.createPlus(hitMin: number, hitMax: number, force: boolean?): GateRecord?
+	return NumberGate.create(kindById("plus"), hitMin, hitMax, force)
+end
+
+function NumberGate.createMinus(hitMin: number, hitMax: number, force: boolean?): GateRecord?
+	return NumberGate.create(kindById("minus"), hitMin, hitMax, force)
+end
+
+function NumberGate.createX2(hitMin: number, hitMax: number, force: boolean?): GateRecord?
+	return NumberGate.create(kindById("x2"), hitMin, hitMax, force)
 end
 
 function NumberGate.createExtraIntro(): GateRecord?
@@ -485,7 +497,7 @@ function NumberGate.update(dt: number, _playerPosition: Vector3?)
 
 		local pos = record.root.Position
 		local nextZ = pos.Z - record.walkSpeed * dt
-		if nextZ < Config.Supply.DespawnZ then
+		if nextZ < Config.crateDespawnZ() then
 			record.alive = false
 			record.model:Destroy()
 			continue

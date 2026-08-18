@@ -26,7 +26,7 @@ export type SupplyRecord = {
 	label: TextLabel,
 	hitsLeft: number,
 	alive: boolean,
-	kind: "ally" | "bomb",
+	kind: "ally" | "bomb" | "sniper",
 }
 
 export type AllyRecord = {
@@ -62,6 +62,7 @@ local recruitsThisMatch = 0
 local onRecruited: ((AllyRecord) -> ())? = nil
 local onAllyDied: ((AllyRecord) -> ())? = nil
 local onBombPicked: (() -> ())? = nil
+local onSniperPicked: (() -> ())? = nil
 
 local function ensureFolder(name: string): Folder
 	local existing = Workspace:FindFirstChild(name)
@@ -127,12 +128,12 @@ local function setHitLabel(label: TextLabel, hits: number)
 	label.Text = tostring(math.max(0, math.floor(hits)))
 end
 
-local function attachOverheadHits(adornee: BasePart, hits: number, offsetY: number, textColor: Color3, sizeScale: number): TextLabel
-	local s = math.clamp(sizeScale, 0.4, 2.5)
+local function attachOverheadHits(adornee: BasePart, hits: number, offset: Vector3, textColor: Color3, sizeScale: number): TextLabel
+	local s = math.clamp(sizeScale, 0.15, 3)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "HitCount"
-	billboard.Size = UDim2.fromOffset(math.floor(52 * s), math.floor(34 * s))
-	billboard.StudsOffset = Vector3.new(0, offsetY, 0)
+	billboard.Size = UDim2.fromOffset(math.max(28, math.floor(52 * s)), math.max(18, math.floor(34 * s)))
+	billboard.StudsOffset = offset
 	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = 240
 	billboard.LightInfluence = 0
@@ -149,16 +150,11 @@ local function attachOverheadHits(adornee: BasePart, hits: number, offsetY: numb
 	label.TextScaled = true
 	label.Parent = billboard
 	local cap = Instance.new("UITextSizeConstraint")
-	cap.MaxTextSize = math.floor(30 * s)
-	cap.MinTextSize = 14
+	cap.MaxTextSize = math.max(10, math.floor(30 * s))
+	cap.MinTextSize = math.max(8, math.floor(12 * s))
 	cap.Parent = label
 	setHitLabel(label, hits)
 	return label
-end
-
-local function overheadOffset(model: Model, root: BasePart): number
-	local bboxCf, bboxSize = model:GetBoundingBox()
-	return (bboxCf.Position.Y + bboxSize.Y * 0.5) - root.Position.Y + 0.7
 end
 
 local function plantCrate(model: Model, root: BasePart)
@@ -196,6 +192,23 @@ local function buildCrateRecruit(parent: Model, root: BasePart)
 		weldConstraint(root, makePart(parent, "Leg", Vector3.new(0.78, 1.35, 0.78), pants, torso.CFrame * CFrame.new(side * 0.45, -1.7, 0)))
 		weldConstraint(root, makePart(parent, "Boot", Vector3.new(0.82, 0.55, 0.95), boot, torso.CFrame * CFrame.new(side * 0.45, -2.55, 0.05)))
 	end
+end
+
+local function buildCrateSniper(parent: Model, root: BasePart)
+	local metal = Color3.fromRGB(36, 40, 48)
+	local dark = Color3.fromRGB(22, 24, 28)
+	local wood = Color3.fromRGB(72, 48, 30)
+	local body = makePart(parent, "SniperBody", Vector3.new(0.42, 0.38, 2.35), metal, root.CFrame * CFrame.new(0, 2.55, 0), Enum.Material.Metal)
+	weldConstraint(root, body)
+	weldConstraint(root, makePart(parent, "SniperStock", Vector3.new(0.34, 0.4, 0.85), dark, body.CFrame * CFrame.new(0, -0.08, 1.35), Enum.Material.SmoothPlastic))
+	weldConstraint(root, makePart(parent, "SniperBarrel", Vector3.new(0.2, 0.2, 1.85), Color3.fromRGB(48, 52, 58), body.CFrame * CFrame.new(0, 0.06, -1.85), Enum.Material.Metal))
+	weldConstraint(root, makePart(parent, "SniperHandguard", Vector3.new(0.38, 0.32, 0.9), wood, body.CFrame * CFrame.new(0, -0.02, -0.85), Enum.Material.Wood))
+	local scope = makePart(parent, "SniperScope", Vector3.new(0.34, 0.34, 0.95), Color3.fromRGB(28, 30, 36), body.CFrame * CFrame.new(0, 0.42, -0.15), Enum.Material.Metal)
+	scope.Shape = Enum.PartType.Cylinder
+	scope.CFrame = body.CFrame * CFrame.new(0, 0.42, -0.15) * CFrame.Angles(0, math.rad(90), 0)
+	weldConstraint(root, scope)
+	weldConstraint(root, makePart(parent, "SniperLens", Vector3.new(0.22, 0.22, 0.1), Color3.fromRGB(80, 200, 255), body.CFrame * CFrame.new(0, 0.42, -0.58), Enum.Material.Neon))
+	weldConstraint(root, makePart(parent, "SniperMag", Vector3.new(0.22, 0.7, 0.38), dark, body.CFrame * CFrame.new(0, -0.48, 0.15), Enum.Material.SmoothPlastic))
 end
 
 local function buildCrateBomb(parent: Model, root: BasePart)
@@ -299,6 +312,10 @@ function SupplyService.onBombPicked(callback: () -> ())
 	onBombPicked = callback
 end
 
+function SupplyService.onSniperPicked(callback: () -> ())
+	onSniperPicked = callback
+end
+
 function SupplyService.hasRecruitedThisMatch(): boolean
 	return recruitsThisMatch > 0
 end
@@ -321,6 +338,19 @@ function SupplyService.canSpawnBomb(): boolean
 		end
 	end
 	return bombAlive < Config.BombCrate.MaxAlive
+end
+
+function SupplyService.canSpawnSniper(): boolean
+	if #supplies >= Config.Supply.MaxAlive then
+		return false
+	end
+	local sniperAlive = 0
+	for _, record in supplies do
+		if record.alive and record.kind == "sniper" then
+			sniperAlive += 1
+		end
+	end
+	return sniperAlive < Config.SniperCrate.MaxAlive
 end
 
 function SupplyService.getAlive(): { SupplyRecord }
@@ -402,8 +432,8 @@ function SupplyService.clearCrates()
 	end
 end
 
-function SupplyService.create(): SupplyRecord?
-	if not SupplyService.canSpawn() then
+function SupplyService.create(force: boolean?, hitMin: number?, hitMax: number?): SupplyRecord?
+	if not force and not SupplyService.canSpawn() then
 		return nil
 	end
 
@@ -415,11 +445,15 @@ function SupplyService.create(): SupplyRecord?
 	local position = Vector3.new(x, y, z)
 	local state = ReplicatedStorage:FindFirstChild("GameState")
 	local wave = if state then (state:GetAttribute("Wave") :: number?) else nil
-	local minHits, maxHits = Config.pickupHitsForWave(
-		wave or 1,
-		Config.Supply.HitCountMin,
-		Config.Supply.HitCountMax
-	)
+	local minHits = hitMin
+	local maxHits = hitMax
+	if not minHits or not maxHits then
+		minHits, maxHits = Config.pickupHitsForWave(
+			wave or 1,
+			Config.Supply.HitCountMin,
+			Config.Supply.HitCountMax
+		)
+	end
 	local hits = math.random(minHits, maxHits)
 
 	local model = Instance.new("Model")
@@ -448,11 +482,11 @@ function SupplyService.create(): SupplyRecord?
 	model.Parent = folder
 	plantCrate(model, root)
 
-	local hitScale = liveConfig().Supply.HitLabelScale or 1
+	local hitScale = Config.hitLabelScale(liveConfig().Supply.HitLabelScale)
 	local label = attachOverheadHits(
 		root,
 		hits,
-		overheadOffset(model, root),
+		Config.HitLabel.CrateFront,
 		Color3.fromRGB(255, 255, 255),
 		hitScale
 	)
@@ -469,8 +503,8 @@ function SupplyService.create(): SupplyRecord?
 	return record
 end
 
-function SupplyService.createBomb(): SupplyRecord?
-	if not SupplyService.canSpawnBomb() then
+function SupplyService.createBomb(force: boolean?): SupplyRecord?
+	if not force and not SupplyService.canSpawnBomb() then
 		return nil
 	end
 
@@ -515,11 +549,11 @@ function SupplyService.createBomb(): SupplyRecord?
 	model.Parent = folder
 	plantCrate(model, root)
 
-	local hitScale = liveConfig().BombCrate.HitLabelScale or 1
+	local hitScale = Config.hitLabelScale(liveConfig().BombCrate.HitLabelScale)
 	local label = attachOverheadHits(
 		root,
 		hits,
-		overheadOffset(model, root),
+		Config.HitLabel.CrateFront,
 		Color3.fromRGB(255, 210, 120),
 		hitScale
 	)
@@ -531,6 +565,66 @@ function SupplyService.createBomb(): SupplyRecord?
 		hitsLeft = hits,
 		alive = true,
 		kind = "bomb",
+	}
+	table.insert(supplies, record)
+	return record
+end
+
+function SupplyService.createSniper(force: boolean?): SupplyRecord?
+	if not force and not SupplyService.canSpawnSniper() then
+		return nil
+	end
+
+	local folder = ensureFolder("Supplies")
+	local x = Config.sidePathCenterX()
+	local lane = Config.activeLane()
+	local y = lane.CenterY + 1.6
+	local z = lane.SpawnZ
+	local position = Vector3.new(x, y, z)
+	local hits = math.max(1, math.floor((liveConfig().SniperCrate and liveConfig().SniperCrate.HitCount) or Config.SniperCrate.HitCount))
+
+	local model = Instance.new("Model")
+	model.Name = "SniperCrate"
+	model:SetAttribute("IsSupply", true)
+	model:SetAttribute("IsSniperCrate", true)
+	model:SetAttribute("HitsLeft", hits)
+
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(3.2, 2.4, 3.2)
+	root.Color = Color3.fromRGB(150, 96, 42)
+	root.Material = Enum.Material.Wood
+	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+	root.Anchored = true
+	root.CanCollide = true
+	root.Parent = model
+
+	local lid = makePart(model, "Lid", Vector3.new(3.4, 0.35, 3.4), Color3.fromRGB(120, 72, 32), root.CFrame * CFrame.new(0, 1.35, 0), Enum.Material.Wood)
+	weldConstraint(root, lid)
+	local stripe = makePart(model, "Stripe", Vector3.new(3.45, 0.55, 0.55), Color3.fromRGB(80, 190, 230), root.CFrame * CFrame.new(0, 0.2, 0), Enum.Material.Metal)
+	weldConstraint(root, stripe)
+	buildCrateSniper(model, root)
+
+	model.PrimaryPart = root
+	model.Parent = folder
+	plantCrate(model, root)
+
+	local hitScale = Config.hitLabelScale(liveConfig().SniperCrate.HitLabelScale)
+	local label = attachOverheadHits(
+		root,
+		hits,
+		Config.HitLabel.CrateFront,
+		Color3.fromRGB(170, 230, 255),
+		hitScale
+	)
+
+	local record: SupplyRecord = {
+		model = model,
+		root = root,
+		label = label,
+		hitsLeft = hits,
+		alive = true,
+		kind = "sniper",
 	}
 	table.insert(supplies, record)
 	return record
@@ -659,6 +753,11 @@ function SupplyService.damageModel(model: Model, hits: number?): boolean
 					if onBombPicked then
 						onBombPicked()
 					end
+				elseif record.kind == "sniper" then
+					record.model:Destroy()
+					if onSniperPicked then
+						onSniperPicked()
+					end
 				else
 					recruitFrom(record)
 				end
@@ -709,7 +808,7 @@ function SupplyService.update(dt: number, playerPosition: Vector3?, strafe: numb
 
 		local pos = record.root.Position
 		local nextZ = pos.Z - Config.Supply.WalkSpeed * dt
-		if nextZ < Config.Supply.DespawnZ then
+		if nextZ < Config.crateDespawnZ() then
 			record.alive = false
 			record.model:Destroy()
 			continue

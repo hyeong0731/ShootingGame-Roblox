@@ -17,6 +17,12 @@ local active = {} :: {
 		damage: number,
 		hits: number,
 		born: number,
+		pierce: boolean,
+		oneshot: boolean,
+		radius: number,
+		endZ: number?,
+		hitSet: { [Model]: boolean },
+		tipOffset: number,
 	}
 }
 
@@ -35,13 +41,14 @@ function CombatService.bind(remotes)
 	CombatService._remotes = remotes
 end
 
-local function spawnBolt(origin: Vector3, direction: Vector3): BasePart
+local function spawnBolt(origin: Vector3, direction: Vector3, size: Vector3?, color: Color3?): (BasePart, number)
+	local boltSize = size or Vector3.new(0.28, 0.28, 3.4)
 	local bolt = Instance.new("Part")
 	bolt.Name = "Bolt"
 	bolt.Shape = Enum.PartType.Block
-	bolt.Size = Vector3.new(0.28, 0.28, 3.4)
+	bolt.Size = boltSize
 	bolt.Material = Enum.Material.Neon
-	bolt.Color = Color3.fromRGB(255, 220, 70)
+	bolt.Color = color or Color3.fromRGB(255, 220, 70)
 	bolt.Anchored = true
 	bolt.CanCollide = false
 	bolt.CanQuery = false
@@ -49,19 +56,21 @@ local function spawnBolt(origin: Vector3, direction: Vector3): BasePart
 	bolt.CFrame = CFrame.lookAt(origin, origin + direction)
 	bolt.Parent = Workspace:FindFirstChild("Fx") or Workspace
 
+	local tipLen = math.max(0.5, boltSize.Z * 0.2)
 	local tip = Instance.new("WedgePart")
 	tip.Name = "Tip"
-	tip.Size = Vector3.new(0.3, 0.3, 0.7)
+	tip.Size = Vector3.new(boltSize.X + 0.02, boltSize.Y + 0.02, tipLen)
 	tip.Material = Enum.Material.Neon
 	tip.Color = Color3.fromRGB(255, 245, 180)
 	tip.Anchored = true
 	tip.CanCollide = false
 	tip.CanQuery = false
 	tip.CastShadow = false
-	tip.CFrame = bolt.CFrame * CFrame.new(0, 0, -2.0)
+	local tipOffset = boltSize.Z * 0.5 + tipLen * 0.15
+	tip.CFrame = bolt.CFrame * CFrame.new(0, 0, -tipOffset)
 	tip.Parent = bolt
 
-	return bolt
+	return bolt, tipOffset
 end
 
 local function spawnThrownBomb(origin: Vector3): BasePart
@@ -120,7 +129,7 @@ end
 
 function CombatService.fireStraight(origin: Vector3, damage: number, hits: number?)
 	local direction = Vector3.new(0, 0, 1)
-	local part = spawnBolt(origin, direction)
+	local part, tipOffset = spawnBolt(origin, direction)
 	table.insert(active, {
 		part = part,
 		direction = direction,
@@ -128,17 +137,49 @@ function CombatService.fireStraight(origin: Vector3, damage: number, hits: numbe
 		damage = damage,
 		hits = math.max(1, math.floor(hits or 1)),
 		born = os.clock(),
+		pierce = false,
+		oneshot = false,
+		radius = 1.35,
+		endZ = nil,
+		hitSet = {},
+		tipOffset = tipOffset,
 	})
 end
 
-local function applyShot(model: Model, damage: number, hits: number): boolean
+function CombatService.fireSniper(origin: Vector3, damage: number, hits: number?)
+	local cfg = Config.SniperCrate
+	local direction = Vector3.new(0, 0, 1)
+	local part, tipOffset = spawnBolt(
+		origin,
+		direction,
+		cfg.BoltSize,
+		Color3.fromRGB(160, 230, 255)
+	)
+	table.insert(active, {
+		part = part,
+		direction = direction,
+		speed = cfg.ProjectileSpeed,
+		damage = damage,
+		hits = math.max(1, math.floor(cfg.HitDamage or hits or 1)),
+		born = os.clock(),
+		pierce = true,
+		oneshot = true,
+		radius = cfg.ProjectileRadius,
+		endZ = Config.activeLane().SpawnZ + 12,
+		hitSet = {},
+		tipOffset = tipOffset,
+	})
+end
+
+local function applyShot(model: Model, damage: number, hits: number, oneshot: boolean?): boolean
 	if model:GetAttribute("IsNumberGate") == true then
 		return NumberGate.damageModel(model, hits)
 	end
 	if model:GetAttribute("IsSupply") == true then
 		return SupplyService.damageModel(model, hits)
 	end
-	return ZombieService.damageModel(model, damage, hits)
+	local amount = if oneshot then 1e9 else damage
+	return ZombieService.damageModel(model, amount, hits)
 end
 
 local function pointToSegmentDist(point: Vector3, a: Vector3, b: Vector3): (number, Vector3)
@@ -218,6 +259,57 @@ local function proximityHit(from: Vector3, to: Vector3, damage: number, hits: nu
 	return false, nil, nil
 end
 
+local function pierceHitAll(from: Vector3, to: Vector3, shot: typeof(active[1]))
+	for _, record in ZombieService.getAlive() do
+		if shot.hitSet[record.model] then
+			continue
+		end
+		local radius = (record.model:GetAttribute("HitRadius") :: number?) or Config.Zombie.HitRadius
+		local flatPoint = Vector3.new(record.root.Position.X, from.Y, record.root.Position.Z)
+		local dist = (pointToSegmentDist(flatPoint, from, to))
+		local pad = if record.isDog then 1.6 else 0.85
+		if dist <= radius + pad + shot.radius then
+			shot.hitSet[record.model] = true
+			applyShot(record.model, shot.damage, shot.hits, shot.oneshot)
+		end
+	end
+
+	local suppliesFolder = Workspace:FindFirstChild("Supplies")
+	if suppliesFolder then
+		for _, child in suppliesFolder:GetChildren() do
+			if child:IsA("Model") and child:GetAttribute("IsSupply") == true and not shot.hitSet[child] then
+				local root = child.PrimaryPart or child:FindFirstChild("HumanoidRootPart")
+				if root and root:IsA("BasePart") then
+					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
+					local dist = (pointToSegmentDist(flatPoint, from, to))
+					if dist <= 3.4 * Config.Supply.SizeScale + shot.radius then
+						shot.hitSet[child] = true
+						applyShot(child, shot.damage, shot.hits, shot.oneshot)
+					end
+				end
+			end
+		end
+	end
+
+	local gatesFolder = Workspace:FindFirstChild("NumberGates")
+	if gatesFolder then
+		for _, child in gatesFolder:GetChildren() do
+			if child:IsA("Model") and child:GetAttribute("IsNumberGate") == true and not shot.hitSet[child] then
+				local root = child.PrimaryPart or child:FindFirstChild("HumanoidRootPart")
+				if root and root:IsA("BasePart") then
+					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
+					local dist = (pointToSegmentDist(flatPoint, from, to))
+					local reach = Config.NumberGate.Width * 0.5 + 1.2 + shot.radius
+					if dist <= reach then
+						shot.hitSet[child] = true
+						applyShot(child, shot.damage, shot.hits, shot.oneshot)
+					end
+				end
+			end
+		end
+	end
+end
+
 local function bombProximityHit(from: Vector3, to: Vector3): Vector3?
 	local bestDist = math.huge
 	local bestPos: Vector3? = nil
@@ -295,52 +387,51 @@ function CombatService.update(dt: number)
 		if not shot.part.Parent then
 			continue
 		end
-		if now - shot.born > Config.Combat.ProjectileLifetime then
-			shot.part:Destroy()
-			continue
-		end
 
 		local visual = shot.part.Position
 		local nextPos = visual + shot.direction * shot.speed * dt
-		local castFrom = visual - shot.direction * 1.5
-		local castTravel = shot.direction * (shot.speed * dt + 3.4)
-		local result = Workspace:Spherecast(castFrom, 1.35, castTravel, params)
-
-		local hitPos: Vector3? = nil
-		local hitBoss = false
-		local damaged = false
-
-		if result then
-			local model = result.Instance:FindFirstAncestorOfClass("Model")
-			while model and model.Name == "Bolt" do
-				model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
-			end
-			if model then
-				damaged = applyShot(model, shot.damage, shot.hits)
-				hitPos = result.Position
-				hitBoss = model:GetAttribute("IsBoss") == true
-			end
-		end
-
-		if not damaged then
-			local ok, pos, boss = proximityHit(castFrom, nextPos + shot.direction * 2, shot.damage, shot.hits)
-			if ok and pos then
-				damaged = true
-				hitPos = pos
-				hitBoss = boss == true
-			end
-		end
-
-		if damaged then
+		local reachedEnd = shot.endZ ~= nil and nextPos.Z >= shot.endZ
+		local timedOut = if shot.pierce
+			then (now - shot.born > 4)
+			else (now - shot.born > Config.Combat.ProjectileLifetime)
+		if timedOut or reachedEnd then
 			shot.part:Destroy()
 			continue
+		end
+
+		local castFrom = visual - shot.direction * 1.5
+		local castTo = nextPos + shot.direction * 2
+
+		if shot.pierce then
+			pierceHitAll(castFrom, castTo, shot)
+		else
+			local castTravel = shot.direction * (shot.speed * dt + 3.4)
+			local result = Workspace:Spherecast(castFrom, shot.radius, castTravel, params)
+			local damaged = false
+			if result then
+				local model = result.Instance:FindFirstAncestorOfClass("Model")
+				while model and model.Name == "Bolt" do
+					model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
+				end
+				if model then
+					damaged = applyShot(model, shot.damage, shot.hits, shot.oneshot)
+				end
+			end
+			if not damaged then
+				local ok = proximityHit(castFrom, castTo, shot.damage, shot.hits)
+				damaged = ok
+			end
+			if damaged then
+				shot.part:Destroy()
+				continue
+			end
 		end
 
 		local look = CFrame.lookAt(nextPos, nextPos + shot.direction)
 		shot.part.CFrame = look
 		local tip = shot.part:FindFirstChild("Tip")
 		if tip and tip:IsA("BasePart") then
-			tip.CFrame = look * CFrame.new(0, 0, -2.0)
+			tip.CFrame = look * CFrame.new(0, 0, -shot.tipOffset)
 		end
 		table.insert(keep, shot)
 	end

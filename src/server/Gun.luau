@@ -109,6 +109,73 @@ function Gun.attach(character: Model)
 	grip.Parent = handle
 end
 
+function Gun.attachSniper(character: Model)
+	Gun.remove(character)
+
+	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso") or character:FindFirstChild("HumanoidRootPart")
+	if not (torso and torso:IsA("BasePart")) then
+		return
+	end
+
+	local model = Instance.new("Model")
+	model.Name = "Gun"
+	model.Parent = character
+
+	local metal = Color3.fromRGB(34, 38, 46)
+	local dark = Color3.fromRGB(18, 20, 24)
+	local wood = Color3.fromRGB(70, 48, 30)
+
+	local handle = makePart(model, "Handle", Vector3.new(0.28, 0.78, 0.3), dark, Enum.Material.SmoothPlastic)
+	handle.CFrame = torso.CFrame
+	model.PrimaryPart = handle
+
+	weldTo(handle, makePart(model, "Body", Vector3.new(0.36, 0.34, 2.05), metal, Enum.Material.Metal), CFrame.new(0, 0.4, -0.55))
+	weldTo(handle, makePart(model, "Handguard", Vector3.new(0.34, 0.3, 0.95), wood, Enum.Material.Wood), CFrame.new(0, 0.36, -1.45))
+	weldTo(handle, makePart(model, "Stock", Vector3.new(0.28, 0.38, 0.95), dark, Enum.Material.SmoothPlastic), CFrame.new(0, 0.28, 0.85))
+	weldTo(handle, makePart(model, "Barrel", Vector3.new(0.16, 0.16, 2.15), Color3.fromRGB(46, 50, 56), Enum.Material.Metal), CFrame.new(0, 0.44, -2.35))
+	weldTo(handle, makePart(model, "MuzzleBrake", Vector3.new(0.24, 0.22, 0.38), Color3.fromRGB(28, 30, 34), Enum.Material.Metal), CFrame.new(0, 0.44, -3.5))
+	weldTo(
+		handle,
+		makePart(model, "Mag", Vector3.new(0.2, 0.7, 0.34), dark, Enum.Material.SmoothPlastic),
+		CFrame.new(0, -0.32, -0.28) * CFrame.Angles(math.rad(8), 0, 0)
+	)
+
+	local scope = makePart(model, "Scope", Vector3.new(0.32, 0.32, 1.15), Color3.fromRGB(26, 28, 34), Enum.Material.Metal)
+	scope.Shape = Enum.PartType.Cylinder
+	weldTo(handle, scope, CFrame.new(0, 0.78, -0.55) * CFrame.Angles(0, math.rad(90), 0))
+	weldTo(handle, makePart(model, "Lens", Vector3.new(0.22, 0.22, 0.08), Color3.fromRGB(80, 200, 255), Enum.Material.Neon), CFrame.new(0, 0.78, -1.12))
+
+	local muzzle = makePart(model, "Muzzle", Vector3.new(0.2, 0.2, 0.2), Color3.fromRGB(140, 220, 255), Enum.Material.SmoothPlastic)
+	weldTo(handle, muzzle, CFrame.new(0, 0.44, -3.78))
+
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "MuzzlePoint"
+	attachment.Parent = muzzle
+
+	local rightGrip = Instance.new("Attachment")
+	rightGrip.Name = "RightGrip"
+	rightGrip.CFrame = CFrame.new(0.12, -0.18, 0.04) * CFrame.Angles(math.rad(90), math.rad(90), 0)
+	rightGrip.Parent = handle
+
+	local leftGrip = Instance.new("Attachment")
+	leftGrip.Name = "LeftGrip"
+	leftGrip.CFrame = CFrame.new(-0.08, 0.12, -1.4) * CFrame.Angles(math.rad(90), math.rad(90), 0)
+	leftGrip.Parent = handle
+
+	local grip = Instance.new("Weld")
+	grip.Name = "Grip"
+	grip.Part0 = torso
+	grip.Part1 = handle
+	if torso.Name == "UpperTorso" then
+		grip.C0 = CFrame.new(0.48, 0.58, -1.08) * CFrame.Angles(math.rad(-6), math.rad(6), math.rad(-4))
+	elseif torso.Name == "Torso" then
+		grip.C0 = CFrame.new(0.46, 0.62, -1.0) * CFrame.Angles(math.rad(-6), math.rad(6), 0)
+	else
+		grip.C0 = CFrame.new(0.5, 1.2, -1.12) * CFrame.Angles(math.rad(-6), math.rad(6), 0)
+	end
+	grip.Parent = handle
+end
+
 function Gun.attachBomb(character: Model)
 	Gun.remove(character)
 

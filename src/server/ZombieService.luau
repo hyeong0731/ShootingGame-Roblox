@@ -48,6 +48,8 @@ export type ZombieRecord = {
 	isMega: boolean?,
 	hitsLeft: number?,
 	hitLabel: TextLabel?,
+	hasShield: boolean?,
+	shieldHits: number?,
 	deathT: number,
 	deathStart: CFrame,
 	deathSide: number,
@@ -223,13 +225,18 @@ local function getBossPrototype(): Model?
 end
 
 local function attachHealthBar(head: BasePart, humanoid: Humanoid, scale: number, isDog: boolean)
+	local existing = head:FindFirstChild("HealthBar")
+	if existing then
+		existing:Destroy()
+	end
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "HealthBar"
-	billboard.Size = UDim2.fromOffset(36, 4)
-	billboard.StudsOffset = Vector3.new(0, (if isDog then 1.8 else 1.35) * scale, 0)
+	billboard.Size = UDim2.fromOffset(24, 3)
+	billboard.StudsOffset = Vector3.new(0, (if isDog then 1.8 else 1.45) * scale, 0)
 	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 180
+	billboard.MaxDistance = 0
 	billboard.LightInfluence = 0
+	billboard.Enabled = true
 	billboard.Parent = head
 
 	local bg = Instance.new("Frame")
@@ -275,11 +282,13 @@ local function attachHitbox(model: Model, root: BasePart, scale: number, isDog: 
 	weldConstraint(root, hitbox)
 end
 
-local function attachHitCount(adornee: BasePart, hits: number, scale: number): TextLabel
+local function attachHitCount(adornee: BasePart, hits: number, heightScale: number, sizeExtra: number?): TextLabel
+	local s = Config.hitLabelScale(sizeExtra)
+	local digits = math.max(1, #tostring(hits))
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "HitCount"
-	billboard.Size = UDim2.fromOffset(math.max(72, 22 * #tostring(hits)), 48)
-	billboard.StudsOffset = Vector3.new(0, 2.4 * scale, 0)
+	billboard.Size = UDim2.fromOffset(math.max(22, math.floor(18 * digits * s)), math.max(14, math.floor(28 * s)))
+	billboard.StudsOffset = Vector3.new(0, 2.4 * heightScale, 0)
 	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = 240
 	billboard.LightInfluence = 0
@@ -297,10 +306,107 @@ local function attachHitCount(adornee: BasePart, hits: number, scale: number): T
 	label.TextScaled = true
 	label.Parent = billboard
 	local sizeConstraint = Instance.new("UITextSizeConstraint")
-	sizeConstraint.MaxTextSize = 42
-	sizeConstraint.MinTextSize = 18
+	sizeConstraint.MaxTextSize = math.max(10, math.floor(22 * s))
+	sizeConstraint.MinTextSize = math.max(8, math.floor(10 * s))
 	sizeConstraint.Parent = label
 	return label
+end
+
+local function setHealthBarVisible(record: ZombieRecord, visible: boolean)
+	local bar = record.model:FindFirstChild("HealthBar", true)
+	if bar and bar:IsA("BillboardGui") then
+		bar.Enabled = visible
+	end
+end
+
+local function attachShield(record: ZombieRecord, hits: number)
+	record.hasShield = true
+	record.shieldHits = math.max(1, math.floor(hits))
+	record.model:SetAttribute("HasShield", true)
+	record.model:SetAttribute("ShieldHits", record.shieldHits)
+
+	local root = record.root
+	local plate = Instance.new("Part")
+	plate.Name = "Shield"
+	plate.Size = Vector3.new(2.2, 2.75, 0.28)
+	plate.Material = Enum.Material.Metal
+	plate.Color = Color3.fromRGB(88, 92, 102)
+	plate.CanCollide = false
+	plate.Massless = true
+	plate.CFrame = root.CFrame
+	plate.Parent = record.model
+	local weld = Instance.new("Weld")
+	weld.Name = "ShieldWeld"
+	weld.Part0 = root
+	weld.Part1 = plate
+	weld.C0 = CFrame.new(-0.55, 0.4, -1.42) * CFrame.Angles(0, 0, math.rad(-10))
+	weld.Parent = plate
+
+	local rim = Instance.new("Part")
+	rim.Name = "ShieldRim"
+	rim.Size = Vector3.new(2.38, 2.92, 0.12)
+	rim.Material = Enum.Material.Metal
+	rim.Color = Color3.fromRGB(48, 50, 56)
+	rim.CanCollide = false
+	rim.Massless = true
+	rim.CFrame = plate.CFrame
+	rim.Parent = record.model
+	local rimWeld = Instance.new("Weld")
+	rimWeld.Part0 = plate
+	rimWeld.Part1 = rim
+	rimWeld.C0 = CFrame.new(0, 0, 0.08)
+	rimWeld.Parent = rim
+
+	local boss = Instance.new("Part")
+	boss.Name = "ShieldBoss"
+	boss.Shape = Enum.PartType.Cylinder
+	boss.Size = Vector3.new(0.22, 0.7, 0.7)
+	boss.Material = Enum.Material.Metal
+	boss.Color = Color3.fromRGB(160, 150, 70)
+	boss.CanCollide = false
+	boss.Massless = true
+	boss.CFrame = plate.CFrame
+	boss.Parent = record.model
+	local bossWeld = Instance.new("Weld")
+	bossWeld.Part0 = plate
+	bossWeld.Part1 = boss
+	bossWeld.C0 = CFrame.new(0, 0, -0.18) * CFrame.Angles(0, 0, math.rad(90))
+	bossWeld.Parent = boss
+
+	local head = record.model:FindFirstChild("Head")
+	local adornee: BasePart = if head and head:IsA("BasePart") then head else record.root
+	record.hitLabel = attachHitCount(adornee, record.shieldHits, 0.7, Config.HitLabel.ShieldScale)
+	local billboard = adornee:FindFirstChild("HitCount")
+	if billboard and billboard:IsA("BillboardGui") then
+		billboard.StudsOffset = Vector3.new(0, 1.75, 0)
+	end
+	setHealthBarVisible(record, false)
+end
+
+local function breakShield(record: ZombieRecord)
+	record.hasShield = false
+	record.shieldHits = 0
+	record.model:SetAttribute("HasShield", false)
+	record.model:SetAttribute("ShieldHits", 0)
+	for _, name in { "Shield", "ShieldRim", "ShieldBoss" } do
+		local part = record.model:FindFirstChild(name)
+		if part then
+			part:Destroy()
+		end
+	end
+	if record.hitLabel then
+		local gui = record.hitLabel.Parent
+		record.hitLabel = nil
+		if gui then
+			gui:Destroy()
+		end
+	end
+	for _, desc in record.model:GetDescendants() do
+		if desc.Name == "HitCount" and desc:IsA("BillboardGui") then
+			desc:Destroy()
+		end
+	end
+	setHealthBarVisible(record, true)
 end
 
 local function finalizeModel(model: Model, root: BasePart, humanoid: Humanoid, stats: {
@@ -772,6 +878,7 @@ function ZombieService.create(position: Vector3, stats: {
 	isBoss: boolean,
 	isMega: boolean?,
 	isDog: boolean?,
+	isShield: boolean?,
 	contactDamage: number,
 	scale: number,
 	hitCount: number?,
@@ -797,6 +904,8 @@ function ZombieService.create(position: Vector3, stats: {
 	if fromProto then
 		if stats.isMega == true then
 			setupMegaHits(fromProto, stats.hitCount, stats.scale)
+		elseif stats.isShield == true then
+			attachShield(fromProto, stats.hitCount or math.random(Config.ShieldZombie.HitCountMin, Config.ShieldZombie.HitCountMax))
 		end
 		return fromProto
 	end
@@ -811,6 +920,8 @@ function ZombieService.create(position: Vector3, stats: {
 	})
 	if stats.isMega == true then
 		setupMegaHits(fallback, stats.hitCount, stats.scale)
+	elseif stats.isShield == true then
+		attachShield(fallback, stats.hitCount or math.random(Config.ShieldZombie.HitCountMin, Config.ShieldZombie.HitCountMax))
 	end
 	return fallback
 end
@@ -913,6 +1024,17 @@ end
 function ZombieService.damageModel(model: Model, amount: number, hits: number?): boolean
 	for _, record in ZombieService._alive do
 		if record.model == model and record.alive then
+			if record.hasShield == true and (record.shieldHits or 0) > 0 then
+				local hitPower = math.max(1, math.floor(hits or 1))
+				record.shieldHits = math.max(0, (record.shieldHits or 1) - hitPower)
+				record.model:SetAttribute("ShieldHits", record.shieldHits)
+				if record.shieldHits <= 0 then
+					breakShield(record)
+				elseif record.hitLabel then
+					record.hitLabel.Text = tostring(record.shieldHits)
+				end
+				return true
+			end
 			if record.isMega == true then
 				local hitPower = math.max(1, math.floor(hits or 1))
 				record.hitsLeft = math.max(0, (record.hitsLeft or 1) - hitPower)
@@ -1045,18 +1167,25 @@ local function applyPrototypePose(record: ZombieRecord, moving: boolean, attacki
 	poseMotor(
 		record,
 		m.leftShoulder,
-		CFrame.Angles(
-			math.rad(-88 - 8 * swing * moveScale - 10 * claw),
-			math.rad(28 - 6 * drag),
-			math.rad(-16 - 4 * limp)
-		)
+		if record.hasShield == true
+			then CFrame.Angles(math.rad(-72), math.rad(42), math.rad(-22))
+			else CFrame.Angles(
+				math.rad(-88 - 8 * swing * moveScale - 10 * claw),
+				math.rad(28 - 6 * drag),
+				math.rad(-16 - 4 * limp)
+			)
 	)
 	poseMotor(
 		record,
 		m.rightElbow,
 		CFrame.Angles(math.rad(-22 - 10 * lurch - 20 * claw + 70 * sweep), math.rad(8 + 35 * claw), math.rad(-18 * claw))
 	)
-	poseMotor(record, m.leftElbow, CFrame.Angles(math.rad(-22 - 14 * lurch), math.rad(-6), 0))
+	poseMotor(record, m.leftElbow, if record.hasShield == true
+		then CFrame.Angles(math.rad(-28), math.rad(-12), math.rad(-8))
+		else CFrame.Angles(math.rad(-22 - 14 * lurch), math.rad(-6), 0))
+	poseMotor(record, m.leftArm, if record.hasShield == true
+		then CFrame.Angles(math.rad(-85), math.rad(12), math.rad(-32))
+		else CFrame.Angles(math.rad(-95 - 6 * swing), 0, math.rad(-24)))
 	poseMotor(
 		record,
 		m.rightHip,
@@ -1091,7 +1220,9 @@ local function applyPrototypePose(record: ZombieRecord, moving: boolean, attacki
 			math.rad(22 + 50 * claw)
 		)
 	)
-	poseMotor(record, m.leftArm, CFrame.Angles(math.rad(-95 - 6 * swing), 0, math.rad(-24)))
+	poseMotor(record, m.leftArm, if record.hasShield == true
+		then CFrame.Angles(math.rad(-85), math.rad(12), math.rad(-32))
+		else CFrame.Angles(math.rad(-95 - 6 * swing), 0, math.rad(-24)))
 	poseMotor(record, m.rightLeg, CFrame.Angles(math.rad(32 * swing * moveScale * limp), 0, math.rad(6)))
 	poseMotor(record, m.leftLeg, CFrame.Angles(math.rad(-20 * swing * moveScale) + math.rad(8), 0, math.rad(-8)))
 end
@@ -1111,7 +1242,9 @@ local function applyWeldPose(record: ZombieRecord, moving: boolean, attacking: b
 		record.leftLeg.C1 = CFrame.Angles(math.rad(-38) * swing, 0, 0)
 		record.rightLeg.C1 = CFrame.Angles(math.rad(38) * swing, 0, 0)
 	else
-		record.leftArm.C1 = CFrame.Angles(math.rad(18 * swing2 * moveScale), math.rad(14) * swing, math.rad(-10) * swing)
+		record.leftArm.C1 = if record.hasShield == true
+			then CFrame.Angles(math.rad(-8), math.rad(18), math.rad(-22))
+			else CFrame.Angles(math.rad(18 * swing2 * moveScale), math.rad(14) * swing, math.rad(-10) * swing)
 		record.rightArm.C1 = CFrame.Angles(
 			math.rad(-20 * swing2 * moveScale - 95 * claw),
 			math.rad(-16 * swing - 40 * claw),

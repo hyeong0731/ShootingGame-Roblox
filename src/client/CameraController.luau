@@ -39,9 +39,13 @@ function CameraController.start()
 		end
 
 		if laneCamera(phase) then
+			local cam = Config.Camera
+			local dist = math.clamp(cam.Distance or 1, 0.4, 1.5)
+			local height = math.clamp(cam.Height or 1, 0.5, 1.5)
+			local offset = Vector3.new(cam.Offset.X, cam.Offset.Y * height, cam.Offset.Z * dist)
 			camera.CameraType = Enum.CameraType.Scriptable
-			camera.FieldOfView = Config.Camera.FieldOfView
-			camera.CFrame = CFrame.lookAt(root.Position + Config.Camera.Offset, root.Position + Config.Camera.LookAhead)
+			camera.FieldOfView = cam.FieldOfView
+			camera.CFrame = CFrame.lookAt(root.Position + offset, root.Position + cam.LookAhead)
 		else
 			if camera.CameraType == Enum.CameraType.Scriptable then
 				camera.CameraType = Enum.CameraType.Custom

@@ -176,6 +176,45 @@ local function addBombIcon(parent: Frame)
 	piece("Spark", UDim2.fromScale(0.14, 0.14), UDim2.fromScale(0.5, -0.02), Color3.fromRGB(255, 140, 40), 1, 6)
 end
 
+local function addSniperIcon(parent: Frame)
+	local holder = Instance.new("Frame")
+	holder.Name = "Sniper"
+	holder.BackgroundTransparency = 1
+	holder.Size = UDim2.fromScale(0.86, 0.52)
+	holder.Position = UDim2.new(0.5, 0, 0.42, 0)
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Rotation = -28
+	holder.ZIndex = 3
+	holder.Visible = false
+	holder.Parent = parent
+
+	local function piece(name: string, size: UDim2, pos: UDim2, color: Color3, z: number)
+		local f = Instance.new("Frame")
+		f.Name = name
+		f.BorderSizePixel = 0
+		f.BackgroundColor3 = color
+		f.Size = size
+		f.Position = pos
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.ZIndex = z
+		f.Parent = holder
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 1.6
+		stroke.Color = Color3.fromRGB(8, 8, 10)
+		stroke.Parent = f
+		return f
+	end
+
+	local metal = Color3.fromRGB(28, 32, 40)
+	local dark = Color3.fromRGB(16, 18, 22)
+	piece("Stock", UDim2.fromScale(0.2, 0.34), UDim2.fromScale(0.1, 0.58), dark, 4)
+	piece("Body", UDim2.fromScale(0.4, 0.26), UDim2.fromScale(0.38, 0.46), metal, 5)
+	piece("Barrel", UDim2.fromScale(0.48, 0.1), UDim2.fromScale(0.78, 0.42), Color3.fromRGB(42, 48, 56), 4)
+	piece("Mag", UDim2.fromScale(0.1, 0.36), UDim2.fromScale(0.36, 0.74), dark, 4)
+	piece("Grip", UDim2.fromScale(0.09, 0.3), UDim2.fromScale(0.26, 0.7), dark, 4)
+	piece("Scope", UDim2.fromScale(0.22, 0.22), UDim2.fromScale(0.42, 0.22), Color3.fromRGB(70, 180, 230), 6)
+end
+
 local function hudAssetImage(name: string): string
 	local assets = game:GetService("ReplicatedStorage"):FindFirstChild("HudAssets")
 	if not assets then
@@ -191,15 +230,21 @@ local function hudAssetImage(name: string): string
 	return ""
 end
 
-local function setWeaponIcon(btn: Frame, usingBomb: boolean)
+local function setWeaponIcon(btn: Frame, mode: string)
 	local rifle = btn:FindFirstChild("Rifle")
 	local bomb = btn:FindFirstChild("Bomb")
+	local sniper = btn:FindFirstChild("Sniper")
 	local gunImage = btn:FindFirstChild("GunImage")
+	local usingBomb = mode == "bomb"
+	local usingSniper = mode == "sniper"
 	if rifle and rifle:IsA("GuiObject") then
-		rifle.Visible = not usingBomb
+		rifle.Visible = not usingBomb and not usingSniper
 	end
 	if bomb and bomb:IsA("GuiObject") then
 		bomb.Visible = usingBomb
+	end
+	if sniper and sniper:IsA("GuiObject") then
+		sniper.Visible = usingSniper
 	end
 	if gunImage and gunImage:IsA("ImageLabel") then
 		local gunTex = hudAssetImage("GunIcon")
@@ -214,6 +259,8 @@ local function setWeaponIcon(btn: Frame, usingBomb: boolean)
 			else
 				gunImage.Visible = false
 			end
+		elseif usingSniper then
+			gunImage.Visible = false
 		else
 			if gunTex ~= "" then
 				gunImage.Image = gunTex
@@ -252,6 +299,7 @@ local function createWeaponButton(parent: Instance): Frame
 	addStuds(btn)
 	addRifleIcon(btn)
 	addBombIcon(btn)
+	addSniperIcon(btn)
 
 	local gunImage = Instance.new("ImageLabel")
 	gunImage.Name = "GunImage"
@@ -265,7 +313,7 @@ local function createWeaponButton(parent: Instance): Frame
 	gunImage.Visible = false
 	gunImage.Parent = btn
 
-	setWeaponIcon(btn, false)
+	setWeaponIcon(btn, "rifle")
 
 	local caption = Instance.new("TextLabel")
 	caption.Name = "Caption"
@@ -285,6 +333,26 @@ local function createWeaponButton(parent: Instance): Frame
 	capConstraint.MaxTextSize = 22
 	capConstraint.MinTextSize = 12
 	capConstraint.Parent = caption
+
+	local timeLeft = Instance.new("TextLabel")
+	timeLeft.Name = "TimeLeft"
+	timeLeft.BackgroundTransparency = 1
+	timeLeft.Size = UDim2.new(0.92, 0, 0.34, 0)
+	timeLeft.Position = UDim2.new(0.5, 0, 0.02, 0)
+	timeLeft.AnchorPoint = Vector2.new(0.5, 0)
+	timeLeft.Font = Enum.Font.GothamBlack
+	timeLeft.Text = ""
+	timeLeft.TextColor3 = Color3.fromRGB(255, 230, 40)
+	timeLeft.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	timeLeft.TextStrokeTransparency = 0
+	timeLeft.TextScaled = true
+	timeLeft.Visible = false
+	timeLeft.ZIndex = 6
+	timeLeft.Parent = btn
+	local timeConstraint = Instance.new("UITextSizeConstraint")
+	timeConstraint.MaxTextSize = 22
+	timeConstraint.MinTextSize = 12
+	timeConstraint.Parent = timeLeft
 
 	return btn
 end
@@ -407,16 +475,16 @@ function Hud.start()
 
 	local kills = textLabel(gui, "Kills", {
 		Size = UDim2.new(0.28, 0, 0.055, 0),
-		Position = UDim2.new(0.96, 0, 0.04, 0),
+		Position = UDim2.new(0.96, 0, 0.082, 0),
 		AnchorPoint = Vector2.new(1, 0),
 		Align = Enum.TextXAlignment.Right,
 	})
 
 	local waveLabel = textLabel(gui, "Wave", {
-		Size = UDim2.new(0.4, 0, 0.055, 0),
-		Position = UDim2.new(0.5, 0, 0.028, 0),
-		AnchorPoint = Vector2.new(0.5, 0),
-		Align = Enum.TextXAlignment.Center,
+		Size = UDim2.new(0.32, 0, 0.055, 0),
+		Position = UDim2.new(0.96, 0, 0.028, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		Align = Enum.TextXAlignment.Right,
 	})
 	waveLabel.Text = "라운드 1"
 	waveLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -666,11 +734,12 @@ function Hud.start()
 		local countdown = state:GetAttribute("Countdown") or 0
 		local elapsed = state:GetAttribute("Elapsed") or 0
 		local wave = state:GetAttribute("Wave") or 1
+		local chapter = state:GetAttribute("Chapter") or 1
 
 		local minutes = math.floor(elapsed / 60)
 		local seconds = elapsed % 60
 		timer.Text = string.format("%d:%02d", minutes, seconds)
-		waveLabel.Text = `라운드 {wave}`
+		waveLabel.Text = `라운드 {Config.chapterRound(wave, chapter)}`
 		kills.Text = `처치 {formatKills(killCount)}`
 		local hitPower = state:GetAttribute("HitPower") or 1
 		local hitValue = hitBadge:FindFirstChild("Value")
@@ -687,14 +756,29 @@ function Hud.start()
 		ensureWorldBar(currentPhase)
 
 		local bombLeft = state:GetAttribute("BombLeft") or 0
-		setWeaponIcon(weaponBtn, currentPhase == "playing" and bombLeft > 0)
-		if currentPhase == "playing" and bombLeft > 0 then
-			bombTime.Visible = true
-			bombTime.Text = `폭탄 {bombLeft}초`
-		else
-			bombTime.Visible = false
-			bombTime.Text = ""
+		local sniperLeft = state:GetAttribute("SniperLeft") or 0
+		local weaponMode = "rifle"
+		if currentPhase == "playing" and sniperLeft > 0 then
+			weaponMode = "sniper"
+		elseif currentPhase == "playing" and bombLeft > 0 then
+			weaponMode = "bomb"
 		end
+		setWeaponIcon(weaponBtn, weaponMode)
+		local timeLeft = weaponBtn:FindFirstChild("TimeLeft")
+		if timeLeft and timeLeft:IsA("TextLabel") then
+			if currentPhase == "playing" and sniperLeft > 0 then
+				timeLeft.Visible = true
+				timeLeft.Text = `{sniperLeft}s`
+			elseif currentPhase == "playing" and bombLeft > 0 then
+				timeLeft.Visible = true
+				timeLeft.Text = `{bombLeft}s`
+			else
+				timeLeft.Visible = false
+				timeLeft.Text = ""
+			end
+		end
+		bombTime.Visible = false
+		bombTime.Text = ""
 
 		if currentPhase == "lobby" then
 			banner.Text = ""
