@@ -885,6 +885,20 @@ function SupplyService.update(dt: number, playerPosition: Vector3?, strafe: numb
 	end
 end
 
+function SupplyService.allyThrowOrigins(): { Vector3 }
+	local points = {}
+	for _, ally in SupplyService.getAllies() do
+		local muzzle = Gun.getMuzzlePosition(ally.model)
+		local rootPos = ally.root.Position
+		if muzzle then
+			table.insert(points, Vector3.new(rootPos.X, muzzle.Y, muzzle.Z))
+		else
+			table.insert(points, rootPos + Vector3.new(0, 1.2, 1.4))
+		end
+	end
+	return points
+end
+
 function SupplyService.allyMuzzlePoints(now: number): { Vector3 }
 	local points = {}
 	for _, ally in SupplyService.getAllies() do

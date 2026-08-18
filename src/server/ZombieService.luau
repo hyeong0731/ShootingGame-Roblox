@@ -46,6 +46,7 @@ export type ZombieRecord = {
 	hp: number,
 	maxHp: number,
 	isMega: boolean?,
+	isBig: boolean?,
 	hitsLeft: number?,
 	hitLabel: TextLabel?,
 	hasShield: boolean?,
@@ -708,6 +709,7 @@ local function createFromPrototype(position: Vector3, stats: {
 	walkSpeed: number,
 	isBoss: boolean,
 	isMega: boolean?,
+	isBig: boolean?,
 	scale: number,
 	contactDamage: number,
 }): ZombieRecord?
@@ -877,6 +879,7 @@ function ZombieService.create(position: Vector3, stats: {
 	walkSpeed: number,
 	isBoss: boolean,
 	isMega: boolean?,
+	isBig: boolean?,
 	isDog: boolean?,
 	isShield: boolean?,
 	contactDamage: number,
@@ -898,6 +901,7 @@ function ZombieService.create(position: Vector3, stats: {
 		walkSpeed = stats.walkSpeed,
 		isBoss = stats.isBoss or stats.isMega == true,
 		isMega = stats.isMega,
+		isBig = stats.isBig,
 		scale = stats.scale,
 		contactDamage = stats.contactDamage,
 	})
@@ -906,6 +910,10 @@ function ZombieService.create(position: Vector3, stats: {
 			setupMegaHits(fromProto, stats.hitCount, stats.scale)
 		elseif stats.isShield == true then
 			attachShield(fromProto, stats.hitCount or math.random(Config.ShieldZombie.HitCountMin, Config.ShieldZombie.HitCountMax))
+		end
+		if stats.isBig == true then
+			fromProto.isBig = true
+			fromProto.model:SetAttribute("IsBigZombie", true)
 		end
 		return fromProto
 	end
@@ -922,6 +930,10 @@ function ZombieService.create(position: Vector3, stats: {
 		setupMegaHits(fallback, stats.hitCount, stats.scale)
 	elseif stats.isShield == true then
 		attachShield(fallback, stats.hitCount or math.random(Config.ShieldZombie.HitCountMin, Config.ShieldZombie.HitCountMax))
+	end
+	if stats.isBig == true then
+		fallback.isBig = true
+		fallback.model:SetAttribute("IsBigZombie", true)
 	end
 	return fallback
 end

@@ -37,6 +37,25 @@ local bombs = {} :: {
 	}
 }
 
+local molotovs = {} :: {
+	{
+		part: BasePart,
+		direction: Vector3,
+		speed: number,
+		born: number,
+		startZ: number,
+	}
+}
+
+local groundFires = {} :: {
+	{
+		part: BasePart,
+		position: Vector3,
+		untilTime: number,
+		nextTick: number,
+	}
+}
+
 function CombatService.bind(remotes)
 	CombatService._remotes = remotes
 end
@@ -101,9 +120,88 @@ local function spawnThrownBomb(origin: Vector3): BasePart
 	return bomb
 end
 
+local function spawnThrownMolotov(origin: Vector3): BasePart
+	local bottle = Instance.new("Part")
+	bottle.Name = "ThrownMolotov"
+	bottle.Size = Vector3.new(0.55, 1.15, 0.55)
+	bottle.Material = Enum.Material.Glass
+	bottle.Color = Color3.fromRGB(180, 40, 28)
+	bottle.Transparency = 0.15
+	bottle.Anchored = true
+	bottle.CanCollide = false
+	bottle.CanQuery = false
+	bottle.CFrame = CFrame.new(origin)
+	bottle.Parent = Workspace:FindFirstChild("Fx") or Workspace
+
+	local wick = Instance.new("Part")
+	wick.Name = "Wick"
+	wick.Size = Vector3.new(0.16, 0.16, 0.16)
+	wick.Shape = Enum.PartType.Ball
+	wick.Material = Enum.Material.Neon
+	wick.Color = Color3.fromRGB(255, 140, 40)
+	wick.Anchored = true
+	wick.CanCollide = false
+	wick.CanQuery = false
+	wick.CFrame = bottle.CFrame * CFrame.new(0, 0.72, 0)
+	wick.Parent = bottle
+
+	return bottle
+end
+
+local function spawnGroundFire(position: Vector3)
+	local cfg = Config.Molotov
+	local lane = Config.activeLane()
+	local y = lane.CenterY + lane.Thickness * 0.5 + 0.12
+	local fire = Instance.new("Part")
+	fire.Name = "GroundFire"
+	fire.Anchored = true
+	fire.CanCollide = false
+	fire.CanQuery = false
+	fire.Material = Enum.Material.Neon
+	fire.Color = Color3.fromRGB(220, 40, 18)
+	fire.Transparency = 0.25
+	fire.Size = Vector3.new(cfg.GroundRadius * 1.7, 0.35, cfg.GroundRadius * 1.7)
+	fire.CFrame = CFrame.new(position.X, y, position.Z)
+	fire.Parent = Workspace:FindFirstChild("Fx") or Workspace
+
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 90, 30)
+	light.Brightness = 2.4
+	light.Range = cfg.GroundRadius * 1.4
+	light.Parent = fire
+
+	table.insert(groundFires, {
+		part = fire,
+		position = Vector3.new(position.X, y, position.Z),
+		untilTime = os.clock() + cfg.GroundDuration,
+		nextTick = os.clock(),
+	})
+end
+
+local function currentWave(): number
+	local state = ReplicatedStorage:FindFirstChild("GameState")
+	if state then
+		return (state:GetAttribute("Wave") :: number?) or 1
+	end
+	return 1
+end
+
+local function explodeMolotovAt(position: Vector3)
+	local cfg = Config.Molotov
+	local hitDamage = Config.numberedWeaponHits("molotov", currentWave())
+	ZombieService.damageInRadius(position, cfg.Radius, cfg.Damage, hitDamage)
+	SupplyService.damageInRadius(position, cfg.Radius, hitDamage)
+	NumberGate.damageInRadius(position, cfg.Radius, hitDamage)
+	if CombatService._remotes then
+		CombatService._remotes.ExplodeFx:FireAllClients(position, cfg.Radius)
+	end
+	spawnGroundFire(position)
+end
+
 local function explodeAt(position: Vector3, hits: number)
 	local cfg = Config.BombCrate
-	local numberedHits = math.max(cfg.HitDamage, math.max(1, math.floor(hits)))
+	local bombHits = Config.numberedWeaponHits("bomb", currentWave())
+	local numberedHits = math.max(bombHits, math.max(1, math.floor(hits)))
 	ZombieService.damageInRadius(position, cfg.Radius, cfg.Damage, numberedHits)
 	SupplyService.damageInRadius(position, cfg.Radius, numberedHits)
 	NumberGate.damageInRadius(position, cfg.Radius, numberedHits)
@@ -123,6 +221,20 @@ function CombatService.throwBomb(origin: Vector3, hits: number?)
 		speed = speed,
 		born = os.clock(),
 		hits = math.max(1, math.floor(hits or 1)),
+		startZ = origin.Z,
+	})
+end
+
+function CombatService.throwMolotov(origin: Vector3)
+	local cfg = Config.Molotov
+	local part = spawnThrownMolotov(origin)
+	local direction = Vector3.new(0, 0, 1)
+	local speed = cfg.ThrowDistance / math.max(0.05, cfg.FlightTime)
+	table.insert(molotovs, {
+		part = part,
+		direction = direction,
+		speed = speed,
+		born = os.clock(),
 		startZ = origin.Z,
 	})
 end
@@ -160,7 +272,7 @@ function CombatService.fireSniper(origin: Vector3, damage: number, hits: number?
 		direction = direction,
 		speed = cfg.ProjectileSpeed,
 		damage = damage,
-		hits = math.max(1, math.floor(cfg.HitDamage or hits or 1)),
+		hits = math.max(1, math.floor(Config.numberedWeaponHits("sniper", currentWave()))),
 		born = os.clock(),
 		pierce = true,
 		oneshot = true,
@@ -178,7 +290,18 @@ local function applyShot(model: Model, damage: number, hits: number, oneshot: bo
 	if model:GetAttribute("IsSupply") == true then
 		return SupplyService.damageModel(model, hits)
 	end
-	local amount = if oneshot then 1e9 else damage
+	local amount = damage
+	if oneshot then
+		amount = 1e9
+		if model:GetAttribute("IsBigZombie") == true and model:GetAttribute("IsMega") ~= true then
+			for _, record in ZombieService.getAlive() do
+				if record.model == model then
+					amount = record.maxHp * (Config.SniperCrate.BigZombieHpRatio or 0.7)
+					break
+				end
+			end
+		end
+	end
 	return ZombieService.damageModel(model, amount, hits)
 end
 
@@ -487,6 +610,61 @@ function CombatService.update(dt: number)
 		table.insert(bombKeep, bomb)
 	end
 	bombs = bombKeep
+
+	local molotovKeep = {}
+	for _, molotov in molotovs do
+		if not molotov.part.Parent then
+			continue
+		end
+		if now - molotov.born > 2.4 then
+			local pos = molotov.part.Position
+			molotov.part:Destroy()
+			explodeMolotovAt(pos)
+			continue
+		end
+		local nextPos = molotov.part.Position + molotov.direction * molotov.speed * dt
+		local travel = nextPos - molotov.part.Position
+		local hit = Workspace:Spherecast(molotov.part.Position, 1.1, travel, bombParams)
+		local nearPos = bombProximityHit(molotov.part.Position, nextPos + molotov.direction * 2)
+		local reachedEnd = nextPos.Z >= molotov.startZ + Config.Molotov.ThrowDistance
+		if hit or nearPos or reachedEnd then
+			local pos = if hit then hit.Position elseif nearPos then nearPos else nextPos
+			molotov.part:Destroy()
+			explodeMolotovAt(pos)
+			continue
+		end
+		local spin = (now - molotov.born) * 12
+		molotov.part.CFrame = CFrame.new(nextPos) * CFrame.Angles(spin, 0, spin * 0.4)
+		local wick = molotov.part:FindFirstChild("Wick")
+		if wick and wick:IsA("BasePart") then
+			wick.CFrame = molotov.part.CFrame * CFrame.new(0, 0.72, 0)
+		end
+		table.insert(molotovKeep, molotov)
+	end
+	molotovs = molotovKeep
+
+	local fireKeep = {}
+	local cfg = Config.Molotov
+	local tickHits = math.max(1, math.floor(cfg.GroundHitsPerSecond * 0.25 + 0.5))
+	local tickHp = cfg.GroundHpPerSecond * 0.25
+	for _, fire in groundFires do
+		if not fire.part.Parent or now >= fire.untilTime then
+			if fire.part.Parent then
+				fire.part:Destroy()
+			end
+			continue
+		end
+		local left = math.clamp((fire.untilTime - now) / cfg.GroundDuration, 0, 1)
+		fire.part.Transparency = 0.22 + 0.45 * (1 - left)
+		if now >= fire.nextTick then
+			fire.nextTick = now + 0.25
+			ZombieService.damageInRadius(fire.position, cfg.GroundRadius, tickHp, tickHits)
+			SupplyService.damageInRadius(fire.position, cfg.GroundRadius, tickHits)
+			NumberGate.damageInRadius(fire.position, cfg.GroundRadius, tickHits)
+		end
+		table.insert(fireKeep, fire)
+	end
+	groundFires = fireKeep
 end
 
 function CombatService.clear()
@@ -502,6 +680,18 @@ function CombatService.clear()
 		end
 	end
 	bombs = {}
+	for _, molotov in molotovs do
+		if molotov.part.Parent then
+			molotov.part:Destroy()
+		end
+	end
+	molotovs = {}
+	for _, fire in groundFires do
+		if fire.part.Parent then
+			fire.part:Destroy()
+		end
+	end
+	groundFires = {}
 	local fx = Workspace:FindFirstChild("Fx")
 	if fx then
 		fx:ClearAllChildren()

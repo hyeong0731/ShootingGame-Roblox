@@ -145,11 +145,9 @@ Config.BombCrate = {
 	HitLabelScale = 1, -- 위 타수 숫자 크기 (1 = 예시 통 숫자)
 }
 
--- 스나이퍼 상자 (챕터2만)
+-- 스나이퍼 상자 (챕터2만, 라운드 타임라인에서 등장)
 Config.SniperCrate = {
 	Chapter = 2, -- 이 챕터에서만 등장
-	FirstSpawnDelay = 5, -- 챕터 시작 후 첫 등장(초)
-	SpawnInterval = 32, -- 등장 간격(초)
 	HitCount = 40, -- 상자 타수
 	HitDamage = 40, -- 스나이퍼 한 발이 깎는 타수 (방패/숫자 대상)
 	MaxAlive = 1,
@@ -165,6 +163,21 @@ Config.SniperCrate = {
 	ProjectileRadius = 0.7, -- 피격 가로 두께
 	BoltSize = Vector3.new(0.48, 0.48, 6.4), -- 총알 크기
 	HitLabelScale = 1,
+	BigZombieHpRatio = 0.7, -- 큰 좀비 한 발에 깎는 최대체력 비율 (2대에 죽음)
+}
+
+-- 화염병 (챕터2 라운드6). 클릭해서 던짐. 총은 계속 나감
+Config.Molotov = {
+	Count = 3,
+	Damage = 90, -- 착탄 폭발 (폭탄 320보다 약함)
+	HitDamage = 60, -- 착탄 시 숫자 타수
+	Radius = 11,
+	ThrowDistance = 72,
+	FlightTime = 0.8,
+	GroundDuration = 7, -- 바닥 화염 지속
+	GroundRadius = 12,
+	GroundHpPerSecond = 22,
+	GroundHitsPerSecond = 40,
 }
 
 -- 타수 게이트 (5라운드 x2, 6라운드 +1, 8라운드부터 x2/+1/-1 랜덤)
@@ -238,6 +251,22 @@ Config.NumberGate = {
 			StrokeColor = Color3.fromRGB(90, 10, 10),
 			BoltColor = Color3.fromRGB(255, 200, 190),
 			LightColor = Color3.fromRGB(255, 80, 70),
+		},
+		{
+			Id = "div2",
+			Op = "div",
+			Value = 2,
+			Label = "/2",
+			HitCountMin = 50,
+			HitCountMax = 70,
+			Weight = 0, -- 챕터1 랜덤에는 안 나옴
+			WalkSpeedScale = 3.4, -- 매우 빠름
+			PanelColor = Color3.fromRGB(255, 170, 40),
+			FrameColor = Color3.fromRGB(160, 70, 10),
+			GlowColor = Color3.fromRGB(255, 210, 90),
+			StrokeColor = Color3.fromRGB(120, 50, 0),
+			BoltColor = Color3.fromRGB(255, 230, 160),
+			LightColor = Color3.fromRGB(255, 160, 40),
 		},
 	},
 }
@@ -325,6 +354,8 @@ Config.Chapter2 = {
 		Until = 20,
 		Duration = 60, -- 각 라운드 1분
 	},
+	MaxHitPower = 33, -- -1·/2 안 먹고 타수 1로 시작 (라운드8 x2/+1까지)
+
 	Zombie = {
 		Health = 36,
 		WalkSpeed = 6.2,
@@ -373,6 +404,17 @@ Config.Chapter2 = {
 		GapWidth = 4,
 		MergeUntilZ = 6538,
 	},
+	-- 챕터2 로컬 라운드1. 시각은 그 라운드 시작 기준
+	Round1 = {
+		Round = 1,
+		SniperAt = 15,
+		PlusAt = 30,
+		X2At = 40,
+		PlusHitCountMin = 20,
+		PlusHitCountMax = 32,
+		X2HitCountMin = 40,
+		X2HitCountMax = 55,
+	},
 	-- 챕터2 로컬 라운드2 (내부 wave 12). 시각은 그 라운드 시작 기준
 	Round2 = {
 		Round = 2,
@@ -380,6 +422,7 @@ Config.Chapter2 = {
 		BombAt = 14,
 		PlusAt = 30,
 		BigZombieAt = 45, -- 이때부터 1챕터식 큰 좀비 섞임
+		SniperAt = 35, -- 스나이퍼 상자
 		PlusAgainAt = 55,
 		MinusHitCountMin = 18,
 		MinusHitCountMax = 28,
@@ -409,6 +452,130 @@ Config.Chapter2 = {
 		PlusHitCountMax = 32,
 		MinusHitCountMin = 18,
 		MinusHitCountMax = 28,
+	},
+	-- 챕터2 로컬 라운드4. 스폰율은 라운드3과 같고, 킬당 체력 증가는 잠시 끔
+	Round4 = {
+		Round = 4,
+		MatchSpawnRound = 3, -- 스폰 간격은 이 라운드 끝 시점과 동일
+		HealthPerKill = 0,
+		AllyAt = 8, -- 라운드3에서 지원군 못 먹었을 때만
+		AllyHitCountMin = 120,
+		AllyHitCountMax = 150,
+		CrateAt = 20, -- 폭탄 또는 스나이퍼
+		X2At = 34,
+		MinusAt = 55,
+		X2HitCountMin = 40,
+		X2HitCountMax = 55,
+		MinusHitCountMin = 18,
+		MinusHitCountMax = 28,
+	},
+	-- 챕터2 로컬 라운드5. 중간보스 2마리, 잡몹은 덜 나오게
+	Round5 = {
+		Round = 5,
+		Count = 2,
+		HitCountMin = 1300, -- 타수14 × 초당10발 × 약 10초
+		HitCountMax = 1450,
+		SizeScale = 2.9, -- 메가보스 크기, 속도만 큰 좀비와 동일
+		SpeedMultiplier = 0.45, -- Config.Boss와 동일
+		ContactDamage = 18,
+		SpawnXs = { -5, 5 },
+		MaxAlive = 8, -- 보스 포함
+		SpawnGap = 1.2, -- 기본 0.2보다 느리게
+	},
+	-- 챕터2 로컬 라운드6
+	Round6 = {
+		Round = 6,
+		HealthPerKill = 0,
+		BigZombieSpawnChance = 0.05, -- 개/방패 아닌 일반 중
+		ShieldSpawnChance = 0.48, -- 전체 스폰 중 방패
+		ShieldHitCountMin = 65,
+		ShieldHitCountMax = 80,
+		SniperAt = 3,
+		Div2At = 20,
+		Div2HitCountMin = 50,
+		Div2HitCountMax = 70,
+		BombAt = 30,
+		PlusAt = 35,
+		MolotovAt = 45,
+		PlusHitCountMin = 20,
+		PlusHitCountMax = 32,
+	},
+	-- 챕터2 로컬 라운드7
+	Round7 = {
+		Round = 7,
+		HealthPerKill = 0,
+		SniperAt = 5,
+		MinusAt = 10,
+		PlusAt = 20,
+		BombAt = 30,
+		ShieldPackAt = 50,
+		MinusWalkSpeedScale = 4.2, -- 기본 -1(2.0)보다 훨씬 빠름
+		MinusHitCountMin = 18,
+		MinusHitCountMax = 28,
+		PlusHitCountMin = 20,
+		PlusHitCountMax = 32,
+		ShieldPackCount = 5,
+		ShieldPackHitCountMin = 65,
+		ShieldPackHitCountMax = 80,
+	},
+	-- 챕터2 로컬 라운드8
+	Round8 = {
+		Round = 8,
+		HealthPerKill = 0,
+		MaxAlive = 28,
+		SpawnGap = 0.14,
+		Div2At = 0,
+		SniperAt = 6,
+		X2At = 18,
+		SniperAgainAt = 30,
+		MinusAt = 35,
+		X2RetryAt = 40, -- 18초 x2를 못 먹었을 때만
+		SwarmAt = 42,
+		PlusAt = 45,
+		BombAt = 50,
+		MolotovAt = 55,
+		Div2HitCountMin = 50,
+		Div2HitCountMax = 70,
+		X2HitCountMin = 40,
+		X2HitCountMax = 55,
+		MinusHitCountMin = 18,
+		MinusHitCountMax = 28,
+		PlusHitCountMin = 20,
+		PlusHitCountMax = 32,
+		ShieldHitCountMin = 140,
+		ShieldHitCountMax = 160,
+		SwarmCount = 22,
+		SwarmZStep = 3.2,
+		MolotovGrant = 1,
+	},
+	-- 챕터2 로컬 라운드9. 스나이퍼/폭탄/화염병 착탄 타수는 이후 라운드도 동일
+	Round9 = {
+		Round = 9,
+		HealthPerKill = 0,
+		MidBossAt = 5,
+		SniperAt = 10,
+		MinusAt = 20,
+		Div2At = 24,
+		BombAt = 30,
+		ShieldPackAt = 34,
+		SniperAgainAt = 44,
+		MidBossHitCountMin = 600,
+		MidBossHitCountMax = 700,
+		SizeScale = 2.35,
+		SpeedMultiplier = 0.45,
+		ContactDamage = 14,
+		SpawnX = 0,
+		MinusHitCountMin = 18,
+		MinusHitCountMax = 28,
+		Div2HitCountMin = 50,
+		Div2HitCountMax = 70,
+		Div2WalkSpeedScale = 4.2,
+		ShieldHitCountMin = 100,
+		ShieldHitCountMax = 130,
+		ShieldPackCount = 5,
+		SniperHitDamage = 100,
+		BombHitDamage = 100,
+		MolotovHitDamage = 100,
 	},
 }
 
@@ -513,6 +680,28 @@ end
 function Config.hitLabelScale(extra: number?): number
 	local base = Config.HitLabel.Scale
 	return math.clamp(base * (extra or 1), 0.15, 3)
+end
+
+function Config.numberedWeaponHits(kind: string, wave: number?): number
+	local r9 = Config.Chapter2.Round9
+	local w = wave or 1
+	local late = Config.chapter() >= 2 and Config.chapterRound(w) >= r9.Round
+	if kind == "sniper" then
+		return if late then r9.SniperHitDamage else Config.SniperCrate.HitDamage
+	elseif kind == "bomb" then
+		return if late then r9.BombHitDamage else Config.BombCrate.HitDamage
+	elseif kind == "molotov" then
+		return if late then r9.MolotovHitDamage else Config.Molotov.HitDamage
+	end
+	return 1
+end
+
+function Config.maxHitPower(chapter: number?): number
+	local ch = chapter or Config.chapter()
+	if ch >= 2 then
+		return Config.Chapter2.MaxHitPower
+	end
+	return 6
 end
 
 function Config.chapterRound(wave: number, chapter: number?): number

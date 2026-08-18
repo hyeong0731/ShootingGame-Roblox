@@ -271,7 +271,7 @@ local function pickRandomKind(): GateKind
 	return kinds[1]
 end
 
-function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?, force: boolean?): GateRecord?
+function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?, force: boolean?, walkSpeedScale: number?): GateRecord?
 	if not force and not NumberGate.canSpawn() then
 		return nil
 	end
@@ -291,7 +291,7 @@ function NumberGate.create(kind: GateKind?, hitMin: number?, hitMax: number?, fo
 	local wave = if state then (state:GetAttribute("Wave") :: number?) else nil
 	minHits, maxHits = Config.pickupHitsForWave(wave or 1, minHits, maxHits)
 	local hits = math.random(minHits, maxHits)
-	local walkSpeed = cfg.WalkSpeed * (gateKind.WalkSpeedScale or 1)
+	local walkSpeed = cfg.WalkSpeed * (walkSpeedScale or gateKind.WalkSpeedScale or 1)
 
 	local model = Instance.new("Model")
 	model.Name = "NumberGate"
@@ -420,12 +420,16 @@ function NumberGate.createPlus(hitMin: number, hitMax: number, force: boolean?):
 	return NumberGate.create(kindById("plus"), hitMin, hitMax, force)
 end
 
-function NumberGate.createMinus(hitMin: number, hitMax: number, force: boolean?): GateRecord?
-	return NumberGate.create(kindById("minus"), hitMin, hitMax, force)
+function NumberGate.createMinus(hitMin: number, hitMax: number, force: boolean?, walkSpeedScale: number?): GateRecord?
+	return NumberGate.create(kindById("minus"), hitMin, hitMax, force, walkSpeedScale)
 end
 
 function NumberGate.createX2(hitMin: number, hitMax: number, force: boolean?): GateRecord?
 	return NumberGate.create(kindById("x2"), hitMin, hitMax, force)
+end
+
+function NumberGate.createDiv2(hitMin: number, hitMax: number, force: boolean?, walkSpeedScale: number?): GateRecord?
+	return NumberGate.create(kindById("div2"), hitMin, hitMax, force, walkSpeedScale)
 end
 
 function NumberGate.createExtraIntro(): GateRecord?

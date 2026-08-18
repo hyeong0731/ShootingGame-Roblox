@@ -383,9 +383,9 @@ local function createHitCountBadge(parent: Instance): Frame
 	local value = Instance.new("TextLabel")
 	value.Name = "Value"
 	value.BackgroundTransparency = 1
-	value.Size = UDim2.new(1, -10, 0.72, 0)
-	value.Position = UDim2.new(0.5, 0, 0.5, 0)
-	value.AnchorPoint = Vector2.new(0.5, 0.5)
+	value.Size = UDim2.new(1, -10, 0.48, 0)
+	value.Position = UDim2.new(0.5, 0, 0.08, 0)
+	value.AnchorPoint = Vector2.new(0.5, 0)
 	value.Font = Enum.Font.GothamBlack
 	value.Text = "현재타수 : 1"
 	value.TextColor3 = Color3.fromRGB(20, 28, 48)
@@ -395,11 +395,84 @@ local function createHitCountBadge(parent: Instance): Frame
 	value.ZIndex = 5
 	value.Parent = badge
 	local valueConstraint = Instance.new("UITextSizeConstraint")
-	valueConstraint.MaxTextSize = 22
-	valueConstraint.MinTextSize = 11
+	valueConstraint.MaxTextSize = 20
+	valueConstraint.MinTextSize = 10
 	valueConstraint.Parent = value
 
+	local maxValue = Instance.new("TextLabel")
+	maxValue.Name = "MaxValue"
+	maxValue.BackgroundTransparency = 1
+	maxValue.Size = UDim2.new(1, -10, 0.4, 0)
+	maxValue.Position = UDim2.new(0.5, 0, 0.56, 0)
+	maxValue.AnchorPoint = Vector2.new(0.5, 0)
+	maxValue.Font = Enum.Font.GothamBold
+	maxValue.Text = `최대타수 : {Config.maxHitPower(1)}`
+	maxValue.TextColor3 = Color3.fromRGB(40, 70, 120)
+	maxValue.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+	maxValue.TextStrokeTransparency = 0.45
+	maxValue.TextScaled = true
+	maxValue.ZIndex = 5
+	maxValue.Parent = badge
+	local maxConstraint = Instance.new("UITextSizeConstraint")
+	maxConstraint.MaxTextSize = 16
+	maxConstraint.MinTextSize = 9
+	maxConstraint.Parent = maxValue
+
 	return badge
+end
+
+local function createMolotovStickers(parent: Instance): Frame
+	local rack = Instance.new("Frame")
+	rack.Name = "MolotovRack"
+	rack.BackgroundTransparency = 1
+	rack.Size = UDim2.fromOffset(72, 220)
+	rack.Position = UDim2.new(0.015, 0, 0.42, 0)
+	rack.AnchorPoint = Vector2.new(0, 0.5)
+	rack.ZIndex = 6
+	rack.Visible = false
+	rack.Parent = parent
+
+	for i = 1, 3 do
+		local btn = Instance.new("TextButton")
+		btn.Name = `Molotov{i}`
+		btn.AutoButtonColor = true
+		btn.Text = ""
+		btn.BackgroundColor3 = Color3.fromRGB(140, 32, 22)
+		btn.BorderSizePixel = 0
+		btn.Size = UDim2.fromOffset(56, 64)
+		btn.Position = UDim2.new(0.5, 0, 0, (i - 1) * 70)
+		btn.AnchorPoint = Vector2.new(0.5, 0)
+		btn.Rotation = -8 + i * 4
+		btn.ZIndex = 7
+		btn.Parent = rack
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0.18, 0)
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 2
+		stroke.Color = Color3.fromRGB(20, 8, 6)
+		stroke.Parent = btn
+
+		local neck = Instance.new("Frame")
+		neck.BackgroundColor3 = Color3.fromRGB(210, 70, 36)
+		neck.BorderSizePixel = 0
+		neck.Size = UDim2.fromScale(0.34, 0.28)
+		neck.Position = UDim2.fromScale(0.5, 0.08)
+		neck.AnchorPoint = Vector2.new(0.5, 0)
+		neck.ZIndex = 8
+		neck.Parent = btn
+		Instance.new("UICorner", neck).CornerRadius = UDim.new(0.4, 0)
+
+		local wick = Instance.new("Frame")
+		wick.BackgroundColor3 = Color3.fromRGB(255, 170, 50)
+		wick.BorderSizePixel = 0
+		wick.Size = UDim2.fromScale(0.16, 0.14)
+		wick.Position = UDim2.fromScale(0.5, -0.02)
+		wick.AnchorPoint = Vector2.new(0.5, 0.5)
+		wick.ZIndex = 9
+		wick.Parent = btn
+		Instance.new("UICorner", wick).CornerRadius = UDim.new(1, 0)
+	end
+
+	return rack
 end
 
 local function createDevStepper(parent: Instance, name: string, titleText: string, y: number): (TextLabel, TextButton, TextButton)
@@ -519,6 +592,18 @@ function Hud.start()
 	weaponBtn.Visible = false
 	local hitBadge = createHitCountBadge(gui)
 	hitBadge.Visible = false
+	local molotovRack = createMolotovStickers(gui)
+	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+	local useMolotov = remotesFolder:WaitForChild("UseMolotov")
+	for _, child in molotovRack:GetChildren() do
+		if child:IsA("TextButton") then
+			child.MouseButton1Click:Connect(function()
+				if useMolotov:IsA("RemoteEvent") then
+					useMolotov:FireServer()
+				end
+			end)
+		end
+	end
 
 	if Config.Debug.Enabled then
 		local debugPanel = Instance.new("Frame")
@@ -746,6 +831,10 @@ function Hud.start()
 		if hitValue and hitValue:IsA("TextLabel") then
 			hitValue.Text = `현재타수 : {hitPower}`
 		end
+		local maxValue = hitBadge:FindFirstChild("MaxValue")
+		if maxValue and maxValue:IsA("TextLabel") then
+			maxValue.Text = `최대타수 : {Config.maxHitPower(chapter)}`
+		end
 		local isLobby = currentPhase == "lobby"
 		local isClear = currentPhase == "chapterClear"
 		kills.Visible = not isLobby
@@ -753,6 +842,14 @@ function Hud.start()
 		waveLabel.Visible = not isLobby
 		weaponBtn.Visible = not isLobby and not isClear
 		hitBadge.Visible = not isLobby
+		local molotovLeft = state:GetAttribute("MolotovLeft") or 0
+		molotovRack.Visible = currentPhase == "playing" and molotovLeft > 0
+		for i = 1, 3 do
+			local sticker = molotovRack:FindFirstChild(`Molotov{i}`)
+			if sticker and sticker:IsA("GuiObject") then
+				sticker.Visible = i <= molotovLeft
+			end
+		end
 		ensureWorldBar(currentPhase)
 
 		local bombLeft = state:GetAttribute("BombLeft") or 0

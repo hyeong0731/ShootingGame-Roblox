@@ -36,6 +36,7 @@ function Remotes.serverInit()
 		DebugSetRound = ensureRemote(folder, "DebugSetRound"),
 		DebugSetChapter = ensureRemote(folder, "DebugSetChapter"),
 		DebugHitPower = ensureRemote(folder, "DebugHitPower"),
+		UseMolotov = ensureRemote(folder, "UseMolotov"),
 	}
 end
 
@@ -49,6 +50,7 @@ function Remotes.clientWait()
 		DebugSetRound = folder:WaitForChild("DebugSetRound"),
 		DebugSetChapter = folder:WaitForChild("DebugSetChapter"),
 		DebugHitPower = folder:WaitForChild("DebugHitPower"),
+		UseMolotov = folder:WaitForChild("UseMolotov"),
 	}
 end
 
