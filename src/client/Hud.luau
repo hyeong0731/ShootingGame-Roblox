@@ -502,6 +502,35 @@ local function createMolotovButton(parent: Instance): TextButton
 	return btn
 end
 
+local function createPauseButton(parent: Instance): TextButton
+	local button = Instance.new("TextButton")
+	button.Name = "PauseButton"
+	button.AutoButtonColor = true
+	button.BackgroundColor3 = Color3.fromRGB(32, 38, 54)
+	button.BackgroundTransparency = 0.12
+	button.BorderSizePixel = 0
+	button.Size = UDim2.fromOffset(86, 34)
+	button.Position = UDim2.new(1, -16, 0.16, 0)
+	button.AnchorPoint = Vector2.new(1, 0)
+	button.Font = Enum.Font.GothamBold
+	button.Text = "Ⅱ  일시정지"
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.TextScaled = true
+	button.ZIndex = 8
+	button.Visible = false
+	button.Parent = parent
+	Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(0, 0, 0)
+	stroke.Parent = button
+	local constraint = Instance.new("UITextSizeConstraint")
+	constraint.MaxTextSize = 14
+	constraint.MinTextSize = 9
+	constraint.Parent = button
+	return button
+end
+
 local function createDevStepper(parent: Instance, name: string, titleText: string, y: number): (TextLabel, TextButton, TextButton)
 	local row = Instance.new("Frame")
 	row.Name = name
@@ -620,11 +649,18 @@ function Hud.start()
 	local hitBadge = createHitCountBadge(gui)
 	hitBadge.Visible = false
 	local molotovButton = createMolotovButton(gui)
+	local pauseButton = createPauseButton(gui)
 	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 	local useMolotov = remotesFolder:WaitForChild("UseMolotov")
+	local togglePause = remotesFolder:WaitForChild("TogglePause")
 	molotovButton.MouseButton1Click:Connect(function()
 		if useMolotov:IsA("RemoteEvent") then
 			useMolotov:FireServer()
+		end
+	end)
+	pauseButton.MouseButton1Click:Connect(function()
+		if togglePause:IsA("RemoteEvent") then
+			togglePause:FireServer()
 		end
 	end)
 
@@ -860,11 +896,14 @@ function Hud.start()
 		end
 		local isLobby = currentPhase == "lobby"
 		local isClear = currentPhase == "chapterClear"
+		local isPaused = state:GetAttribute("Paused") == true
 		kills.Visible = not isLobby
 		timer.Visible = not isLobby
 		waveLabel.Visible = not isLobby
 		weaponBtn.Visible = not isLobby and not isClear
 		hitBadge.Visible = not isLobby
+		pauseButton.Visible = currentPhase == "playing"
+		pauseButton.Text = if isPaused then "▶  계속" else "Ⅱ  일시정지"
 		local molotovLeft = state:GetAttribute("MolotovLeft") or 0
 		molotovButton.Visible = currentPhase == "playing" and molotovLeft > 0
 		local molotovCount = molotovButton:FindFirstChild("Count")

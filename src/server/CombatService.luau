@@ -44,6 +44,7 @@ local molotovs = {} :: {
 		speed: number,
 		born: number,
 		startZ: number,
+		targetPosition: Vector3,
 	}
 }
 
@@ -228,10 +229,9 @@ end
 function CombatService.throwMolotov(origin: Vector3)
 	local cfg = Config.Molotov
 	local lane = Config.activeLane()
-	-- 맵 절반보다 플레이어 쪽으로 약간 더 들어간 지점에 착탄
 	local midZ = (lane.SpawnZ + lane.PlayerZ) / 2
-	local targetZ = midZ + (lane.PlayerZ - midZ) * 0.15
-	local throwDist = math.max(2, targetZ - origin.Z)
+	local targetPosition = Vector3.new(origin.X, lane.CenterY + lane.Thickness * 0.5, midZ)
+	local throwDist = math.max(2, midZ - origin.Z)
 	local part = spawnThrownMolotov(origin)
 	local direction = Vector3.new(0, 0, 1)
 	local speed = throwDist / math.max(0.05, cfg.FlightTime)
@@ -241,8 +241,24 @@ function CombatService.throwMolotov(origin: Vector3)
 		speed = speed,
 		born = os.clock(),
 		startZ = origin.Z,
-		targetDist = throwDist,
+		targetPosition = targetPosition,
 	})
+end
+
+function CombatService.shiftTimers(duration: number)
+	for _, shot in active do
+		shot.born += duration
+	end
+	for _, bomb in bombs do
+		bomb.born += duration
+	end
+	for _, molotov in molotovs do
+		molotov.born += duration
+	end
+	for _, fire in groundFires do
+		fire.untilTime += duration
+		fire.nextTick += duration
+	end
 end
 
 function CombatService.fireStraight(origin: Vector3, damage: number, hits: number?)
@@ -632,20 +648,15 @@ function CombatService.update(dt: number)
 			continue
 		end
 		if now - molotov.born > 2.4 then
-			local pos = molotov.part.Position
 			molotov.part:Destroy()
-			explodeMolotovAt(pos)
+			explodeMolotovAt(molotov.targetPosition)
 			continue
 		end
 		local nextPos = molotov.part.Position + molotov.direction * molotov.speed * dt
-		local travel = nextPos - molotov.part.Position
-		local hit = Workspace:Spherecast(molotov.part.Position, 1.1, travel, bombParams)
-		local nearPos = bombProximityHit(molotov.part.Position, nextPos + molotov.direction * 2)
-		local reachedEnd = nextPos.Z >= molotov.startZ + (molotov.targetDist or Config.Molotov.ThrowDistance)
-		if hit or nearPos or reachedEnd then
-			local pos = if hit then hit.Position elseif nearPos then nearPos else nextPos
+		local reachedEnd = nextPos.Z >= molotov.targetPosition.Z
+		if reachedEnd then
 			molotov.part:Destroy()
-			explodeMolotovAt(pos)
+			explodeMolotovAt(molotov.targetPosition)
 			continue
 		end
 		local spin = (now - molotov.born) * 12

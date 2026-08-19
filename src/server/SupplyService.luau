@@ -26,7 +26,8 @@ export type SupplyRecord = {
 	label: TextLabel,
 	hitsLeft: number,
 	alive: boolean,
-	kind: "ally" | "bomb" | "sniper",
+	kind: "ally" | "bomb" | "sniper" | "molotov",
+	grantCount: number?,
 }
 
 export type AllyRecord = {
@@ -64,6 +65,7 @@ local onRecruited: ((AllyRecord) -> ())? = nil
 local onAllyDied: ((AllyRecord) -> ())? = nil
 local onBombPicked: (() -> ())? = nil
 local onSniperPicked: (() -> ())? = nil
+local onMolotovPicked: ((number) -> ())? = nil
 
 local function ensureFolder(name: string): Folder
 	local existing = Workspace:FindFirstChild(name)
@@ -226,6 +228,37 @@ local function buildCrateBomb(parent: Model, root: BasePart)
 	weldConstraint(root, spark)
 end
 
+local function buildCrateMolotov(parent: Model, root: BasePart)
+	local bottle = makePart(
+		parent,
+		"MolotovBottle",
+		Vector3.new(1.15, 2.1, 1.15),
+		Color3.fromRGB(150, 38, 24),
+		root.CFrame * CFrame.new(0, 2.55, 0) * CFrame.Angles(0, 0, math.rad(-12)),
+		Enum.Material.Glass
+	)
+	bottle.Transparency = 0.12
+	weldConstraint(root, bottle)
+	local neck = makePart(
+		parent,
+		"MolotovNeck",
+		Vector3.new(0.5, 0.75, 0.5),
+		Color3.fromRGB(190, 58, 30),
+		bottle.CFrame * CFrame.new(0, 1.25, 0),
+		Enum.Material.Glass
+	)
+	weldConstraint(root, neck)
+	local wick = makePart(
+		parent,
+		"MolotovWick",
+		Vector3.new(0.24, 0.55, 0.24),
+		Color3.fromRGB(255, 155, 45),
+		neck.CFrame * CFrame.new(0, 0.62, 0),
+		Enum.Material.Neon
+	)
+	weldConstraint(root, wick)
+end
+
 -- Combat ally: special-forces look + shouldered ADS arm pose.
 local function buildCombatAlly(parent: Model, root: BasePart): (BasePart, Weld, Weld, Weld, Weld, Weld)
 	local skin = Color3.fromRGB(210, 170, 135)
@@ -315,6 +348,10 @@ end
 
 function SupplyService.onSniperPicked(callback: () -> ())
 	onSniperPicked = callback
+end
+
+function SupplyService.onMolotovPicked(callback: (number) -> ())
+	onMolotovPicked = callback
 end
 
 function SupplyService.hasRecruitedThisMatch(): boolean
@@ -576,6 +613,84 @@ function SupplyService.createBomb(force: boolean?, overrideMin: number?, overrid
 	return record
 end
 
+function SupplyService.createMolotov(
+	force: boolean?,
+	overrideMin: number?,
+	overrideMax: number?,
+	grantCount: number?
+): SupplyRecord?
+	if not force and #supplies >= Config.Supply.MaxAlive then
+		return nil
+	end
+
+	local cfg = liveConfig().Molotov or Config.Molotov
+	local minHits = math.max(1, math.floor(overrideMin or cfg.CrateHitCountMin))
+	local maxHits = math.max(minHits, math.floor(overrideMax or cfg.CrateHitCountMax))
+	local hits = math.random(minHits, maxHits)
+	local folder = ensureFolder("Supplies")
+	local lane = Config.activeLane()
+	local position = Vector3.new(Config.sidePathCenterX(), lane.CenterY + 1.6, lane.SpawnZ)
+
+	local model = Instance.new("Model")
+	model.Name = "MolotovCrate"
+	model:SetAttribute("IsSupply", true)
+	model:SetAttribute("IsMolotovCrate", true)
+	model:SetAttribute("HitsLeft", hits)
+
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(3.2, 2.4, 3.2)
+	root.Color = Color3.fromRGB(112, 58, 38)
+	root.Material = Enum.Material.Wood
+	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+	root.Anchored = true
+	root.CanCollide = true
+	root.Parent = model
+
+	local lid = makePart(
+		model,
+		"Lid",
+		Vector3.new(3.4, 0.35, 3.4),
+		Color3.fromRGB(86, 42, 30),
+		root.CFrame * CFrame.new(0, 1.35, 0),
+		Enum.Material.Wood
+	)
+	weldConstraint(root, lid)
+	local stripe = makePart(
+		model,
+		"Stripe",
+		Vector3.new(3.45, 0.55, 0.55),
+		Color3.fromRGB(235, 72, 36),
+		root.CFrame * CFrame.new(0, 0.2, 0),
+		Enum.Material.Neon
+	)
+	weldConstraint(root, stripe)
+	buildCrateMolotov(model, root)
+
+	model.PrimaryPart = root
+	model.Parent = folder
+	plantCrate(model, root)
+
+	local label = attachOverheadHits(
+		root,
+		hits,
+		Config.HitLabel.CrateFront,
+		Color3.fromRGB(255, 135, 80),
+		Config.hitLabelScale(cfg.HitLabelScale or 1)
+	)
+	local record: SupplyRecord = {
+		model = model,
+		root = root,
+		label = label,
+		hitsLeft = hits,
+		alive = true,
+		kind = "molotov",
+		grantCount = math.max(1, math.floor(grantCount or 1)),
+	}
+	table.insert(supplies, record)
+	return record
+end
+
 function SupplyService.createSniper(force: boolean?, overrideMin: number?, overrideMax: number?): SupplyRecord?
 	if not force and not SupplyService.canSpawnSniper() then
 		return nil
@@ -765,6 +880,11 @@ function SupplyService.damageModel(model: Model, hits: number?): boolean
 					if onSniperPicked then
 						onSniperPicked()
 					end
+				elseif record.kind == "molotov" then
+					record.model:Destroy()
+					if onMolotovPicked then
+						onMolotovPicked(record.grantCount or 1)
+					end
 				else
 					recruitFrom(record)
 				end
@@ -925,6 +1045,20 @@ function SupplyService.allyThrowOrigins(): { Vector3 }
 		ally.throwAnimAt = os.clock()
 	end
 	return points
+end
+
+function SupplyService.shiftTimers(duration: number)
+	for _, ally in allies do
+		if ally.lastFire > 0 then
+			ally.lastFire += duration
+		end
+		if ally.lastHurtAt > 0 then
+			ally.lastHurtAt += duration
+		end
+		if ally.throwAnimAt then
+			ally.throwAnimAt += duration
+		end
+	end
 end
 
 function SupplyService.allyMuzzlePoints(now: number): { Vector3 }

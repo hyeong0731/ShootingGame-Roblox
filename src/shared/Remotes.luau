@@ -38,6 +38,7 @@ function Remotes.serverInit()
 		DebugHitPower = ensureRemote(folder, "DebugHitPower"),
 		UseMolotov = ensureRemote(folder, "UseMolotov"),
 		MolotovThrowAnim = ensureRemote(folder, "MolotovThrowAnim"),
+		TogglePause = ensureRemote(folder, "TogglePause"),
 	}
 end
 
@@ -53,6 +54,7 @@ function Remotes.clientWait()
 		DebugHitPower = folder:WaitForChild("DebugHitPower"),
 		UseMolotov = folder:WaitForChild("UseMolotov"),
 		MolotovThrowAnim = folder:WaitForChild("MolotovThrowAnim"),
+		TogglePause = folder:WaitForChild("TogglePause"),
 	}
 end
 

@@ -155,10 +155,12 @@ function Input.start(remotes)
 	task.spawn(function()
 		local state = ReplicatedStorage:WaitForChild("GameState")
 		local function refresh()
-			setGameplay(lanePhase(state:GetAttribute("Phase") :: string?))
+			local active = lanePhase(state:GetAttribute("Phase") :: string?)
+				and state:GetAttribute("Paused") ~= true
+			setGameplay(active)
 		end
 		state.AttributeChanged:Connect(function(name)
-			if name == "Phase" then
+			if name == "Phase" or name == "Paused" then
 				refresh()
 			end
 		end)

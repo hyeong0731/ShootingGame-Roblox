@@ -863,11 +863,15 @@ local function setupMegaHits(record: ZombieRecord, hitCount: number?, scale: num
 		bar:Destroy()
 	end
 
-	local head = record.model:FindFirstChild("Head")
+	local head = record.model:FindFirstChild("Head", true)
 	local adornee = if head and head:IsA("BasePart") then head else record.root
-	-- 중간보스는 크기가 커서 hitLabel을 훨씬 높게, 크게 표시 (원거리에서도 보임)
-	local labelHeightScale = s * 1.8
-	record.hitLabel = attachHitCount(adornee, hits, labelHeightScale, s * 1.4)
+	record.hitLabel = attachHitCount(adornee, hits, 1, 1.15)
+	local hitBillboard = record.hitLabel.Parent
+	if hitBillboard and hitBillboard:IsA("BillboardGui") then
+		-- 머리에서 너무 멀리 뜨지 않도록 이마 바로 위에 고정하고 원거리에서도 표시한다.
+		hitBillboard.StudsOffset = Vector3.new(0, 2.8, 0)
+		hitBillboard.MaxDistance = 600
+	end
 
 	local hitbox = record.model:FindFirstChild("Hitbox")
 	if hitbox and hitbox:IsA("BasePart") then
@@ -1372,6 +1376,17 @@ function ZombieService.clear()
 	local folder = Workspace:FindFirstChild("Zombies")
 	if folder then
 		folder:ClearAllChildren()
+	end
+end
+
+function ZombieService.shiftTimers(duration: number)
+	for _, record in ZombieService._alive do
+		if record.lastContact > 0 then
+			record.lastContact += duration
+		end
+		if record.attackUntil > 0 then
+			record.attackUntil += duration
+		end
 	end
 end
 
