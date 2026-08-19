@@ -62,9 +62,13 @@ local ch2R3Crate2Spawned = false
 local ch2R3Minus2Spawned = false
 local ch2R4CrateSpawned = false
 local ch2R4X2Spawned = false
+local ch2R4X2Collected = false
 local ch2R4MinusSpawned = false
 local ch2R4AllySpawned = false
-local ch2R5BossesSpawned = false
+local ch2R4DogSwarmSpawned = false
+local ch2R5MidBoss1Spawned = false
+local ch2R5MidBoss2Spawned = false
+local ch2R5X2RetrySpawned = false
 local ch2R6SniperSpawned = false
 local ch2R6Div2Spawned = false
 local ch2R6BombSpawned = false
@@ -89,7 +93,7 @@ local ch2R8MolotovSpawned = false
 local ch2R9MidBossSpawned = false
 local ch2R9SniperSpawned = false
 local ch2R9MinusSpawned = false
-local ch2R9Div2Spawned = false
+local ch2R9PlusSpawned = false
 local ch2R9BombSpawned = false
 local ch2R9ShieldPackSpawned = false
 local ch2R9Sniper2Spawned = false
@@ -353,6 +357,15 @@ local function currentStats()
 		gap = Config.FinalBoss.SpawnGap
 	end
 	if Config.chapter() >= 2 then
+		local r3 = Config.Chapter2.Round3
+		if Config.chapterRound(wave) == r3.Round then
+			gap = math.max(inf.SpawnGapMin, r3.SpawnGap - spawnElapsed * 0.018)
+			maxAlive = r3.MaxAlive
+			if SupplyService.hasRecruitedThisMatch() then
+				gap *= inf.AllySpawnGapScale
+				maxAlive += inf.AllyMaxAliveBonus
+			end
+		end
 		local r5 = Config.Chapter2.Round5
 		if Config.chapterRound(wave) == r5.Round then
 			gap = r5.SpawnGap
@@ -390,6 +403,9 @@ local function chapter2BigUnlocked(wave: number, elapsedLocal: number): boolean
 	end
 	local r2 = Config.Chapter2.Round2
 	local round = Config.chapterRound(wave)
+	if round == 3 then
+		return false -- 라운드3: 큰 좀비 없음
+	end
 	return round > r2.Round or (round == r2.Round and elapsedLocal >= r2.BigZombieAt)
 end
 
@@ -410,9 +426,13 @@ local function resetChapter2Round2Events()
 	ch2R3Minus2Spawned = false
 	ch2R4CrateSpawned = false
 	ch2R4X2Spawned = false
+	ch2R4X2Collected = false
 	ch2R4MinusSpawned = false
 	ch2R4AllySpawned = false
-	ch2R5BossesSpawned = false
+	ch2R4DogSwarmSpawned = false
+	ch2R5MidBoss1Spawned = false
+	ch2R5MidBoss2Spawned = false
+	ch2R5X2RetrySpawned = false
 	ch2R6SniperSpawned = false
 	ch2R6Div2Spawned = false
 	ch2R6BombSpawned = false
@@ -437,7 +457,7 @@ local function resetChapter2Round2Events()
 	ch2R9MidBossSpawned = false
 	ch2R9SniperSpawned = false
 	ch2R9MinusSpawned = false
-	ch2R9Div2Spawned = false
+	ch2R9PlusSpawned = false
 	ch2R9BombSpawned = false
 	ch2R9ShieldPackSpawned = false
 	ch2R9Sniper2Spawned = false
@@ -468,13 +488,17 @@ local function spawnOne()
 		- shieldCfg.LeadSeconds
 	local r3 = Config.Chapter2.Round3
 	local r6 = Config.Chapter2.Round6
+	local r7 = Config.Chapter2.Round7
 	local r8 = Config.Chapter2.Round8
 	local r9 = Config.Chapter2.Round9
 	local round = Config.chapterRound(wave)
 	local shieldChance = shieldCfg.SpawnChance
-	if Config.chapter() >= 2 and round == r6.Round then
+	if Config.chapter() >= 2 and (round == r6.Round or round == r7.Round or round == r8.Round) then
+		local chance = if round == r8.Round then r8.ShieldSpawnChance
+			elseif round == r7.Round then r7.ShieldSpawnChance
+			else r6.ShieldSpawnChance
 		local leftover = math.max(0.01, 1 - dogCfg.SpawnChance)
-		shieldChance = r6.ShieldSpawnChance / leftover
+		shieldChance = chance / leftover
 	elseif Config.chapter() >= 2 and (round > r3.Round or (round == r3.Round and elapsedLocal >= r3.ShieldBoostAt)) then
 		local leftover = math.max(0.01, 1 - dogCfg.SpawnChance)
 		shieldChance = r3.ShieldSpawnChance / leftover
@@ -611,20 +635,43 @@ local function spawnEliteBosses()
 	end
 end
 
-local function spawnChapter2MidBosses()
+local function spawnChapter2MidBoss(spawnX: number)
 	local r5 = Config.Chapter2.Round5
 	local stats = currentStats()
 	local walkSpeed = stats.speed * r5.SpeedMultiplier
-	for _, x in r5.SpawnXs do
-		local hits = math.random(r5.HitCountMin, r5.HitCountMax)
-		local zombie = spawnMegaBossAt(x, hits, false, {
-			scale = r5.SizeScale,
-			walkSpeed = walkSpeed,
-			contactDamage = r5.ContactDamage,
+	local hits = math.random(r5.HitCountMin, r5.HitCountMax)
+	local zombie = spawnMegaBossAt(spawnX, hits, false, {
+		scale = r5.SizeScale,
+		walkSpeed = walkSpeed,
+		contactDamage = r5.ContactDamage,
+	})
+	if zombie then
+		zombie.model:SetAttribute("IsMidBoss", true)
+	end
+end
+
+local function spawnChapter2DogSwarm(count: number)
+	local stats = currentStats()
+	local lane = Config.activeLane()
+	local slots = Config.activeInfinite().LaneSlots
+	local n = math.max(1, math.floor(count))
+	for i = 1, n do
+		local x = slots[((i - 1) % #slots) + 1]
+		local row = math.floor((i - 1) / #slots)
+		local z = lane.SpawnZ + row * 2.8
+		local y = lane.CenterY + 1.35
+		local zombie = ZombieService.create(Vector3.new(x, y, z), {
+			health = stats.health,
+			walkSpeed = Config.activeDog().WalkSpeed + (os.clock() - matchStart) * Config.activeDog().SpeedPerSecond,
+			isBoss = false,
+			isBig = false,
+			isDog = true,
+			isShield = false,
+			contactDamage = Config.activeDog().ContactDamage,
+			scale = Config.activeDog().SizeScale,
+			hitCount = nil,
 		})
-		if zombie then
-			zombie.model:SetAttribute("IsMidBoss", true)
-		end
+		ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 	end
 end
 
@@ -1405,8 +1452,13 @@ function GameService.start(remotes)
 		if id == "x2" or kind.Op == "mul" then
 			hitPower = math.max(1, math.floor(hitPower * math.max(1, value)))
 			local waveNow = (stateFolder:GetAttribute("Wave") :: number?) or 1
-			if Config.chapter() >= 2 and Config.chapterRound(waveNow) == Config.Chapter2.Round8.Round then
-				ch2R8X2Collected = true
+			if Config.chapter() >= 2 then
+				local localRound = Config.chapterRound(waveNow)
+				if localRound == Config.Chapter2.Round4.Round then
+					ch2R4X2Collected = true
+				elseif localRound == Config.Chapter2.Round8.Round then
+					ch2R8X2Collected = true
+				end
 			end
 		elseif id == "div2" or kind.Op == "div" then
 			hitPower = math.max(1, math.floor(hitPower / math.max(1, value)))
@@ -1441,7 +1493,8 @@ function GameService.start(remotes)
 		lastMolotovAt = now
 		setState("MolotovLeft", left - 1)
 		local origins = SupplyService.allyThrowOrigins()
-		if #origins == 0 then
+		local playerThrowing = #origins == 0
+		if playerThrowing then
 			for _, data in playerData do
 				local character = data.character
 				if not character then
@@ -1458,6 +1511,9 @@ function GameService.start(remotes)
 			end
 		end
 		if origins[1] then
+			if playerThrowing and remotes.MolotovThrowAnim then
+				remotes.MolotovThrowAnim:FireAllClients()
+			end
 			CombatService.throwMolotov(origins[1])
 		end
 	end)
@@ -1687,11 +1743,7 @@ function GameService.start(remotes)
 					end
 					if t >= r3.CrateAt and not ch2R3Crate1Spawned then
 						ch2R3Crate1Spawned = true
-						if math.random() < 0.5 then
-							SupplyService.createBomb(true)
-						else
-							SupplyService.createSniper(true)
-						end
+						SupplyService.createBomb(true)
 					end
 					if t >= r3.MinusAt and not ch2R3Minus1Spawned then
 						ch2R3Minus1Spawned = true
@@ -1699,11 +1751,7 @@ function GameService.start(remotes)
 					end
 					if t >= r3.CrateAgainAt and not ch2R3Crate2Spawned then
 						ch2R3Crate2Spawned = true
-						if math.random() < 0.5 then
-							SupplyService.createBomb(true)
-						else
-							SupplyService.createSniper(true)
-						end
+						SupplyService.createSniper(true)
 					end
 					if t >= r3.MinusAgainAt and not ch2R3Minus2Spawned then
 						ch2R3Minus2Spawned = true
@@ -1720,13 +1768,17 @@ function GameService.start(remotes)
 							SupplyService.create(true, r4.AllyHitCountMin, r4.AllyHitCountMax)
 						end
 					end
-					if t >= r4.CrateAt and not ch2R4CrateSpawned then
-						ch2R4CrateSpawned = true
-						if math.random() < 0.5 then
-							SupplyService.createBomb(true)
-						else
-							SupplyService.createSniper(true)
-						end
+				if t >= r4.CrateAt and not ch2R4CrateSpawned then
+					ch2R4CrateSpawned = true
+					if math.random() < 0.5 then
+						SupplyService.createBomb(true, r4.CrateHitCountMin, r4.CrateHitCountMax)
+					else
+						SupplyService.createSniper(true, r4.CrateHitCountMin, r4.CrateHitCountMax)
+					end
+				end
+					if t >= r4.DogSwarmAt and not ch2R4DogSwarmSpawned then
+						ch2R4DogSwarmSpawned = true
+						spawnChapter2DogSwarm(r4.DogSwarmCount)
 					end
 					if t >= r4.X2At and not ch2R4X2Spawned then
 						ch2R4X2Spawned = true
@@ -1739,26 +1791,37 @@ function GameService.start(remotes)
 				end
 
 				local r5 = Config.Chapter2.Round5
-				if Config.chapterRound(wave) == r5.Round and not ch2R5BossesSpawned then
-					ch2R5BossesSpawned = true
-					spawnChapter2MidBosses()
+				if Config.chapterRound(wave) == r5.Round then
+					local t = waveLocalElapsed(wave)
+					if t >= r5.X2RetryAt and not ch2R5X2RetrySpawned and not ch2R4X2Collected then
+						ch2R5X2RetrySpawned = true
+						NumberGate.createX2(r5.X2HitCountMin, r5.X2HitCountMax, true)
+					end
+					if t >= r5.MidBossAt and not ch2R5MidBoss1Spawned then
+						ch2R5MidBoss1Spawned = true
+						spawnChapter2MidBoss(r5.FirstSpawnX)
+					end
+					if t >= r5.MidBossAgainAt and not ch2R5MidBoss2Spawned then
+						ch2R5MidBoss2Spawned = true
+						spawnChapter2MidBoss(r5.SecondSpawnX)
+					end
 				end
 
 				local r6 = Config.Chapter2.Round6
 				if Config.chapterRound(wave) == r6.Round then
 					local t = waveLocalElapsed(wave)
-					if t >= r6.SniperAt and not ch2R6SniperSpawned then
-						ch2R6SniperSpawned = true
-						SupplyService.createSniper(true)
-					end
+				if t >= r6.SniperAt and not ch2R6SniperSpawned then
+					ch2R6SniperSpawned = true
+					SupplyService.createSniper(true, r6.SniperHitCountMin, r6.SniperHitCountMax)
+				end
 					if t >= r6.Div2At and not ch2R6Div2Spawned then
 						ch2R6Div2Spawned = true
 						NumberGate.createDiv2(r6.Div2HitCountMin, r6.Div2HitCountMax, true)
 					end
-					if t >= r6.BombAt and not ch2R6BombSpawned then
-						ch2R6BombSpawned = true
-						SupplyService.createBomb(true)
-					end
+				if t >= r6.BombAt and not ch2R6BombSpawned then
+					ch2R6BombSpawned = true
+					SupplyService.createBomb(true, r6.BombHitCountMin, r6.BombHitCountMax)
+				end
 					if t >= r6.PlusAt and not ch2R6PlusSpawned then
 						ch2R6PlusSpawned = true
 						NumberGate.createPlus(r6.PlusHitCountMin, r6.PlusHitCountMax, true)
@@ -1772,10 +1835,10 @@ function GameService.start(remotes)
 				local r7 = Config.Chapter2.Round7
 				if Config.chapterRound(wave) == r7.Round then
 					local t = waveLocalElapsed(wave)
-					if t >= r7.SniperAt and not ch2R7SniperSpawned then
-						ch2R7SniperSpawned = true
-						SupplyService.createSniper(true)
-					end
+				if t >= r7.SniperAt and not ch2R7SniperSpawned then
+					ch2R7SniperSpawned = true
+					SupplyService.createSniper(true, r7.SniperHitCountMin, r7.SniperHitCountMax)
+				end
 					if t >= r7.MinusAt and not ch2R7MinusSpawned then
 						ch2R7MinusSpawned = true
 						NumberGate.createMinus(r7.MinusHitCountMin, r7.MinusHitCountMax, true, r7.MinusWalkSpeedScale)
@@ -1784,10 +1847,10 @@ function GameService.start(remotes)
 						ch2R7PlusSpawned = true
 						NumberGate.createPlus(r7.PlusHitCountMin, r7.PlusHitCountMax, true)
 					end
-					if t >= r7.BombAt and not ch2R7BombSpawned then
-						ch2R7BombSpawned = true
-						SupplyService.createBomb(true)
-					end
+				if t >= r7.BombAt and not ch2R7BombSpawned then
+					ch2R7BombSpawned = true
+					SupplyService.createBomb(true, r7.BombHitCountMin, r7.BombHitCountMax)
+				end
 					if t >= r7.ShieldPackAt and not ch2R7ShieldPackSpawned then
 						ch2R7ShieldPackSpawned = true
 						spawnChapter2ShieldPack()
@@ -1799,20 +1862,25 @@ function GameService.start(remotes)
 					local t = waveLocalElapsed(wave)
 					if t >= r8.Div2At and not ch2R8Div2Spawned then
 						ch2R8Div2Spawned = true
-						NumberGate.createDiv2(r8.Div2HitCountMin, r8.Div2HitCountMax, true)
+						NumberGate.createDiv2(
+							r8.Div2HitCountMin,
+							r8.Div2HitCountMax,
+							true,
+							r8.Div2WalkSpeedScale
+						)
 					end
-					if t >= r8.SniperAt and not ch2R8SniperSpawned then
-						ch2R8SniperSpawned = true
-						SupplyService.createSniper(true)
-					end
+				if t >= r8.SniperAt and not ch2R8SniperSpawned then
+					ch2R8SniperSpawned = true
+					SupplyService.createSniper(true, r8.SniperHitCountMin, r8.SniperHitCountMax)
+				end
 					if t >= r8.X2At and not ch2R8X2Spawned then
 						ch2R8X2Spawned = true
 						NumberGate.createX2(r8.X2HitCountMin, r8.X2HitCountMax, true)
 					end
-					if t >= r8.SniperAgainAt and not ch2R8Sniper2Spawned then
-						ch2R8Sniper2Spawned = true
-						SupplyService.createSniper(true)
-					end
+				if t >= r8.SniperAgainAt and not ch2R8Sniper2Spawned then
+					ch2R8Sniper2Spawned = true
+					SupplyService.createSniper(true, r8.SniperHitCountMin, r8.SniperHitCountMax)
+				end
 					if t >= r8.MinusAt and not ch2R8MinusSpawned then
 						ch2R8MinusSpawned = true
 						NumberGate.createMinus(r8.MinusHitCountMin, r8.MinusHitCountMax, true)
@@ -1829,10 +1897,10 @@ function GameService.start(remotes)
 						ch2R8PlusSpawned = true
 						NumberGate.createPlus(r8.PlusHitCountMin, r8.PlusHitCountMax, true)
 					end
-					if t >= r8.BombAt and not ch2R8BombSpawned then
-						ch2R8BombSpawned = true
-						SupplyService.createBomb(true)
-					end
+				if t >= r8.BombAt and not ch2R8BombSpawned then
+					ch2R8BombSpawned = true
+					SupplyService.createBomb(true, r8.BombHitCountMin, r8.BombHitCountMax)
+				end
 					if t >= r8.MolotovAt and not ch2R8MolotovSpawned then
 						ch2R8MolotovSpawned = true
 						local left = (stateFolder:GetAttribute("MolotovLeft") :: number?) or 0
@@ -1855,9 +1923,9 @@ function GameService.start(remotes)
 						ch2R9MinusSpawned = true
 						NumberGate.createMinus(r9.MinusHitCountMin, r9.MinusHitCountMax, true)
 					end
-					if t >= r9.Div2At and not ch2R9Div2Spawned then
-						ch2R9Div2Spawned = true
-						NumberGate.createDiv2(r9.Div2HitCountMin, r9.Div2HitCountMax, true, r9.Div2WalkSpeedScale)
+					if t >= r9.PlusAt and not ch2R9PlusSpawned then
+						ch2R9PlusSpawned = true
+						NumberGate.createPlus(r9.PlusHitCountMin, r9.PlusHitCountMax, true)
 					end
 					if t >= r9.BombAt and not ch2R9BombSpawned then
 						ch2R9BombSpawned = true

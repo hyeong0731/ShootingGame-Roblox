@@ -1,7 +1,37 @@
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
 
 local Effects = {}
+
+local function playThrowAnim()
+	local player = Players.LocalPlayer
+	local character = player and player.Character
+	if not character then return end
+	local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+	if not torso then return end
+	local rightShoulder = torso:FindFirstChild("Right Shoulder") :: Motor6D?
+	if not (rightShoulder and rightShoulder:IsA("Motor6D")) then return end
+	local original = rightShoulder.C0
+	task.spawn(function()
+		local RAISE, HOLD, LOWER = 0.18, 0.06, 0.22
+		local raiseAngle = math.rad(-140)
+		local t = 0
+		while t < RAISE do
+			t += task.wait()
+			local a = math.min(t / RAISE, 1)
+			rightShoulder.C0 = original * CFrame.Angles(raiseAngle * a, 0, 0)
+		end
+		task.wait(HOLD)
+		t = 0
+		while t < LOWER do
+			t += task.wait()
+			local a = math.min(t / LOWER, 1)
+			rightShoulder.C0 = original * CFrame.Angles(raiseAngle * (1 - a), 0, 0)
+		end
+		rightShoulder.C0 = original
+	end)
+end
 
 function Effects.start(remotes)
 	remotes.ExplodeFx.OnClientEvent:Connect(function(position: Vector3, radius: number)
@@ -63,6 +93,12 @@ function Effects.start(remotes)
 			Debris:AddItem(chip, 0.12)
 		end
 	end)
+
+	if remotes.MolotovThrowAnim then
+		remotes.MolotovThrowAnim.OnClientEvent:Connect(function()
+			playThrowAnim()
+		end)
+	end
 end
 
 return Effects

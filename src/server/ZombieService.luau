@@ -865,7 +865,9 @@ local function setupMegaHits(record: ZombieRecord, hitCount: number?, scale: num
 
 	local head = record.model:FindFirstChild("Head")
 	local adornee = if head and head:IsA("BasePart") then head else record.root
-	record.hitLabel = attachHitCount(adornee, hits, s)
+	-- 중간보스는 크기가 커서 hitLabel을 훨씬 높게, 크게 표시 (원거리에서도 보임)
+	local labelHeightScale = s * 1.8
+	record.hitLabel = attachHitCount(adornee, hits, labelHeightScale, s * 1.4)
 
 	local hitbox = record.model:FindFirstChild("Hitbox")
 	if hitbox and hitbox:IsA("BasePart") then

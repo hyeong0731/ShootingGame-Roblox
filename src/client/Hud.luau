@@ -421,58 +421,85 @@ local function createHitCountBadge(parent: Instance): Frame
 	return badge
 end
 
-local function createMolotovStickers(parent: Instance): Frame
-	local rack = Instance.new("Frame")
-	rack.Name = "MolotovRack"
-	rack.BackgroundTransparency = 1
-	rack.Size = UDim2.fromOffset(72, 220)
-	rack.Position = UDim2.new(0.015, 0, 0.42, 0)
-	rack.AnchorPoint = Vector2.new(0, 0.5)
-	rack.ZIndex = 6
-	rack.Visible = false
-	rack.Parent = parent
+local function createMolotovButton(parent: Instance): TextButton
+	local size = Config.Hud.WeaponButtonSize
+	local btn = Instance.new("TextButton")
+	btn.Name = "MolotovButton"
+	btn.AutoButtonColor = true
+	btn.Text = ""
+	btn.BackgroundColor3 = Color3.fromRGB(168, 212, 236)
+	btn.BorderSizePixel = 0
+	btn.Size = UDim2.fromOffset(size, size)
+	btn.Position = UDim2.new(0.02, 0, 0.22, size + 12)
+	btn.ZIndex = 6
+	btn.Visible = false
+	btn.Parent = parent
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0.16, 0)
 
-	for i = 1, 3 do
-		local btn = Instance.new("TextButton")
-		btn.Name = `Molotov{i}`
-		btn.AutoButtonColor = true
-		btn.Text = ""
-		btn.BackgroundColor3 = Color3.fromRGB(140, 32, 22)
-		btn.BorderSizePixel = 0
-		btn.Size = UDim2.fromOffset(56, 64)
-		btn.Position = UDim2.new(0.5, 0, 0, (i - 1) * 70)
-		btn.AnchorPoint = Vector2.new(0.5, 0)
-		btn.Rotation = -8 + i * 4
-		btn.ZIndex = 7
-		btn.Parent = rack
-		Instance.new("UICorner", btn).CornerRadius = UDim.new(0.18, 0)
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 2
-		stroke.Color = Color3.fromRGB(20, 8, 6)
-		stroke.Parent = btn
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = math.max(3, math.floor(size / 22))
+	stroke.Color = Color3.fromRGB(0, 0, 0)
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = btn
+	addStuds(btn)
 
-		local neck = Instance.new("Frame")
-		neck.BackgroundColor3 = Color3.fromRGB(210, 70, 36)
-		neck.BorderSizePixel = 0
-		neck.Size = UDim2.fromScale(0.34, 0.28)
-		neck.Position = UDim2.fromScale(0.5, 0.08)
-		neck.AnchorPoint = Vector2.new(0.5, 0)
-		neck.ZIndex = 8
-		neck.Parent = btn
-		Instance.new("UICorner", neck).CornerRadius = UDim.new(0.4, 0)
+	local bottle = Instance.new("Frame")
+	bottle.Name = "Bottle"
+	bottle.BackgroundColor3 = Color3.fromRGB(140, 32, 22)
+	bottle.BorderSizePixel = 0
+	bottle.Size = UDim2.fromScale(0.34, 0.46)
+	bottle.Position = UDim2.fromScale(0.5, 0.43)
+	bottle.AnchorPoint = Vector2.new(0.5, 0.5)
+	bottle.Rotation = -12
+	bottle.ZIndex = 7
+	bottle.Parent = btn
+	Instance.new("UICorner", bottle).CornerRadius = UDim.new(0.18, 0)
 
-		local wick = Instance.new("Frame")
-		wick.BackgroundColor3 = Color3.fromRGB(255, 170, 50)
-		wick.BorderSizePixel = 0
-		wick.Size = UDim2.fromScale(0.16, 0.14)
-		wick.Position = UDim2.fromScale(0.5, -0.02)
-		wick.AnchorPoint = Vector2.new(0.5, 0.5)
-		wick.ZIndex = 9
-		wick.Parent = btn
-		Instance.new("UICorner", wick).CornerRadius = UDim.new(1, 0)
-	end
+	local neck = Instance.new("Frame")
+	neck.BackgroundColor3 = Color3.fromRGB(210, 70, 36)
+	neck.BorderSizePixel = 0
+	neck.Size = UDim2.fromScale(0.38, 0.35)
+	neck.Position = UDim2.fromScale(0.5, -0.22)
+	neck.AnchorPoint = Vector2.new(0.5, 0)
+	neck.ZIndex = 8
+	neck.Parent = bottle
+	Instance.new("UICorner", neck).CornerRadius = UDim.new(0.4, 0)
 
-	return rack
+	local wick = Instance.new("Frame")
+	wick.BackgroundColor3 = Color3.fromRGB(255, 170, 50)
+	wick.BorderSizePixel = 0
+	wick.Size = UDim2.fromScale(0.18, 0.16)
+	wick.Position = UDim2.fromScale(0.5, -0.34)
+	wick.AnchorPoint = Vector2.new(0.5, 0.5)
+	wick.ZIndex = 9
+	wick.Parent = bottle
+	Instance.new("UICorner", wick).CornerRadius = UDim.new(1, 0)
+
+	local caption = Instance.new("TextLabel")
+	caption.Name = "Caption"
+	caption.BackgroundTransparency = 1
+	caption.Size = UDim2.new(1, -6, 0.22, 0)
+	caption.Position = UDim2.new(0.5, 0, 0.72, 0)
+	caption.AnchorPoint = Vector2.new(0.5, 0)
+	caption.Font = Enum.Font.GothamBlack
+	caption.Text = "화염병"
+	caption.TextColor3 = Color3.fromRGB(255, 255, 255)
+	caption.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	caption.TextStrokeTransparency = 0
+	caption.TextScaled = true
+	caption.ZIndex = 8
+	caption.Parent = btn
+
+	local count = caption:Clone()
+	count.Name = "Count"
+	count.Position = UDim2.new(0.5, 0, 0.88, 0)
+	count.Size = UDim2.new(1, -6, 0.16, 0)
+	count.Text = "남은개수 : 0"
+	count.TextColor3 = Color3.fromRGB(255, 230, 40)
+	count.ZIndex = 8
+	count.Parent = btn
+
+	return btn
 end
 
 local function createDevStepper(parent: Instance, name: string, titleText: string, y: number): (TextLabel, TextButton, TextButton)
@@ -592,18 +619,14 @@ function Hud.start()
 	weaponBtn.Visible = false
 	local hitBadge = createHitCountBadge(gui)
 	hitBadge.Visible = false
-	local molotovRack = createMolotovStickers(gui)
+	local molotovButton = createMolotovButton(gui)
 	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 	local useMolotov = remotesFolder:WaitForChild("UseMolotov")
-	for _, child in molotovRack:GetChildren() do
-		if child:IsA("TextButton") then
-			child.MouseButton1Click:Connect(function()
-				if useMolotov:IsA("RemoteEvent") then
-					useMolotov:FireServer()
-				end
-			end)
+	molotovButton.MouseButton1Click:Connect(function()
+		if useMolotov:IsA("RemoteEvent") then
+			useMolotov:FireServer()
 		end
-	end
+	end)
 
 	if Config.Debug.Enabled then
 		local debugPanel = Instance.new("Frame")
@@ -843,12 +866,10 @@ function Hud.start()
 		weaponBtn.Visible = not isLobby and not isClear
 		hitBadge.Visible = not isLobby
 		local molotovLeft = state:GetAttribute("MolotovLeft") or 0
-		molotovRack.Visible = currentPhase == "playing" and molotovLeft > 0
-		for i = 1, 3 do
-			local sticker = molotovRack:FindFirstChild(`Molotov{i}`)
-			if sticker and sticker:IsA("GuiObject") then
-				sticker.Visible = i <= molotovLeft
-			end
+		molotovButton.Visible = currentPhase == "playing" and molotovLeft > 0
+		local molotovCount = molotovButton:FindFirstChild("Count")
+		if molotovCount and molotovCount:IsA("TextLabel") then
+			molotovCount.Text = `남은개수 : {molotovLeft}`
 		end
 		ensureWorldBar(currentPhase)
 

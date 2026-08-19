@@ -47,6 +47,7 @@ export type AllyRecord = {
 	strafeYaw: number,
 	walkPhase: number,
 	lastHurtAt: number,
+	throwAnimAt: number?, -- 던지기 모션 시작 시각
 }
 
 export type AttackTarget = {
@@ -503,7 +504,7 @@ function SupplyService.create(force: boolean?, hitMin: number?, hitMax: number?)
 	return record
 end
 
-function SupplyService.createBomb(force: boolean?): SupplyRecord?
+function SupplyService.createBomb(force: boolean?, overrideMin: number?, overrideMax: number?): SupplyRecord?
 	if not force and not SupplyService.canSpawnBomb() then
 		return nil
 	end
@@ -516,11 +517,16 @@ function SupplyService.createBomb(force: boolean?): SupplyRecord?
 	local position = Vector3.new(x, y, z)
 	local state = ReplicatedStorage:FindFirstChild("GameState")
 	local wave = if state then (state:GetAttribute("Wave") :: number?) else nil
-	local minHits, maxHits = Config.pickupHitsForWave(
-		wave or 1,
-		Config.BombCrate.HitCountMin,
-		Config.BombCrate.HitCountMax
-	)
+	local minHits, maxHits
+	if overrideMin and overrideMax then
+		minHits, maxHits = overrideMin, overrideMax
+	else
+		minHits, maxHits = Config.pickupHitsForWave(
+			wave or 1,
+			Config.BombCrate.HitCountMin,
+			Config.BombCrate.HitCountMax
+		)
+	end
 	local hits = math.random(minHits, maxHits)
 
 	local model = Instance.new("Model")
@@ -570,7 +576,7 @@ function SupplyService.createBomb(force: boolean?): SupplyRecord?
 	return record
 end
 
-function SupplyService.createSniper(force: boolean?): SupplyRecord?
+function SupplyService.createSniper(force: boolean?, overrideMin: number?, overrideMax: number?): SupplyRecord?
 	if not force and not SupplyService.canSpawnSniper() then
 		return nil
 	end
@@ -581,7 +587,8 @@ function SupplyService.createSniper(force: boolean?): SupplyRecord?
 	local y = lane.CenterY + 1.6
 	local z = lane.SpawnZ
 	local position = Vector3.new(x, y, z)
-	local hits = math.max(1, math.floor((liveConfig().SniperCrate and liveConfig().SniperCrate.HitCount) or Config.SniperCrate.HitCount))
+	local baseHit = math.max(1, math.floor((liveConfig().SniperCrate and liveConfig().SniperCrate.HitCount) or Config.SniperCrate.HitCount))
+	local hits = if overrideMin and overrideMax then math.random(overrideMin, overrideMax) else baseHit
 
 	local model = Instance.new("Model")
 	model.Name = "SniperCrate"
@@ -867,8 +874,27 @@ function SupplyService.update(dt: number, playerPosition: Vector3?, strafe: numb
 		local facing = CFrame.lookAt(target, target + Vector3.new(0, 0, 12))
 		ally.root.CFrame = facing
 		ally.torsoWeld.C1 = CFrame.identity
-		ally.rightArmWeld.C1 = CFrame.identity
 		ally.leftArmWeld.C1 = CFrame.identity
+
+		-- 던지기 모션: 0~0.25초 팔 올리기, 0.25~0.55초 내리기
+		if ally.throwAnimAt then
+			local elapsed = os.clock() - ally.throwAnimAt
+			local RAISE = 0.25
+			local LOWER = 0.55
+			local t
+			if elapsed < RAISE then
+				t = elapsed / RAISE
+			elseif elapsed < LOWER then
+				t = 1 - (elapsed - RAISE) / (LOWER - RAISE)
+			else
+				t = 0
+				ally.throwAnimAt = nil
+			end
+			local throwAngle = math.rad(-140) * t
+			ally.rightArmWeld.C1 = CFrame.Angles(throwAngle, 0, 0)
+		else
+			ally.rightArmWeld.C1 = CFrame.identity
+		end
 
 		-- Legs only: strafe turn + walk cycle (same idea as player lower body).
 		local legTurn = CFrame.Angles(0, ally.strafeYaw, 0)
@@ -895,6 +921,8 @@ function SupplyService.allyThrowOrigins(): { Vector3 }
 		else
 			table.insert(points, rootPos + Vector3.new(0, 1.2, 1.4))
 		end
+		-- 던지기 모션 시작
+		ally.throwAnimAt = os.clock()
 	end
 	return points
 end

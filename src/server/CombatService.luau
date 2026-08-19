@@ -227,15 +227,21 @@ end
 
 function CombatService.throwMolotov(origin: Vector3)
 	local cfg = Config.Molotov
+	local lane = Config.activeLane()
+	-- 맵 절반보다 플레이어 쪽으로 약간 더 들어간 지점에 착탄
+	local midZ = (lane.SpawnZ + lane.PlayerZ) / 2
+	local targetZ = midZ + (lane.PlayerZ - midZ) * 0.15
+	local throwDist = math.max(2, targetZ - origin.Z)
 	local part = spawnThrownMolotov(origin)
 	local direction = Vector3.new(0, 0, 1)
-	local speed = cfg.ThrowDistance / math.max(0.05, cfg.FlightTime)
+	local speed = throwDist / math.max(0.05, cfg.FlightTime)
 	table.insert(molotovs, {
 		part = part,
 		direction = direction,
 		speed = speed,
 		born = os.clock(),
 		startZ = origin.Z,
+		targetDist = throwDist,
 	})
 end
 
@@ -397,6 +403,10 @@ local function pierceHitAll(from: Vector3, to: Vector3, shot: typeof(active[1]))
 		end
 	end
 
+	-- 보급·게이트(옆길)는 관통 없이 가장 가까운 1개만
+	local bestSideDist = math.huge
+	local bestSideModel: Model? = nil
+
 	local suppliesFolder = Workspace:FindFirstChild("Supplies")
 	if suppliesFolder then
 		for _, child in suppliesFolder:GetChildren() do
@@ -405,9 +415,9 @@ local function pierceHitAll(from: Vector3, to: Vector3, shot: typeof(active[1]))
 				if root and root:IsA("BasePart") then
 					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
 					local dist = (pointToSegmentDist(flatPoint, from, to))
-					if dist <= 3.4 * Config.Supply.SizeScale + shot.radius then
-						shot.hitSet[child] = true
-						applyShot(child, shot.damage, shot.hits, shot.oneshot)
+					if dist <= 3.4 * Config.Supply.SizeScale + shot.radius and dist < bestSideDist then
+						bestSideDist = dist
+						bestSideModel = child
 					end
 				end
 			end
@@ -423,13 +433,18 @@ local function pierceHitAll(from: Vector3, to: Vector3, shot: typeof(active[1]))
 					local flatPoint = Vector3.new(root.Position.X, from.Y, root.Position.Z)
 					local dist = (pointToSegmentDist(flatPoint, from, to))
 					local reach = Config.NumberGate.Width * 0.5 + 1.2 + shot.radius
-					if dist <= reach then
-						shot.hitSet[child] = true
-						applyShot(child, shot.damage, shot.hits, shot.oneshot)
+					if dist <= reach and dist < bestSideDist then
+						bestSideDist = dist
+						bestSideModel = child
 					end
 				end
 			end
 		end
+	end
+
+	if bestSideModel then
+		shot.hitSet[bestSideModel] = true
+		applyShot(bestSideModel, shot.damage, shot.hits, shot.oneshot)
 	end
 end
 
@@ -626,7 +641,7 @@ function CombatService.update(dt: number)
 		local travel = nextPos - molotov.part.Position
 		local hit = Workspace:Spherecast(molotov.part.Position, 1.1, travel, bombParams)
 		local nearPos = bombProximityHit(molotov.part.Position, nextPos + molotov.direction * 2)
-		local reachedEnd = nextPos.Z >= molotov.startZ + Config.Molotov.ThrowDistance
+		local reachedEnd = nextPos.Z >= molotov.startZ + (molotov.targetDist or Config.Molotov.ThrowDistance)
 		if hit or nearPos or reachedEnd then
 			local pos = if hit then hit.Position elseif nearPos then nearPos else nextPos
 			molotov.part:Destroy()
