@@ -162,7 +162,7 @@ Config.SniperCrate = {
 	X2HitCountMin = 40,
 	X2HitCountMax = 55,
 	ProjectileSpeed = 320, -- 탄속
-	ProjectileRadius = 0.7, -- 피격 가로 두께
+	ProjectileRadius = 0.5, -- 피격 가로 두께 (아주 조금 좁힘)
 	BoltSize = Vector3.new(0.48, 0.48, 6.4), -- 총알 크기
 	HitLabelScale = 1,
 	BigZombieHpRatio = 0.7, -- 큰 좀비 한 발에 깎는 최대체력 비율 (2대에 죽음)
@@ -192,7 +192,8 @@ Config.Shotgun = {
 	PelletCount = 7,
 	-- +Z 기준 yaw(도). 바깥일수록 벌어져 V자 (좁은 집탄)
 	SpreadYawDeg = { -3.7, -2.5, -1.2, 0, 1.2, 2.5, 3.7 },
-	DamageScale = 0.8, -- 펠릿 2발 ≈ 일반 좀비(36) 처치 (유닛 데미지 24 기준)
+	DamageScale = 0.8, -- 펠릿 2발 ≈ 일반 좀비(36) 처치 (기준 데미지 24)
+	ReferenceUnitDamage = 24, -- 기본총 밸런스와 분리 (샷건 펠릿 기준)
 	HitsScale = 0.5, -- 펠릿당 타수 배수 (hitPower 기준)
 	ProjectileSpeed = 260,
 	ProjectileRadius = 1.15,
@@ -205,6 +206,38 @@ Config.Shotgun = {
 	HitCountMin = 30,
 	HitCountMax = 45,
 	HitLabelScale = 1,
+}
+
+-- 압정 발판 (챕터3). 총알로 못 깨고 플레이어만 데미지
+Config.SpikeTrap = {
+	Size = 11, -- 정사각형 한 변 (도로 폭 32의 ~1/3)
+	BaseHeight = 0.35,
+	SpikeRows = 4, -- 가로/세로 가시 개수
+	SpikeHeight = 1.05,
+	SpeedScale = 1.18, -- 좀비 속도 배수 (약간 빠르게)
+	DamagePercentPerSecond = 15, -- 서 있는 동안 초당 최대체력 %
+}
+
+-- 투척 좀비 (챕터3). 앞까지만 오고 돌을 던짐
+Config.ThrowerZombie = {
+	SpawnChance = 0.18, -- 일반 스폰 중 투척 좀비 비율
+	Health = 60, -- 기본총(12) 5방
+	WalkSpeed = 5.6,
+	StopRatio = 0.4, -- 캐릭터~스폰 거리의 이 비율까지만 접근
+	FirstThrowDelay = 1.1,
+	ThrowInterval = 2.6,
+	ThrowAnimTime = 0.95, -- 던지기 모션이 보이도록 충분히
+	ReleaseAt = 0.48, -- 던지기 모션 중 손 떠나는 시점(0~1)
+	RockDamage = 8.5, -- 약 12대에 사망 (체력 100)
+	RockRadius = 4.2,
+	RockSpeed = 72,
+	RockSize = 0.85,
+	RockArc = 7, -- 포물선 높이
+	Spread = 4.2, -- 예측 위치 좌우 랜덤 오차
+	-- 일반 녹빛 좀비와 구분되는 흙빛/황토색
+	BodyColor = Color3.fromRGB(178, 112, 58),
+	ClothesColor = Color3.fromRGB(96, 72, 42),
+	AccentColor = Color3.fromRGB(210, 150, 70),
 }
 
 -- 타수 게이트 (5라운드 x2, 6라운드 +1, 8라운드부터 x2/+1/-1 랜덤)
@@ -695,6 +728,7 @@ Config.Chapter3 = {
 		Duration = 60, -- 각 라운드 1분 (총 15분)
 	},
 	MaxHitPower = 34,
+	UnitDamage = 12, -- 기본총: 일반 좀비(36) 3방
 
 	Zombie = {
 		Health = 36,
@@ -725,10 +759,10 @@ Config.Chapter3 = {
 		SpeedPerSecond = 0.028,
 	},
 	Infinite = {
-		MaxAlive = 20,
-		SpawnGapStart = 0.5,
-		SpawnGapMin = 0.2,
-		LaneSlots = { -10, -5, 0, 5, 10 },
+		MaxAlive = 32, -- 챕터2(20)보다 많이
+		SpawnGapStart = 0.28, -- 시작부터 빽빽
+		SpawnGapMin = 0.1,
+		LaneSlots = { -12, -8, -4, 0, 4, 8, 12 },
 		HealthPerKill = 0, -- 따로 말하기 전까지 HP 증가 끔
 		SpeedPerSecond = 0.022,
 		AllySpawnGapScale = 0.62,
@@ -745,11 +779,26 @@ Config.Chapter3 = {
 		GapWidth = 6,
 		MergeUntilZ = 12542,
 	},
+	SniperFireInterval = 1.5, -- 챕터3 스나이퍼 연사 (기본 0.7보다 훨씬 느리게)
+	SpawnEaseGapScale = 1.2, -- 스폰 간격 소폭 증가 (R1 35초 이후 계속)
 	Round1 = {
 		Round = 1,
 		ShotgunAt = 5, -- 샷건 보급상자
 		ShotgunHitCountMin = 30,
 		ShotgunHitCountMax = 45,
+		SpikeAt = 15, -- 압정 발판
+		ShieldAt = 20, -- 방패 좀비 시작
+		ShieldSpawnChance = 0.1,
+		ShieldHitCountMin = 20,
+		ShieldHitCountMax = 38,
+		SniperAt = 22,
+		SniperHitCountMin = 25,
+		SniperHitCountMax = 40,
+		PlusAt = 27,
+		PlusHitCountMin = 41,
+		PlusHitCountMax = 50,
+		SpawnEaseAt = 35, -- 이후 스폰 간격 소폭 증가
+		ThrowerAt = 40, -- 투척 좀비 시작
 	},
 }
 
@@ -838,6 +887,13 @@ function Config.chapterStartWave(chapter: number?): number
 	return 1
 end
 
+function Config.sniperFireInterval(): number
+	if Config._chapter >= 3 then
+		return Config.Chapter3.SniperFireInterval
+	end
+	return Config.SniperCrate.FireInterval
+end
+
 function Config.playerStandY(): number
 	local lane = Config.activeLane()
 	if Config._chapter <= 1 then
@@ -851,6 +907,9 @@ function Config.crateDespawnZ(): number
 end
 
 function Config.unitDamageForWave(wave: number): number
+	if Config._chapter >= 3 then
+		return Config.Chapter3.UnitDamage
+	end
 	local damage = Config.Combat.UnitDamage
 	for _, step in Config.Combat.DamageByRound do
 		if wave >= step.Round then

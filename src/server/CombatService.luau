@@ -61,6 +61,21 @@ local groundFires = {} :: {
 	}
 }
 
+-- 투척 좀비가 던진 돌 (플레이어만 맞음)
+local rocks = {} :: {
+	{
+		part: BasePart,
+		origin: Vector3,
+		target: Vector3,
+		born: number,
+		flight: number,
+		damage: number,
+		spin: Vector3,
+	}
+}
+
+CombatService._onRockImpact = nil :: ((Vector3, number, number) -> ())?
+
 function CombatService.bind(remotes)
 	CombatService._remotes = remotes
 end
@@ -249,6 +264,41 @@ function CombatService.throwMolotov(origin: Vector3)
 	})
 end
 
+local function spawnRock(origin: Vector3): BasePart
+	local cfg = Config.ThrowerZombie
+	local rock = Instance.new("Part")
+	rock.Name = "ThrownRock"
+	rock.Shape = Enum.PartType.Block
+	rock.Size = Vector3.new(cfg.RockSize, cfg.RockSize * 0.82, cfg.RockSize * 0.92)
+	rock.Material = Enum.Material.Slate
+	rock.Color = Color3.fromRGB(96, 92, 86)
+	rock.Anchored = true
+	rock.CanCollide = false
+	rock.CanQuery = false
+	rock.CastShadow = false
+	rock.CFrame = CFrame.new(origin)
+	rock.Parent = Workspace:FindFirstChild("Fx") or Workspace
+	return rock
+end
+
+function CombatService.onRockImpact(callback: (Vector3, number, number) -> ())
+	CombatService._onRockImpact = callback
+end
+
+function CombatService.throwRock(origin: Vector3, target: Vector3)
+	local cfg = Config.ThrowerZombie
+	local dist = (target - origin).Magnitude
+	table.insert(rocks, {
+		part = spawnRock(origin),
+		origin = origin,
+		target = target,
+		born = os.clock(),
+		flight = math.max(0.2, dist / cfg.RockSpeed),
+		damage = cfg.RockDamage,
+		spin = Vector3.new(math.random() * 2 - 1, math.random() * 2 - 1, math.random() * 2 - 1).Unit * 9,
+	})
+end
+
 function CombatService.shiftTimers(duration: number)
 	for _, shot in active do
 		shot.born += duration
@@ -258,6 +308,9 @@ function CombatService.shiftTimers(duration: number)
 	end
 	for _, molotov in molotovs do
 		molotov.born += duration
+	end
+	for _, rock in rocks do
+		rock.born += duration
 	end
 	for _, fire in groundFires do
 		fire.untilTime += duration
@@ -312,7 +365,8 @@ end
 function CombatService.fireShotgun(origin: Vector3, damage: number, hits: number?)
 	local cfg = Config.Shotgun
 	local pelletHits = math.max(1, math.floor((hits or 1) * cfg.HitsScale + 0.5))
-	local pelletDamage = math.max(1, damage * cfg.DamageScale)
+	local unitDmg = cfg.ReferenceUnitDamage or damage
+	local pelletDamage = math.max(1, unitDmg * cfg.DamageScale)
 	local lane = Config.activeLane()
 	local road = math.max(40, math.abs(lane.SpawnZ - lane.PlayerZ))
 	local rangeMax = road * (cfg.RoadRangeRatio or 0.7)
@@ -732,6 +786,29 @@ function CombatService.update(dt: number)
 	end
 	molotovs = molotovKeep
 
+	local rockCfg = Config.ThrowerZombie
+	local rockKeep = {}
+	for _, rock in rocks do
+		if not rock.part.Parent then
+			continue
+		end
+		local t = (now - rock.born) / rock.flight
+		if t >= 1 then
+			rock.part:Destroy()
+			if CombatService._onRockImpact then
+				CombatService._onRockImpact(rock.target, rockCfg.RockRadius, rock.damage)
+			end
+			continue
+		end
+		local flat = rock.origin:Lerp(rock.target, t)
+		local arc = rockCfg.RockArc * 4 * t * (1 - t)
+		local spin = (now - rock.born)
+		rock.part.CFrame = CFrame.new(flat + Vector3.new(0, arc, 0))
+			* CFrame.Angles(rock.spin.X * spin, rock.spin.Y * spin, rock.spin.Z * spin)
+		table.insert(rockKeep, rock)
+	end
+	rocks = rockKeep
+
 	local fireKeep = {}
 	local cfg = Config.Molotov
 	local tickHits = math.max(1, math.floor(cfg.GroundHitsPerSecond * 0.25 + 0.5))
@@ -775,6 +852,12 @@ function CombatService.clear()
 		end
 	end
 	molotovs = {}
+	for _, rock in rocks do
+		if rock.part.Parent then
+			rock.part:Destroy()
+		end
+	end
+	rocks = {}
 	for _, fire in groundFires do
 		if fire.part.Parent then
 			fire.part:Destroy()

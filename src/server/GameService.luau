@@ -9,6 +9,7 @@ local ZombieService = require(script.Parent.ZombieService)
 local CombatService = require(script.Parent.CombatService)
 local SupplyService = require(script.Parent.SupplyService)
 local NumberGate = require(script.Parent.NumberGate)
+local SpikeTrap = require(script.Parent.SpikeTrap)
 local Gun = require(script.Parent.Gun)
 
 type PlayerData = {
@@ -125,6 +126,9 @@ local startChapter2: () -> ()
 local startChapter3: () -> ()
 local lastMolotovAt = 0
 local ch3R1ShotgunSpawned = false
+local ch3R1SpikeSpawned = false
+local ch3R1SniperSpawned = false
+local ch3R1PlusSpawned = false
 
 local function setState(key: string, value: any)
 	stateFolder:SetAttribute(key, value)
@@ -462,6 +466,15 @@ local function currentStats()
 			end
 		end
 	end
+	if Config.chapter() == 3 then
+		-- R1 35초부터는 스폰 간격을 조금 늘려 압박을 살짝 낮춘다.
+		local r1 = Config.Chapter3.Round1
+		local localRound = Config.chapterRound(wave)
+		local localElapsed = math.max(0, elapsed - Config.elapsedAtWaveStart(wave))
+		if localRound > r1.Round or localElapsed >= r1.SpawnEaseAt then
+			gap *= Config.Chapter3.SpawnEaseGapScale
+		end
+	end
 	return {
 		health = health,
 		speed = speed,
@@ -484,6 +497,13 @@ local function chapter2BigUnlocked(wave: number, elapsedLocal: number): boolean
 		return false -- 라운드3: 큰 좀비 없음
 	end
 	return round > r2.Round or (round == r2.Round and elapsedLocal >= r2.BigZombieAt)
+end
+
+local function resetChapter3Round1Events()
+	ch3R1ShotgunSpawned = false
+	ch3R1SpikeSpawned = false
+	ch3R1SniperSpawned = false
+	ch3R1PlusSpawned = false
 end
 
 local function resetChapter2Round2Events()
@@ -598,10 +618,15 @@ local function spawnOne()
 		local leftover = math.max(0.01, 1 - dogCfg.SpawnChance)
 		shieldChance = r3.ShieldSpawnChance / leftover
 	end
+	local ch3R1 = Config.Chapter3.Round1
+	local ch3ShieldOpen = Config.chapter() == 3
+		and (round > ch3R1.Round or elapsedLocal >= ch3R1.ShieldAt)
+	if ch3ShieldOpen then
+		shieldChance = ch3R1.ShieldSpawnChance
+	end
 	local isShield = (not isBoss)
 		and (not isDog)
-		and Config.chapter() == 2
-		and elapsed >= shieldUnlockAt
+		and (ch3ShieldOpen or (Config.chapter() == 2 and elapsed >= shieldUnlockAt))
 		and math.random() < shieldChance
 	local shieldHitMin = shieldCfg.HitCountMin
 	local shieldHitMax = shieldCfg.HitCountMax
@@ -627,6 +652,10 @@ local function spawnOne()
 		shieldHitMin = r3.ShieldHitCountMin
 		shieldHitMax = r3.ShieldHitCountMax
 	end
+	if Config.chapter() == 3 then
+		shieldHitMin = ch3R1.ShieldHitCountMin
+		shieldHitMax = ch3R1.ShieldHitCountMax
+	end
 	local shieldHits = if isShield then math.random(shieldHitMin, shieldHitMax) else nil
 
 	local isBig = false
@@ -646,6 +675,17 @@ local function spawnOne()
 		end
 	end
 
+	local throwerCfg = Config.ThrowerZombie
+	local isThrower = Config.chapter() == 3
+		and (not isBoss)
+		and (not isDog)
+		and (not isShield)
+		and (round > ch3R1.Round or elapsedLocal >= ch3R1.ThrowerAt)
+		and math.random() < throwerCfg.SpawnChance
+	local throwerStopZ = if isThrower
+		then lane.PlayerZ + (lane.SpawnZ - lane.PlayerZ) * throwerCfg.StopRatio
+		else nil
+
 	local scale = if isBoss then Config.Boss.SizeMultiplier elseif isDog then dogCfg.SizeScale else 1
 	local y = lane.CenterY + (if isDog then 1.35 else 2.4) * scale
 
@@ -663,6 +703,10 @@ local function spawnOne()
 			walkSpeed *= Config.Chapter2.Round10.ZombieSpeedScale
 		end
 		contactDamage = dogCfg.ContactDamage
+	elseif isThrower then
+		health = throwerCfg.Health
+		walkSpeed = throwerCfg.WalkSpeed
+		contactDamage = 0
 	else
 		health = stats.health
 		walkSpeed = stats.speed
@@ -676,11 +720,17 @@ local function spawnOne()
 		isBig = isBig,
 		isDog = isDog,
 		isShield = isShield,
+		isThrower = isThrower,
+		stopZ = throwerStopZ,
 		contactDamage = contactDamage,
 		scale = scale,
 		hitCount = shieldHits,
 	})
-	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+	if isThrower then
+		ZombieService.setAttackTarget(zombie, { kind = "player", ally = nil })
+	else
+		ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+	end
 end
 
 local function spawnMegaBossAt(x: number, hitCount: number, elite: boolean, appearance: {
@@ -1123,6 +1173,7 @@ local function startChapter(chapter: number)
 	Config.setChapter(chapter)
 	killBaseline = kills
 	CombatService.clear()
+	SpikeTrap.clear()
 	ZombieService.clear()
 	NumberGate.clear()
 	SupplyService.clearCrates()
@@ -1174,7 +1225,7 @@ local function startChapter(chapter: number)
 			paused = false
 			matchStart = os.clock()
 			lastSpawnAt = 0
-			ch3R1ShotgunSpawned = false
+			resetChapter3Round1Events()
 			setState("Phase", "playing")
 			setState("Paused", false)
 			setState("Countdown", 0)
@@ -1201,6 +1252,7 @@ local function beginChapterClear()
 	setState("Phase", "chapterClear")
 	setState("Announce", `{Config.chapter()}챕터 클리어`)
 	CombatService.clear()
+	SpikeTrap.clear()
 	NumberGate.clear()
 	SupplyService.clearCrates()
 	spawnChapterPad()
@@ -1237,7 +1289,7 @@ local function beginPlay()
 	chapter2X2Spawned = false
 	chapter2PlusDueAt = 0
 	chapter2X2DueAt = 0
-	ch3R1ShotgunSpawned = false
+	resetChapter3Round1Events()
 	resetChapter2Round2Events()
 	gatePlayArmed = false
 	lastGateSpawnAt = 0
@@ -1271,6 +1323,7 @@ local function jumpToRound(localRound: number)
 		kills = 0
 		nextIsBossAt = Config.Boss.EveryNKills
 		CombatService.clear()
+		SpikeTrap.clear()
 		ZombieService.clear()
 		SupplyService.clear()
 		NumberGate.clear()
@@ -1337,7 +1390,7 @@ local function jumpToRound(localRound: number)
 	resetChapter2Round2Events()
 	gatePlayArmed = false
 	setState("MolotovLeft", 0)
-	ch3R1ShotgunSpawned = false
+	resetChapter3Round1Events()
 	applyRoundFeatures(wave)
 end
 
@@ -1371,6 +1424,83 @@ startCountdown = function()
 	end)
 end
 
+-- 압정 발판: 좀비는 무시하고 그 위에 서 있는 플레이어만 초당 최대체력 %만큼 깎는다.
+local function applySpikeDamage(dt: number)
+	if SpikeTrap.aliveCount() == 0 then
+		return
+	end
+	local perSecond = Config.SpikeTrap.DamagePercentPerSecond / 100
+	for _, data in playerData do
+		local character = data.character
+		if not character then
+			continue
+		end
+		local root = character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if not (root and root:IsA("BasePart") and humanoid and humanoid.Health > 0) then
+			continue
+		end
+		if SpikeTrap.isInside(root.Position) then
+			humanoid:TakeDamage(humanoid.MaxHealth * perSecond * dt)
+		end
+	end
+end
+
+-- 투척 좀비: 플레이어의 예측 위치 + 약간의 오차로 돌을 던진다.
+local function throwRockAt(record)
+	local cfg = Config.ThrowerZombie
+	local lane = Config.activeLane()
+
+	local target: any = nil
+	local targetStrafe = 0
+	local best = math.huge
+	for _, data in playerData do
+		local character = data.character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and root:IsA("BasePart") and humanoid and humanoid.Health > 0 then
+			local dist = math.abs(root.Position.X - record.root.Position.X)
+			if dist < best then
+				best = dist
+				target = root
+				targetStrafe = data.strafe
+			end
+		end
+	end
+	if not target then
+		return
+	end
+
+	local hand = record.handRock
+	local origin = if hand and hand.Parent
+		then hand.Position
+		else record.root.Position + Vector3.new(0, 2.2, 0)
+
+	local standY = Config.playerStandY()
+	local flight = math.max(0.2, (Vector3.new(target.Position.X, standY, lane.PlayerZ) - origin).Magnitude / cfg.RockSpeed)
+	-- 카메라가 +Z를 보므로 strafe 양수는 -X 방향으로 이동한다.
+	local predictedX = target.Position.X - targetStrafe * Config.Player.StrafeSpeed * flight
+	predictedX += (math.random() * 2 - 1) * cfg.Spread
+
+	local minX, maxX = Config.laneXBounds()
+	predictedX = math.clamp(predictedX, minX, maxX)
+	CombatService.throwRock(origin, Vector3.new(predictedX, standY - 1.2, lane.PlayerZ))
+end
+
+local function damagePlayersNear(position: Vector3, radius: number, amount: number)
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and root:IsA("BasePart") and humanoid and humanoid.Health > 0 then
+			local delta = root.Position - position
+			if math.abs(delta.X) <= radius and math.abs(delta.Z) <= radius + 2 then
+				humanoid:TakeDamage(amount)
+			end
+		end
+	end
+end
+
 local function damagePlayers(amount: number)
 	for _, player in Players:GetPlayers() do
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -1390,6 +1520,7 @@ local function returnToLobby()
 	Arena.applyChapterLook(1)
 	destroyChapterPad()
 	CombatService.clear()
+	SpikeTrap.clear()
 	ZombieService.clear()
 	SupplyService.clear()
 	NumberGate.clear()
@@ -1422,7 +1553,7 @@ local function returnToLobby()
 	chapter2X2Spawned = false
 	chapter2PlusDueAt = 0
 	chapter2X2DueAt = 0
-	ch3R1ShotgunSpawned = false
+	resetChapter3Round1Events()
 	resetChapter2Round2Events()
 	gatePlayArmed = false
 	hitPower = 1
@@ -1450,6 +1581,7 @@ local function startMatch()
 	kills = 0
 	nextIsBossAt = Config.Boss.EveryNKills
 	CombatService.clear()
+	SpikeTrap.clear()
 	ZombieService.clear()
 	SupplyService.clear()
 	NumberGate.clear()
@@ -1468,7 +1600,7 @@ local function startMatch()
 	chapter2X2Spawned = false
 	chapter2PlusDueAt = 0
 	chapter2X2DueAt = 0
-	ch3R1ShotgunSpawned = false
+	resetChapter3Round1Events()
 	resetChapter2Round2Events()
 	gatePlayArmed = false
 	supplyRoundArmed = false
@@ -1490,6 +1622,7 @@ local function onPlayerDied(_player: Player)
 	phase = "gameOver"
 	setState("Phase", "gameOver")
 	CombatService.clear()
+	SpikeTrap.clear()
 	ZombieService.clear()
 	SupplyService.clear()
 
@@ -1639,7 +1772,7 @@ local function tryFire(now: number)
 		local usingBomb = data.hadBomb and now < data.bombUntil
 		local usingShotgun = data.hadShotgun and now < data.shotgunUntil
 		local interval = if usingSniper
-			then Config.SniperCrate.FireInterval
+			then Config.sniperFireInterval()
 			elseif usingBomb then Config.BombCrate.ThrowInterval
 			elseif usingShotgun then Config.Shotgun.FireInterval
 			else Config.Combat.FireInterval
@@ -1725,6 +1858,18 @@ function GameService.start(remotes)
 
 	ZombieService.onDied(function()
 		onZombieDied()
+	end)
+	ZombieService.onThrow(function(record)
+		if phase ~= "playing" then
+			return
+		end
+		throwRockAt(record)
+	end)
+	CombatService.onRockImpact(function(position, radius, damage)
+		if phase ~= "playing" then
+			return
+		end
+		damagePlayersNear(position, radius, damage)
 	end)
 	ZombieService.onReached(function(record)
 		if phase ~= "playing" then
@@ -2363,6 +2508,18 @@ function GameService.start(remotes)
 						ch3R1ShotgunSpawned = true
 						SupplyService.createShotgun(true, r1.ShotgunHitCountMin, r1.ShotgunHitCountMax)
 					end
+					if t >= r1.SpikeAt and not ch3R1SpikeSpawned then
+						ch3R1SpikeSpawned = true
+						SpikeTrap.create()
+					end
+					if t >= r1.SniperAt and not ch3R1SniperSpawned then
+						ch3R1SniperSpawned = true
+						SupplyService.createSniper(true, r1.SniperHitCountMin, r1.SniperHitCountMax)
+					end
+					if t >= r1.PlusAt and not ch3R1PlusSpawned then
+						ch3R1PlusSpawned = true
+						NumberGate.createPlus(r1.PlusHitCountMin, r1.PlusHitCountMax, true)
+					end
 				end
 			end
 
@@ -2412,6 +2569,8 @@ function GameService.start(remotes)
 			ZombieService.update(dt, playerPos)
 			SupplyService.update(dt, playerPos, leaderStrafe)
 			NumberGate.update(dt, playerPos)
+			SpikeTrap.update(dt)
+			applySpikeDamage(dt)
 			tryFire(now)
 			CombatService.update(dt)
 		elseif phase == "chapterClear" then

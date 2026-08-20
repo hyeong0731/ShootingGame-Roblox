@@ -51,6 +51,11 @@ export type ZombieRecord = {
 	hitLabel: TextLabel?,
 	hasShield: boolean?,
 	shieldHits: number?,
+	isThrower: boolean?,
+	stopZ: number?,
+	nextThrowAt: number?,
+	throwReleased: boolean?,
+	handRock: BasePart?,
 	deathT: number,
 	deathStart: CFrame,
 	deathSide: number,
@@ -65,6 +70,7 @@ ZombieService._alive = {} :: { ZombieRecord }
 ZombieService._corpses = {} :: { ZombieRecord }
 ZombieService._onDied = nil :: ((ZombieRecord) -> ())?
 ZombieService._onReached = nil :: ((ZombieRecord) -> ())?
+ZombieService._onThrow = nil :: ((ZombieRecord) -> ())?
 
 local kill: (ZombieRecord) -> ()
 
@@ -880,6 +886,91 @@ local function setupMegaHits(record: ZombieRecord, hitCount: number?, scale: num
 	end
 end
 
+local function tintThrower(model: Model)
+	local cfg = Config.ThrowerZombie
+	for _, desc in model:GetDescendants() do
+		if not desc:IsA("BasePart") then
+			continue
+		end
+		if desc.Name == "HandRock" or desc.Name == "Hitbox" or desc.Name == "Shield" then
+			continue
+		end
+		local lower = string.lower(desc.Name)
+		if string.find(lower, "head", 1, true)
+			or string.find(lower, "hand", 1, true)
+			or string.find(lower, "arm", 1, true)
+			or string.find(lower, "leg", 1, true)
+			or string.find(lower, "foot", 1, true)
+		then
+			desc.Color = cfg.BodyColor
+		elseif string.find(lower, "torso", 1, true)
+			or string.find(lower, "clothes", 1, true)
+			or string.find(lower, "shirt", 1, true)
+			or string.find(lower, "pant", 1, true)
+		then
+			desc.Color = cfg.ClothesColor
+		elseif desc.Name ~= "HumanoidRootPart" and desc.Transparency < 0.95 then
+			-- 메시 본체가 이름 규칙과 달라도 흙빛으로 칠해 구분한다.
+			desc.Color = cfg.BodyColor
+		end
+	end
+
+	-- 어깨/가슴에 밝은 띠를 붙여 멀리서도 투척 좀비로 보이게
+	local torso = model:FindFirstChild("UpperTorso")
+		or model:FindFirstChild("Torso")
+		or model:FindFirstChild("HumanoidRootPart")
+	if torso and torso:IsA("BasePart") then
+		local band = Instance.new("Part")
+		band.Name = "ThrowerMark"
+		band.Size = Vector3.new(math.max(1.2, torso.Size.X * 0.95), 0.28, math.max(0.9, torso.Size.Z * 0.7))
+		band.Color = cfg.AccentColor
+		band.Material = Enum.Material.Neon
+		band.CanCollide = false
+		band.CanQuery = false
+		band.CastShadow = false
+		band.Massless = true
+		band.CFrame = torso.CFrame * CFrame.new(0, torso.Size.Y * 0.15, -torso.Size.Z * 0.05)
+		band.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = torso
+		weld.Part1 = band
+		weld.Parent = band
+	end
+end
+
+local function setupThrower(record: ZombieRecord, stopZ: number?)
+	local cfg = Config.ThrowerZombie
+	record.isThrower = true
+	record.stopZ = stopZ
+	record.nextThrowAt = os.clock() + cfg.FirstThrowDelay
+	record.throwReleased = true
+	record.model:SetAttribute("IsThrower", true)
+	tintThrower(record.model)
+
+	local hand = record.model:FindFirstChild("RightHand", true)
+		or record.model:FindFirstChild("Right Arm", true)
+		or record.model:FindFirstChild("RightLowerArm", true)
+	if hand and hand:IsA("BasePart") then
+		local rock = Instance.new("Part")
+		rock.Name = "HandRock"
+		rock.Size = Vector3.new(cfg.RockSize, cfg.RockSize * 0.82, cfg.RockSize * 0.92)
+		rock.Material = Enum.Material.Slate
+		rock.Color = Color3.fromRGB(96, 92, 86)
+		rock.CanCollide = false
+		rock.CanQuery = false
+		rock.CastShadow = false
+		rock.Massless = true
+		rock.Anchored = false
+		rock.CFrame = hand.CFrame * CFrame.new(0, -hand.Size.Y * 0.45, -hand.Size.Z * 0.15)
+		rock.Parent = record.model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = hand
+		weld.Part1 = rock
+		weld.Parent = rock
+		record.handRock = rock
+	end
+end
+
 function ZombieService.create(position: Vector3, stats: {
 	health: number,
 	walkSpeed: number,
@@ -888,6 +979,8 @@ function ZombieService.create(position: Vector3, stats: {
 	isBig: boolean?,
 	isDog: boolean?,
 	isShield: boolean?,
+	isThrower: boolean?,
+	stopZ: number?,
 	contactDamage: number,
 	scale: number,
 	hitCount: number?,
@@ -921,6 +1014,9 @@ function ZombieService.create(position: Vector3, stats: {
 			fromProto.isBig = true
 			fromProto.model:SetAttribute("IsBigZombie", true)
 		end
+		if stats.isThrower == true then
+			setupThrower(fromProto, stats.stopZ)
+		end
 		return fromProto
 	end
 
@@ -940,6 +1036,9 @@ function ZombieService.create(position: Vector3, stats: {
 	if stats.isBig == true then
 		fallback.isBig = true
 		fallback.model:SetAttribute("IsBigZombie", true)
+	end
+	if stats.isThrower == true then
+		setupThrower(fallback, stats.stopZ)
 	end
 	return fallback
 end
@@ -1106,6 +1205,10 @@ function ZombieService.onDied(callback: (ZombieRecord) -> ())
 	ZombieService._onDied = callback
 end
 
+function ZombieService.onThrow(callback: (ZombieRecord) -> ())
+	ZombieService._onThrow = callback
+end
+
 function ZombieService.onReached(callback: (ZombieRecord) -> ())
 	ZombieService._onReached = callback
 end
@@ -1154,6 +1257,57 @@ local function resolveTargetPosition(record: ZombieRecord, playerPosition: Vecto
 	return playerPosition
 end
 
+local function applyThrowPose(record: ZombieRecord, attackT: number)
+	local m = record.motors
+	if not m then
+		return
+	end
+	local release = Config.ThrowerZombie.ReleaseAt
+	local t = math.clamp(attackT, 0, 1)
+	local windup = math.clamp(t / release, 0, 1)
+	local follow = math.clamp((t - release) / math.max(0.05, 1 - release), 0, 1)
+	-- windup: 오른팔을 머리 위/뒤로 크게 젖힘 → follow: 앞으로 크게 뿌림
+	local shoulderPitch = math.rad(-55 - 130 * windup + 200 * follow)
+	local shoulderYaw = math.rad(-8 + 35 * windup - 55 * follow)
+	local shoulderRoll = math.rad(28 + 40 * windup - 70 * follow)
+	poseMotor(record, m.rightShoulder, CFrame.Angles(shoulderPitch, shoulderYaw, shoulderRoll))
+	poseMotor(
+		record,
+		m.rightElbow,
+		CFrame.Angles(math.rad(-15 - 105 * windup + 120 * follow), math.rad(12 * windup), math.rad(-18 * follow))
+	)
+	poseMotor(record, m.rightArm, CFrame.Angles(shoulderPitch, shoulderYaw * 0.6, shoulderRoll * 0.85))
+	poseMotor(
+		record,
+		m.leftShoulder,
+		CFrame.Angles(math.rad(-40 - 20 * windup), math.rad(28), math.rad(-18))
+	)
+	poseMotor(record, m.leftElbow, CFrame.Angles(math.rad(-30), math.rad(-8), 0))
+	poseMotor(record, m.leftArm, CFrame.Angles(math.rad(-55), math.rad(10), math.rad(-20)))
+	poseMotor(
+		record,
+		m.waist,
+		CFrame.Angles(math.rad(4 - 18 * windup + 28 * follow), math.rad(32 * windup - 48 * follow), math.rad(6 * follow))
+	)
+	poseMotor(
+		record,
+		m.neck,
+		CFrame.Angles(math.rad(10 + 8 * follow), math.rad(-18 * windup + 14 * follow), 0)
+	)
+	poseMotor(record, m.root, CFrame.Angles(math.rad(-4 * windup + 8 * follow), math.rad(10 * windup - 16 * follow), 0))
+end
+
+local function applyThrowHoldPose(record: ZombieRecord, swing: number)
+	local m = record.motors
+	if not m then
+		return
+	end
+	-- 대기: 오른손에 돌을 든 채 살짝 올려둠
+	poseMotor(record, m.rightShoulder, CFrame.Angles(math.rad(-95 + 6 * swing), math.rad(-12), math.rad(28)))
+	poseMotor(record, m.rightElbow, CFrame.Angles(math.rad(-55), math.rad(8), math.rad(-10)))
+	poseMotor(record, m.rightArm, CFrame.Angles(math.rad(-100), math.rad(-8), math.rad(24)))
+end
+
 local function applyPrototypePose(record: ZombieRecord, moving: boolean, attacking: boolean, attackT: number)
 	local m = record.motors
 	if not m then
@@ -1167,9 +1321,10 @@ local function applyPrototypePose(record: ZombieRecord, moving: boolean, attacki
 	local lurch = math.max(0, math.sin(p * 0.9))
 	local moveScale = if moving then 1 else 0.35
 	local t = math.clamp(attackT, 0, 1)
-	local claw = if attacking then math.sin(t * math.pi) else 0
+	local useClaw = attacking and not record.isThrower
+	local claw = if useClaw then math.sin(t * math.pi) else 0
 	-- 0 = arm cocked to the right, 1 = follow-through across the body.
-	local sweep = if attacking then t else 0
+	local sweep = if useClaw then t else 0
 
 	-- R15 zombie shambling; attack = right-hand rake, not a kick.
 	-- Poses go through C0 so clients actually see them.
@@ -1243,6 +1398,14 @@ local function applyPrototypePose(record: ZombieRecord, moving: boolean, attacki
 		else CFrame.Angles(math.rad(-95 - 6 * swing), 0, math.rad(-24)))
 	poseMotor(record, m.rightLeg, CFrame.Angles(math.rad(32 * swing * moveScale * limp), 0, math.rad(6)))
 	poseMotor(record, m.leftLeg, CFrame.Angles(math.rad(-20 * swing * moveScale) + math.rad(8), 0, math.rad(-8)))
+
+	if record.isThrower then
+		if attacking then
+			applyThrowPose(record, attackT)
+		else
+			applyThrowHoldPose(record, swing)
+		end
+	end
 end
 
 local function applyWeldPose(record: ZombieRecord, moving: boolean, attacking: boolean, attackT: number)
@@ -1252,7 +1415,7 @@ local function applyWeldPose(record: ZombieRecord, moving: boolean, attacking: b
 	local swing = math.sin(record.phase)
 	local swing2 = math.sin(record.phase * 1.35 + 0.6)
 	local moveScale = if moving then 1 else 0.4
-	local claw = if attacking then math.sin(math.clamp(attackT, 0, 1) * math.pi) else 0
+	local claw = if attacking and not record.isThrower then math.sin(math.clamp(attackT, 0, 1) * math.pi) else 0
 
 	if record.isDog then
 		record.leftArm.C1 = CFrame.Angles(math.rad(38) * swing, 0, 0)
@@ -1270,6 +1433,22 @@ local function applyWeldPose(record: ZombieRecord, moving: boolean, attacking: b
 		)
 		record.leftLeg.C1 = CFrame.Angles(math.rad(34 * swing * moveScale * record.limp), 0, math.rad(-6))
 		record.rightLeg.C1 = CFrame.Angles(math.rad(-26 * swing * moveScale) + math.rad(6), 0, math.rad(5))
+	end
+
+	if record.isThrower then
+		if attacking then
+			local release = Config.ThrowerZombie.ReleaseAt
+			local t = math.clamp(attackT, 0, 1)
+			local windup = math.clamp(t / release, 0, 1)
+			local follow = math.clamp((t - release) / math.max(0.05, 1 - release), 0, 1)
+			record.rightArm.C1 = CFrame.Angles(
+				math.rad(-40 - 140 * windup + 185 * follow),
+				math.rad(-10 + 20 * windup - 30 * follow),
+				math.rad(28 + 30 * windup - 50 * follow)
+			)
+		else
+			record.rightArm.C1 = CFrame.Angles(math.rad(-100), math.rad(-8), math.rad(22))
+		end
 	end
 end
 
@@ -1292,7 +1471,7 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		local pos = record.root.Position
 		local focus = resolveTargetPosition(record, playerPosition)
 		local targetX = pos.X
-		local stopZ = focus.Z + zombieCfg.StopDistance
+		local stopZ = record.stopZ or (focus.Z + zombieCfg.StopDistance)
 		local moving = pos.Z > stopZ + 0.15
 		local nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
 		if nextZ < stopZ then
@@ -1315,13 +1494,39 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		end
 		targetX = math.clamp(targetX, minX, maxX)
 
+		local throwerCfg = Config.ThrowerZombie
+		if record.isThrower then
+			if not moving and now >= (record.nextThrowAt or 0) then
+				record.nextThrowAt = now + throwerCfg.ThrowInterval
+				record.attackUntil = now + throwerCfg.ThrowAnimTime
+				record.throwReleased = false
+				if record.handRock then
+					record.handRock.Transparency = 0
+				end
+			end
+			if record.throwReleased == false then
+				local t = 1 - (record.attackUntil - now) / throwerCfg.ThrowAnimTime
+				if t >= throwerCfg.ReleaseAt then
+					record.throwReleased = true
+					if record.handRock then
+						record.handRock.Transparency = 1
+					end
+					if ZombieService._onThrow then
+						ZombieService._onThrow(record)
+					end
+				end
+			end
+		end
+
 		local attacking = now < record.attackUntil
 		local attackT = 0
 		local lean = 0
 		if attacking then
-			attackT = 1 - (record.attackUntil - now) / zombieCfg.AttackDuration
+			local duration = if record.isThrower then throwerCfg.ThrowAnimTime else zombieCfg.AttackDuration
+			attackT = 1 - (record.attackUntil - now) / duration
 			-- Slight lunge only; the claw is on the right arm, not a kick.
-			lean = math.sin(math.clamp(attackT, 0, 1) * math.pi) * math.rad(if record.isDog then 16 else 6)
+			local leanScale = if record.isThrower then 10 elseif record.isDog then 16 else 6
+			lean = math.sin(math.clamp(attackT, 0, 1) * math.pi) * math.rad(leanScale)
 		end
 
 		local shamble = zombieCfg.ShambleSpeed * (if moving then 1.15 else 0.55) * (if record.isDog then 1.45 else record.limp)
@@ -1346,7 +1551,8 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		local roll = math.rad(if record.isDog then 2 else 5) * swing
 		record.root.CFrame = base * CFrame.Angles(lean + leanAmt + lurch * 0.4, sway, roll)
 
-		local inFront = pos.Z <= stopZ + 1.2
+		-- 투척 좀비는 근접 공격을 하지 않는다 (멀리서 돌만 던짐)
+		local inFront = (not record.isThrower) and pos.Z <= stopZ + 1.2
 		local flatX = math.abs(pos.X - focus.X)
 		local reachX = (record.model:GetAttribute("HitRadius") :: number) + 2.2
 		if inFront and flatX <= reachX and now - record.lastContact >= zombieCfg.ContactCooldown then
@@ -1386,6 +1592,9 @@ function ZombieService.shiftTimers(duration: number)
 		end
 		if record.attackUntil > 0 then
 			record.attackUntil += duration
+		end
+		if record.nextThrowAt then
+			record.nextThrowAt += duration
 		end
 	end
 end
