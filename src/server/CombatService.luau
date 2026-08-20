@@ -23,6 +23,10 @@ local active = {} :: {
 		endZ: number?,
 		hitSet: { [Model]: boolean },
 		tipOffset: number,
+		falloffFromZ: number?,
+		falloffFull: number?,
+		falloffMax: number?,
+		falloffMinScale: number?,
 	}
 }
 
@@ -305,6 +309,62 @@ function CombatService.fireSniper(origin: Vector3, damage: number, hits: number?
 	})
 end
 
+function CombatService.fireShotgun(origin: Vector3, damage: number, hits: number?)
+	local cfg = Config.Shotgun
+	local pelletHits = math.max(1, math.floor((hits or 1) * cfg.HitsScale + 0.5))
+	local pelletDamage = math.max(1, damage * cfg.DamageScale)
+	local lane = Config.activeLane()
+	local road = math.max(40, math.abs(lane.SpawnZ - lane.PlayerZ))
+	local rangeMax = road * (cfg.RoadRangeRatio or 0.7)
+	local rangeFull = road * (cfg.RoadFullRatio or 0.4)
+	local endZ = lane.PlayerZ + rangeMax
+	local yaws = cfg.SpreadYawDeg
+	local count = math.min(cfg.PelletCount, #yaws)
+	for i = 1, count do
+		local yaw = math.rad(yaws[i])
+		-- +Z 전방 기준 V자 확산 (yaw만 돌려 XZ 평면에서 벌어짐)
+		local direction = Vector3.new(math.sin(yaw), 0, math.cos(yaw)).Unit
+		local part, tipOffset = spawnBolt(
+			origin,
+			direction,
+			cfg.BoltSize,
+			Color3.fromRGB(255, 170, 70)
+		)
+		table.insert(active, {
+			part = part,
+			direction = direction,
+			speed = cfg.ProjectileSpeed,
+			damage = pelletDamage,
+			hits = pelletHits,
+			born = os.clock(),
+			pierce = false,
+			oneshot = false,
+			radius = cfg.ProjectileRadius,
+			endZ = endZ,
+			hitSet = {},
+			tipOffset = tipOffset,
+			falloffFromZ = lane.PlayerZ,
+			falloffFull = rangeFull,
+			falloffMax = rangeMax,
+			falloffMinScale = cfg.FalloffMinScale,
+		})
+	end
+end
+
+local function shotFalloffScale(shot: typeof(active[1]), z: number): number
+	if not shot.falloffFromZ or not shot.falloffFull or not shot.falloffMax then
+		return 1
+	end
+	local dist = math.max(0, z - shot.falloffFromZ)
+	if dist <= shot.falloffFull then
+		return 1
+	end
+	local span = math.max(1, shot.falloffMax - shot.falloffFull)
+	local t = math.clamp((dist - shot.falloffFull) / span, 0, 1)
+	local minScale = shot.falloffMinScale or 0.25
+	return 1 - t * (1 - minScale)
+end
+
 local function applyShot(model: Model, damage: number, hits: number, oneshot: boolean?): boolean
 	if model:GetAttribute("IsNumberGate") == true then
 		return NumberGate.damageModel(model, hits)
@@ -559,6 +619,9 @@ function CombatService.update(dt: number)
 		if shot.pierce then
 			pierceHitAll(castFrom, castTo, shot)
 		else
+			local scale = shotFalloffScale(shot, visual.Z)
+			local dmg = math.max(1, shot.damage * scale)
+			local hits = math.max(1, math.floor(shot.hits * scale + 0.5))
 			local castTravel = shot.direction * (shot.speed * dt + 3.4)
 			local result = Workspace:Spherecast(castFrom, shot.radius, castTravel, params)
 			local damaged = false
@@ -568,11 +631,11 @@ function CombatService.update(dt: number)
 					model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
 				end
 				if model then
-					damaged = applyShot(model, shot.damage, shot.hits, shot.oneshot)
+					damaged = applyShot(model, dmg, hits, shot.oneshot)
 				end
 			end
 			if not damaged then
-				local ok = proximityHit(castFrom, castTo, shot.damage, shot.hits)
+				local ok = proximityHit(castFrom, castTo, dmg, hits)
 				damaged = ok
 			end
 			if damaged then

@@ -26,7 +26,7 @@ export type SupplyRecord = {
 	label: TextLabel,
 	hitsLeft: number,
 	alive: boolean,
-	kind: "ally" | "bomb" | "sniper" | "molotov",
+	kind: "ally" | "bomb" | "sniper" | "molotov" | "shotgun",
 	grantCount: number?,
 }
 
@@ -65,6 +65,7 @@ local onRecruited: ((AllyRecord) -> ())? = nil
 local onAllyDied: ((AllyRecord) -> ())? = nil
 local onBombPicked: (() -> ())? = nil
 local onSniperPicked: (() -> ())? = nil
+local onShotgunPicked: (() -> ())? = nil
 local onMolotovPicked: ((number) -> ())? = nil
 local pickupGraceUntil = 0
 
@@ -222,6 +223,19 @@ local function buildCrateSniper(parent: Model, root: BasePart)
 	weldConstraint(root, makePart(parent, "SniperMag", Vector3.new(0.22, 0.7, 0.38), dark, body.CFrame * CFrame.new(0, -0.48, 0.15), Enum.Material.SmoothPlastic))
 end
 
+local function buildCrateShotgun(parent: Model, root: BasePart)
+	local metal = Color3.fromRGB(48, 44, 38)
+	local dark = Color3.fromRGB(24, 22, 20)
+	local wood = Color3.fromRGB(92, 62, 36)
+	local body = makePart(parent, "ShotgunBody", Vector3.new(0.46, 0.4, 1.55), metal, root.CFrame * CFrame.new(0, 2.5, 0), Enum.Material.Metal)
+	weldConstraint(root, body)
+	weldConstraint(root, makePart(parent, "ShotgunStock", Vector3.new(0.34, 0.4, 0.8), wood, body.CFrame * CFrame.new(0, -0.06, 1.05), Enum.Material.Wood))
+	weldConstraint(root, makePart(parent, "ShotgunBarrel", Vector3.new(0.26, 0.26, 1.35), Color3.fromRGB(56, 54, 50), body.CFrame * CFrame.new(0, 0.08, -1.25), Enum.Material.Metal))
+	weldConstraint(root, makePart(parent, "ShotgunPump", Vector3.new(0.34, 0.3, 0.7), wood, body.CFrame * CFrame.new(0, -0.08, -0.55), Enum.Material.Wood))
+	weldConstraint(root, makePart(parent, "ShotgunTube", Vector3.new(0.18, 0.18, 1.0), dark, body.CFrame * CFrame.new(0, -0.22, -0.85), Enum.Material.Metal))
+	weldConstraint(root, makePart(parent, "ShotgunMuzzle", Vector3.new(0.32, 0.32, 0.22), Color3.fromRGB(255, 160, 60), body.CFrame * CFrame.new(0, 0.08, -2.0), Enum.Material.Neon))
+end
+
 local function buildCrateBomb(parent: Model, root: BasePart)
 	local shell = Color3.fromRGB(46, 50, 42)
 	local band = Color3.fromRGB(78, 82, 70)
@@ -358,6 +372,10 @@ function SupplyService.onSniperPicked(callback: () -> ())
 	onSniperPicked = callback
 end
 
+function SupplyService.onShotgunPicked(callback: () -> ())
+	onShotgunPicked = callback
+end
+
 function SupplyService.onMolotovPicked(callback: (number) -> ())
 	onMolotovPicked = callback
 end
@@ -397,6 +415,19 @@ function SupplyService.canSpawnSniper(): boolean
 		end
 	end
 	return sniperAlive < Config.SniperCrate.MaxAlive
+end
+
+function SupplyService.canSpawnShotgun(): boolean
+	if #supplies >= Config.Supply.MaxAlive then
+		return false
+	end
+	local shotgunAlive = 0
+	for _, record in supplies do
+		if record.alive and record.kind == "shotgun" then
+			shotgunAlive += 1
+		end
+	end
+	return shotgunAlive < (Config.Shotgun.MaxAlive or 1)
 end
 
 function SupplyService.getAlive(): { SupplyRecord }
@@ -762,6 +793,68 @@ function SupplyService.createSniper(force: boolean?, overrideMin: number?, overr
 	return record
 end
 
+function SupplyService.createShotgun(force: boolean?, overrideMin: number?, overrideMax: number?): SupplyRecord?
+	if not force and not SupplyService.canSpawnShotgun() then
+		return nil
+	end
+
+	local folder = ensureFolder("Supplies")
+	local x = Config.sidePathCenterX()
+	local lane = Config.activeLane()
+	local y = lane.CenterY + 1.6
+	local z = lane.SpawnZ
+	local position = Vector3.new(x, y, z)
+	local minH = math.max(1, math.floor(overrideMin or Config.Shotgun.HitCountMin))
+	local maxH = math.max(minH, math.floor(overrideMax or Config.Shotgun.HitCountMax))
+	local hits = math.random(minH, maxH)
+
+	local model = Instance.new("Model")
+	model.Name = "ShotgunCrate"
+	model:SetAttribute("IsSupply", true)
+	model:SetAttribute("IsShotgunCrate", true)
+	model:SetAttribute("HitsLeft", hits)
+
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(3.2, 2.4, 3.2)
+	root.Color = Color3.fromRGB(150, 96, 42)
+	root.Material = Enum.Material.Wood
+	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+	root.Anchored = true
+	root.CanCollide = true
+	root.Parent = model
+
+	local lid = makePart(model, "Lid", Vector3.new(3.4, 0.35, 3.4), Color3.fromRGB(120, 72, 32), root.CFrame * CFrame.new(0, 1.35, 0), Enum.Material.Wood)
+	weldConstraint(root, lid)
+	local stripe = makePart(model, "Stripe", Vector3.new(3.45, 0.55, 0.55), Color3.fromRGB(255, 170, 60), root.CFrame * CFrame.new(0, 0.2, 0), Enum.Material.Metal)
+	weldConstraint(root, stripe)
+	buildCrateShotgun(model, root)
+
+	model.PrimaryPart = root
+	model.Parent = folder
+	plantCrate(model, root)
+
+	local hitScale = Config.hitLabelScale(Config.Shotgun.HitLabelScale)
+	local label = attachOverheadHits(
+		root,
+		hits,
+		Config.HitLabel.CrateFront,
+		Color3.fromRGB(255, 190, 90),
+		hitScale
+	)
+
+	local record: SupplyRecord = {
+		model = model,
+		root = root,
+		label = label,
+		hitsLeft = hits,
+		alive = true,
+		kind = "shotgun",
+	}
+	table.insert(supplies, record)
+	return record
+end
+
 local killAlly: (AllyRecord) -> ()
 
 killAlly = function(ally: AllyRecord)
@@ -894,6 +987,11 @@ function SupplyService.damageModel(model: Model, hits: number?): boolean
 					if onSniperPicked then
 						onSniperPicked()
 					end
+				elseif record.kind == "shotgun" then
+					record.model:Destroy()
+					if onShotgunPicked then
+						onShotgunPicked()
+					end
 				elseif record.kind == "molotov" then
 					record.model:Destroy()
 					if onMolotovPicked then
@@ -951,6 +1049,8 @@ function SupplyService.update(dt: number, playerPosition: Vector3?, strafe: numb
 		local walkSpeed = Config.Supply.WalkSpeed
 		if record.kind == "sniper" then
 			walkSpeed = Config.SniperCrate.WalkSpeed or walkSpeed
+		elseif record.kind == "shotgun" then
+			walkSpeed = Config.Shotgun.WalkSpeed or walkSpeed
 		elseif record.kind == "molotov" then
 			walkSpeed = Config.Molotov.WalkSpeed or walkSpeed
 		end

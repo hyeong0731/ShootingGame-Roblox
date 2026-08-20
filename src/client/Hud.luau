@@ -237,6 +237,7 @@ local function setWeaponIcon(btn: Frame, mode: string)
 	local gunImage = btn:FindFirstChild("GunImage")
 	local usingBomb = mode == "bomb"
 	local usingSniper = mode == "sniper"
+	local usingShotgun = mode == "shotgun"
 	if rifle and rifle:IsA("GuiObject") then
 		rifle.Visible = not usingBomb and not usingSniper
 	end
@@ -245,6 +246,15 @@ local function setWeaponIcon(btn: Frame, mode: string)
 	end
 	if sniper and sniper:IsA("GuiObject") then
 		sniper.Visible = usingSniper
+	end
+	if usingShotgun then
+		btn.BackgroundColor3 = Color3.fromRGB(220, 170, 90)
+	elseif usingSniper then
+		btn.BackgroundColor3 = Color3.fromRGB(140, 190, 220)
+	elseif usingBomb then
+		btn.BackgroundColor3 = Color3.fromRGB(168, 212, 236)
+	else
+		btn.BackgroundColor3 = Color3.fromRGB(168, 212, 236)
 	end
 	if gunImage and gunImage:IsA("ImageLabel") then
 		local gunTex = hudAssetImage("GunIcon")
@@ -934,9 +944,12 @@ function Hud.start()
 
 		local bombLeft = state:GetAttribute("BombLeft") or 0
 		local sniperLeft = state:GetAttribute("SniperLeft") or 0
+		local shotgunLeft = state:GetAttribute("ShotgunLeft") or 0
 		local weaponMode = "rifle"
 		if currentPhase == "playing" and sniperLeft > 0 then
 			weaponMode = "sniper"
+		elseif currentPhase == "playing" and shotgunLeft > 0 then
+			weaponMode = "shotgun"
 		elseif currentPhase == "playing" and bombLeft > 0 then
 			weaponMode = "bomb"
 		end
@@ -946,6 +959,9 @@ function Hud.start()
 			if currentPhase == "playing" and sniperLeft > 0 then
 				timeLeft.Visible = true
 				timeLeft.Text = `{sniperLeft}s`
+			elseif currentPhase == "playing" and shotgunLeft > 0 then
+				timeLeft.Visible = true
+				timeLeft.Text = `{shotgunLeft}s`
 			elseif currentPhase == "playing" and bombLeft > 0 then
 				timeLeft.Visible = true
 				timeLeft.Text = `{bombLeft}s`

@@ -185,6 +185,28 @@ Config.Molotov = {
 	GroundHitsPerSecond = 40,
 }
 
+-- 샷건 (챕터3). V자 펠릿. 유효사거리 = 도로 길이의 70%
+Config.Shotgun = {
+	Duration = 10, -- 지속(초)
+	FireInterval = 0.65, -- 소총보다 느리게
+	PelletCount = 7,
+	-- +Z 기준 yaw(도). 바깥일수록 벌어져 V자 (좁은 집탄)
+	SpreadYawDeg = { -3.7, -2.5, -1.2, 0, 1.2, 2.5, 3.7 },
+	DamageScale = 0.8, -- 펠릿 2발 ≈ 일반 좀비(36) 처치 (유닛 데미지 24 기준)
+	HitsScale = 0.5, -- 펠릿당 타수 배수 (hitPower 기준)
+	ProjectileSpeed = 260,
+	ProjectileRadius = 1.15,
+	BoltSize = Vector3.new(0.22, 0.22, 2.2),
+	RoadRangeRatio = 0.7, -- 캐릭터~스폰 거리의 이 비율까지
+	RoadFullRatio = 0.4, -- 여기까지 풀 데미지
+	FalloffMinScale = 0.3,
+	MaxAlive = 1,
+	WalkSpeed = 10,
+	HitCountMin = 30,
+	HitCountMax = 45,
+	HitLabelScale = 1,
+}
+
 -- 타수 게이트 (5라운드 x2, 6라운드 +1, 8라운드부터 x2/+1/-1 랜덤)
 Config.NumberGate = {
 	UnlockRound = 5, -- 첫 x2 등장
@@ -669,8 +691,8 @@ Config.Chapter2 = {
 Config.Chapter3 = {
 	Waves = {
 		From = 21,
-		Until = 30,
-		Duration = 60,
+		Until = 35, -- 로컬 1~15
+		Duration = 60, -- 각 라운드 1분 (총 15분)
 	},
 	MaxHitPower = 34,
 
@@ -690,9 +712,10 @@ Config.Chapter3 = {
 		BodyColor = Color3.fromRGB(72, 112, 58),
 		ClothesColor = Color3.fromRGB(62, 48, 40),
 	},
+	-- 챕터3 기본: 개/큰좀비 비활성 (따로 언급할 때만 켠다)
 	ZombieDog = {
-		UnlockWave = 21,
-		SpawnChance = 0.32,
+		UnlockWave = 9999,
+		SpawnChance = 0,
 		Health = 28,
 		WalkSpeed = 9.4,
 		ContactDamage = 6,
@@ -706,7 +729,7 @@ Config.Chapter3 = {
 		SpawnGapStart = 0.5,
 		SpawnGapMin = 0.2,
 		LaneSlots = { -10, -5, 0, 5, 10 },
-		HealthPerKill = 0.17,
+		HealthPerKill = 0, -- 따로 말하기 전까지 HP 증가 끔
 		SpeedPerSecond = 0.022,
 		AllySpawnGapScale = 0.62,
 		AllyMaxAliveBonus = 4,
@@ -721,6 +744,12 @@ Config.Chapter3 = {
 		SidePathWidth = 10,
 		GapWidth = 6,
 		MergeUntilZ = 12542,
+	},
+	Round1 = {
+		Round = 1,
+		ShotgunAt = 5, -- 샷건 보급상자
+		ShotgunHitCountMin = 30,
+		ShotgunHitCountMax = 45,
 	},
 }
 
