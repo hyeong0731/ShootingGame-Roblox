@@ -66,6 +66,14 @@ local onAllyDied: ((AllyRecord) -> ())? = nil
 local onBombPicked: (() -> ())? = nil
 local onSniperPicked: (() -> ())? = nil
 local onMolotovPicked: ((number) -> ())? = nil
+local pickupGraceUntil = 0
+
+local function noteCratePicked()
+	local grace = Config.Supply.PickupGraceSeconds or 0
+	if grace > 0 then
+		pickupGraceUntil = os.clock() + grace
+	end
+end
 
 local function ensureFolder(name: string): Folder
 	local existing = Workspace:FindFirstChild(name)
@@ -436,6 +444,7 @@ function SupplyService.clear()
 		end
 	end
 	supplies = {}
+	pickupGraceUntil = 0
 
 	for _, ally in allies do
 		ally.alive = false
@@ -464,6 +473,7 @@ function SupplyService.clearCrates()
 		end
 	end
 	supplies = {}
+	pickupGraceUntil = 0
 	local suppliesFolder = Workspace:FindFirstChild("Supplies")
 	if suppliesFolder then
 		suppliesFolder:ClearAllChildren()
@@ -862,6 +872,9 @@ local function recruitFrom(record: SupplyRecord)
 end
 
 function SupplyService.damageModel(model: Model, hits: number?): boolean
+	if os.clock() < pickupGraceUntil then
+		return false
+	end
 	local hitPower = math.max(1, math.floor(hits or 1))
 	for _, record in supplies do
 		if record.model == model and record.alive then
@@ -870,6 +883,7 @@ function SupplyService.damageModel(model: Model, hits: number?): boolean
 			setHitLabel(record.label, record.hitsLeft)
 			if record.hitsLeft <= 0 then
 				record.alive = false
+				noteCratePicked()
 				if record.kind == "bomb" then
 					record.model:Destroy()
 					if onBombPicked then
@@ -934,7 +948,13 @@ function SupplyService.update(dt: number, playerPosition: Vector3?, strafe: numb
 		end
 
 		local pos = record.root.Position
-		local nextZ = pos.Z - Config.Supply.WalkSpeed * dt
+		local walkSpeed = Config.Supply.WalkSpeed
+		if record.kind == "sniper" then
+			walkSpeed = Config.SniperCrate.WalkSpeed or walkSpeed
+		elseif record.kind == "molotov" then
+			walkSpeed = Config.Molotov.WalkSpeed or walkSpeed
+		end
+		local nextZ = pos.Z - walkSpeed * dt
 		if nextZ < Config.crateDespawnZ() then
 			record.alive = false
 			record.model:Destroy()
@@ -1048,6 +1068,9 @@ function SupplyService.allyThrowOrigins(): { Vector3 }
 end
 
 function SupplyService.shiftTimers(duration: number)
+	if pickupGraceUntil > 0 then
+		pickupGraceUntil += duration
+	end
 	for _, ally in allies do
 		if ally.lastFire > 0 then
 			ally.lastFire += duration

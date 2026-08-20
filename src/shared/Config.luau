@@ -123,6 +123,7 @@ Config.Supply = {
 	AllyRegenDelay = 5, -- 피격 후 이 시간(초) 지나야 회복
 	AllyRegenPerSecond = 8, -- 초당 회복량
 	HitLabelScale = 1, -- 위 타수 숫자 크기 (1 = 예시 통 숫자)
+	PickupGraceSeconds = 0.5, -- 상자 획득 직후 다른 상자 타수 무적 시간
 }
 
 -- 폭탄상자 (4라운드부터)
@@ -151,6 +152,7 @@ Config.SniperCrate = {
 	HitCount = 40, -- 상자 타수
 	HitDamage = 40, -- 스나이퍼 한 발이 깎는 타수 (방패/숫자 대상)
 	MaxAlive = 1,
+	WalkSpeed = 10, -- 스나이퍼 상자 이동 속도 (Supply.WalkSpeed보다 빠름)
 	Duration = 10, -- 스나이퍼 지속(초)
 	FireInterval = 0.7, -- 연사 간격
 	AfterDurationPlusDelay = 5, -- 스나이퍼 끝난 뒤 +1까지
@@ -171,6 +173,7 @@ Config.Molotov = {
 	Count = 3,
 	CrateHitCountMin = 60,
 	CrateHitCountMax = 80,
+	WalkSpeed = 10, -- 화염병 상자 이동 속도 (Supply.WalkSpeed보다 빠름)
 	Damage = 90, -- 착탄 폭발 (폭탄 320보다 약함)
 	HitDamage = 60, -- 착탄 시 숫자 타수
 	Radius = 11,
@@ -442,7 +445,7 @@ Config.Chapter2 = {
 		Round = 3,
 		SpawnGap = 0.75, -- 기본(0.5)보다 느리게 시작 (스폰율 낮춤)
 		MaxAlive = 16, -- 기본(20)보다 적게
-		PlusAt = 0,
+		PlusAt = 50,
 		AllyAt = 3,
 		CrateAt = 12, -- 폭탄
 		CrateAgainAt = 40, -- 스나이퍼
@@ -497,8 +500,8 @@ Config.Chapter2 = {
 		SecondSpawnX = 0,
 		HitCountMin = 850,
 		HitCountMax = 1000,
-		HitCountMin2 = 670,
-		HitCountMax2 = 720,
+		HitCountMin2 = 900,
+		HitCountMax2 = 1100,
 		SizeScale = 2.9, -- 메가보스 크기, 속도만 큰 좀비와 동일
 		SpeedMultiplier = 0.45, -- Config.Boss와 동일
 		ContactDamage = 18,
@@ -527,8 +530,8 @@ Config.Chapter2 = {
 		BombHitCountMin = 70,
 		BombHitCountMax = 80,
 		PlusAt = 35,
-		PlusHitCountMin = 20,
-		PlusHitCountMax = 32,
+		PlusHitCountMin = 70,
+		PlusHitCountMax = 80,
 	},
 	-- 챕터2 로컬 라운드7
 	Round7 = {
@@ -544,8 +547,8 @@ Config.Chapter2 = {
 		BombHitCountMin = 70,
 		BombHitCountMax = 100,
 		ShieldPackAt = 50,
-		PlusHitCountMin = 50,
-		PlusHitCountMax = 60,
+		PlusHitCountMin = 80,
+		PlusHitCountMax = 100,
 		ShieldPackCount = 5,
 		ShieldPackHitCountMin = 65,
 		ShieldPackHitCountMax = 80,
@@ -575,34 +578,34 @@ Config.Chapter2 = {
 		Div2WalkSpeedScale = 12, -- 6초 스나이퍼와 겹치지 않게 매우 빠름
 		X2HitCountMin = 40,
 		X2HitCountMax = 55,
-		SniperHitCountMin = 65,
-		SniperHitCountMax = 75,
+		SniperHitCountMin = 70,
+		SniperHitCountMax = 80,
 		MinusHitCountMin = 90,
 		MinusHitCountMax = 99,
-		PlusHitCountMin = 20,
-		PlusHitCountMax = 32,
+		PlusHitCountMin = 70,
+		PlusHitCountMax = 80,
 		ShieldHitCountMin = 80,
 		ShieldHitCountMax = 100,
 		ShieldHitCountMin2 = 110,
 		ShieldHitCountMax2 = 125,
 		SwarmCount = 18,
 		SwarmZStep = 3.2,
-		MolotovGrant = 1,
+		MolotovGrant = 3,
 	},
-	-- 챕터2 로컬 라운드9. 스나이퍼/폭탄/화염병 착탄 타수는 이후 라운드도 동일
+	-- 챕터2 로컬 라운드9. 스나이퍼/폭탄 착탄 타수는 이후 라운드도 동일
 	Round9 = {
 		Round = 9,
 		HealthPerKill = 0,
-		MaxAlive = 22,
+		MaxAlive = 18,
 		MidBossAt = 5,
 		SniperAt = 10,
-		SniperHitCountMin = 250,
-		SniperHitCountMax = 290,
+		SniperHitCountMin = 85,
+		SniperHitCountMax = 100,
 		MinusAt = 20,
 		PlusAt = 24,
 		BombAt = 30,
-		BombHitCountMin = 250,
-		BombHitCountMax = 290,
+		BombHitCountMin = 85,
+		BombHitCountMax = 100,
 		ShieldPackAt = 34,
 		SniperAgainAt = 44,
 		MidBossHitCountMin = 600,
@@ -617,31 +620,48 @@ Config.Chapter2 = {
 		PlusHitCountMax = 160,
 		ShieldHitCountMin = 140,
 		ShieldHitCountMax = 160,
-		ShieldPackCount = 12,
+		ShieldPackCount = 8,
 		SniperHitDamage = 100,
 		BombHitDamage = 100,
 		MolotovHitDamage = 100,
-		MolotovAt = 50,
-		MolotovGrant = 3,
 	},
 	-- 챕터2 로컬 라운드10. 챕터2 최종보스 + 대규모 혼합 무리
 	Round10 = {
 		Round = 10,
+		HealthPerKill = 0,
 		IntroText = "땅이 흔들리고 있습니다... 거대한 무언가가 올 것입니다.",
 		IntroDuration = 5,
+		OpeningSwarmAt = 0,
+		OpeningShield = 6,
+		OpeningNormal = 4,
+		OpeningDog = 3,
 		BossAt = 3,
-		BossHitCountMin = 2500,
-		BossHitCountMax = 2800,
+		BossHitCountMin = 3200,
+		BossHitCountMax = 3300,
 		SizeScale = 4.2,
-		SpeedMultiplier = 0.52,
+		SpeedMultiplier = 0.4, -- 최종보스 이동
+		ZombieSpeedScale = 0.72, -- 라운드10 일반/개/방패 속도
 		ContactDamage = 22,
+		-- 0~20초: 기본 압력
+		PreHordeMaxAlive = 20,
+		PreHordeSpawnGap = 0.7,
+		-- 20초~: R1식 밀도 상승 + 중간 무리
+		RampAt = 20,
+		RampMaxAlive = 28,
+		RampSpawnGap = 0.48,
+		MidSwarmAt = 20,
+		MidSwarmCount = 14, -- 개·일반 위주 중간 파동
 		SniperAt = 30,
 		SniperHitCountMin = 250,
 		SniperHitCountMax = 290,
+		-- 40초~: 피날레
 		HordeAt = 40,
 		HordeCount = 30,
+		LateHordeAt = 50,
+		LateHordeCount = 25,
 		ShieldSpawnChance = 0.05,
-		MaxAlive = 24,
+		MaxAlive = 30,
+		SpawnGap = 0.4,
 	},
 }
 
