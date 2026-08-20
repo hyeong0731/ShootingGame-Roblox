@@ -5,6 +5,7 @@ local PhysicsService = game:GetService("PhysicsService")
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local Ruins = require(script.Parent.Ruins)
 local Bridge = require(script.Parent.Bridge)
+local Dmz = require(script.Parent.Dmz)
 
 local Arena = {}
 
@@ -155,6 +156,7 @@ function Arena.build(): Folder
 
 	Ruins.build(folder)
 	Bridge.build(folder)
+	Dmz.build(folder)
 
 	-- open lobby field, far from the lane
 	local lobby = Config.Lobby
@@ -272,6 +274,45 @@ function Arena.build(): Folder
 	atmosphere.Haze = 0.8
 
 	return folder
+end
+
+function Arena.applyChapterLook(chapter: number)
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	if not atmosphere then
+		atmosphere = Instance.new("Atmosphere")
+		atmosphere.Parent = Lighting
+	end
+	if chapter >= 3 then
+		Lighting.Brightness = 1.65
+		Lighting.Ambient = Color3.fromRGB(88, 96, 78)
+		Lighting.OutdoorAmbient = Color3.fromRGB(108, 116, 92)
+		Lighting.ClockTime = 16.85
+		Lighting.GeographicLatitude = 38
+		Lighting.FogColor = Color3.fromRGB(132, 140, 118)
+		Lighting.FogStart = 48
+		Lighting.FogEnd = 230
+		atmosphere.Density = 0.3
+		atmosphere.Offset = 0.08
+		atmosphere.Color = Color3.fromRGB(150, 158, 132)
+		atmosphere.Decay = Color3.fromRGB(90, 96, 78)
+		atmosphere.Glare = 0.08
+		atmosphere.Haze = 1.35
+	else
+		Lighting.Brightness = 2.55
+		Lighting.Ambient = Color3.fromRGB(140, 138, 130)
+		Lighting.OutdoorAmbient = Color3.fromRGB(170, 168, 158)
+		Lighting.ClockTime = 13.5
+		Lighting.GeographicLatitude = 25
+		Lighting.FogColor = Color3.fromRGB(190, 200, 210)
+		Lighting.FogStart = 90
+		Lighting.FogEnd = 320
+		atmosphere.Density = 0.18
+		atmosphere.Offset = 0.1
+		atmosphere.Color = Color3.fromRGB(200, 205, 215)
+		atmosphere.Decay = Color3.fromRGB(150, 155, 165)
+		atmosphere.Glare = 0.15
+		atmosphere.Haze = 0.8
+	end
 end
 
 return Arena

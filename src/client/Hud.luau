@@ -670,7 +670,7 @@ function Hud.start()
 		debugPanel.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
 		debugPanel.BackgroundTransparency = 0.25
 		debugPanel.BorderSizePixel = 0
-		debugPanel.Size = UDim2.fromOffset(168, 252)
+		debugPanel.Size = UDim2.fromOffset(168, 292)
 		debugPanel.Position = UDim2.new(1, -12, 0.22, 0)
 		debugPanel.AnchorPoint = Vector2.new(1, 0)
 		debugPanel.ZIndex = 8
@@ -696,7 +696,7 @@ function Hud.start()
 		local grid = Instance.new("Frame")
 		grid.Name = "Buttons"
 		grid.BackgroundTransparency = 1
-		grid.Size = UDim2.new(1, -12, 1, -72)
+		grid.Size = UDim2.new(1, -12, 1, -112)
 		grid.Position = UDim2.fromOffset(6, 28)
 		grid.ZIndex = 9
 		grid.Parent = debugPanel
@@ -730,6 +730,7 @@ function Hud.start()
 			end)
 		end
 
+		local setChapter = remotes:WaitForChild("DebugSetChapter")
 		local chapter2 = Instance.new("TextButton")
 		chapter2.Name = "Chapter2"
 		chapter2.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
@@ -740,14 +741,33 @@ function Hud.start()
 		chapter2.TextScaled = true
 		chapter2.AutoButtonColor = true
 		chapter2.Size = UDim2.new(1, -12, 0, 32)
-		chapter2.Position = UDim2.new(0, 6, 1, -40)
+		chapter2.Position = UDim2.new(0, 6, 1, -76)
 		chapter2.ZIndex = 10
 		chapter2.Parent = debugPanel
 		Instance.new("UICorner", chapter2).CornerRadius = UDim.new(0, 6)
-		local setChapter = remotes:WaitForChild("DebugSetChapter")
 		chapter2.MouseButton1Click:Connect(function()
 			if setChapter:IsA("RemoteEvent") then
 				setChapter:FireServer(2)
+			end
+		end)
+
+		local chapter3 = Instance.new("TextButton")
+		chapter3.Name = "Chapter3"
+		chapter3.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
+		chapter3.BorderSizePixel = 0
+		chapter3.Font = Enum.Font.GothamBold
+		chapter3.Text = "챕터 3"
+		chapter3.TextColor3 = Color3.new(1, 1, 1)
+		chapter3.TextScaled = true
+		chapter3.AutoButtonColor = true
+		chapter3.Size = UDim2.new(1, -12, 0, 32)
+		chapter3.Position = UDim2.new(0, 6, 1, -40)
+		chapter3.ZIndex = 10
+		chapter3.Parent = debugPanel
+		Instance.new("UICorner", chapter3).CornerRadius = UDim.new(0, 6)
+		chapter3.MouseButton1Click:Connect(function()
+			if setChapter:IsA("RemoteEvent") then
+				setChapter:FireServer(3)
 			end
 		end)
 
@@ -757,7 +777,7 @@ function Hud.start()
 		hitsPanel.BackgroundTransparency = 0.25
 		hitsPanel.BorderSizePixel = 0
 		hitsPanel.Size = UDim2.fromOffset(168, 80)
-		hitsPanel.Position = UDim2.new(1, -12, 0.22, 264)
+		hitsPanel.Position = UDim2.new(1, -12, 0.22, 304)
 		hitsPanel.AnchorPoint = Vector2.new(1, 0)
 		hitsPanel.ZIndex = 8
 		hitsPanel.Parent = gui
@@ -941,7 +961,7 @@ function Hud.start()
 			banner.Text = ""
 			hint.Text = "초록 발판에 올라가면 게임이 시작됩니다"
 		elseif currentPhase == "chapterClear" then
-			banner.Text = "1챕터 클리어"
+			banner.Text = `{chapter}챕터 클리어`
 			hint.Text = "도로를 따라 걸어가 파란 발판을 밟으세요"
 		elseif currentPhase == "countdown" then
 			banner.Text = "A / D 를 사용해서 좀비를 무찌르세요"

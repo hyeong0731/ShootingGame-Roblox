@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Arena = require(script.Parent.Arena)
 local ZombieService = require(script.Parent.ZombieService)
 local CombatService = require(script.Parent.CombatService)
 local SupplyService = require(script.Parent.SupplyService)
@@ -118,6 +119,7 @@ local startPadDebounce = false
 local grantBombs: () -> ()
 local grantSniper: () -> ()
 local startChapter2: () -> ()
+local startChapter3: () -> ()
 local lastMolotovAt = 0
 
 local function setState(key: string, value: any)
@@ -261,7 +263,7 @@ local function spawnChapterPad()
 	if not arena then
 		return
 	end
-	local lane = Config.Lane
+	local lane = Config.activeLane()
 	local pad = Instance.new("Part")
 	pad.Name = "ChapterPad"
 	pad.Anchored = true
@@ -269,7 +271,7 @@ local function spawnChapterPad()
 	pad.Material = Enum.Material.Neon
 	pad.Color = Color3.fromRGB(70, 160, 220)
 	pad.Size = Vector3.new(12, 1.2, 12)
-	pad.CFrame = CFrame.new(0, lane.CenterY + 1.1, lane.SpawnZ - 6)
+	pad.CFrame = CFrame.new(0, lane.CenterY + lane.Thickness * 0.5 + 0.6, lane.SpawnZ - 6)
 	pad:SetAttribute("IsChapterPad", true)
 	pad.Parent = arena
 
@@ -301,7 +303,11 @@ local function spawnChapterPad()
 			return
 		end
 		chapterPadDebounce = true
-		startChapter2()
+		if Config.chapter() <= 1 then
+			startChapter2()
+		elseif Config.chapter() == 2 then
+			startChapter3()
+		end
 		task.delay(1.5, function()
 			chapterPadDebounce = false
 		end)
@@ -327,7 +333,7 @@ local function sidePathReady(now: number): boolean
 end
 
 local function chapter2HealthPerKill(): number
-	if Config.chapter() < 2 then
+	if Config.chapter() ~= 2 then
 		return Config.activeInfinite().HealthPerKill
 	end
 	local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
@@ -368,7 +374,7 @@ local function currentStats()
 	local speed = z.WalkSpeed + elapsed * inf.SpeedPerSecond
 	local spawnElapsed = elapsed
 	local wave = (stateFolder:GetAttribute("Wave") :: number?) or 1
-	if Config.chapter() >= 2 then
+	if Config.chapter() == 2 then
 		local r4 = Config.Chapter2.Round4
 		if Config.chapterRound(wave) == r4.Round then
 			local capWave = Config.Chapter2.Waves.From + r4.MatchSpawnRound
@@ -392,7 +398,7 @@ local function currentStats()
 		maxAlive = Config.FinalBoss.MaxAlive
 		gap = Config.FinalBoss.SpawnGap
 	end
-	if Config.chapter() >= 2 then
+	if Config.chapter() == 2 then
 		local r3 = Config.Chapter2.Round3
 		if Config.chapterRound(wave) == r3.Round then
 			gap = math.max(inf.SpawnGapMin, r3.SpawnGap - spawnElapsed * 0.018)
@@ -464,7 +470,7 @@ local function waveLocalElapsed(wave: number): number
 end
 
 local function chapter2BigUnlocked(wave: number, elapsedLocal: number): boolean
-	if Config.chapter() < 2 then
+	if Config.chapter() ~= 2 then
 		return false
 	end
 	local r2 = Config.Chapter2.Round2
@@ -569,34 +575,34 @@ local function spawnOne()
 	local r9 = Config.Chapter2.Round9
 	local round = Config.chapterRound(wave)
 	local shieldChance = shieldCfg.SpawnChance
-	if Config.chapter() >= 2 and round == r4.Round then
+	if Config.chapter() == 2 and round == r4.Round then
 		local leftover = math.max(0.01, 1 - dogCfg.SpawnChance)
 		shieldChance = r4.ShieldSpawnChance / leftover
-	elseif Config.chapter() >= 2 and round == Config.Chapter2.Round10.Round then
+	elseif Config.chapter() == 2 and round == Config.Chapter2.Round10.Round then
 		local r10 = Config.Chapter2.Round10
 		local leftover = math.max(0.01, 1 - dogCfg.SpawnChance)
 		shieldChance = r10.ShieldSpawnChance / leftover
-	elseif Config.chapter() >= 2 and (round == r6.Round or round == r7.Round or round == r8.Round) then
+	elseif Config.chapter() == 2 and (round == r6.Round or round == r7.Round or round == r8.Round) then
 		local chance = if round == r8.Round then r8.ShieldSpawnChance
 			elseif round == r7.Round then r7.ShieldSpawnChance
 			else r6.ShieldSpawnChance
 		local leftover = math.max(0.01, 1 - dogCfg.SpawnChance)
 		shieldChance = chance / leftover
-	elseif Config.chapter() >= 2 and (round > r3.Round or (round == r3.Round and elapsedLocal >= r3.ShieldBoostAt)) then
+	elseif Config.chapter() == 2 and (round > r3.Round or (round == r3.Round and elapsedLocal >= r3.ShieldBoostAt)) then
 		local leftover = math.max(0.01, 1 - dogCfg.SpawnChance)
 		shieldChance = r3.ShieldSpawnChance / leftover
 	end
 	local isShield = (not isBoss)
 		and (not isDog)
-		and Config.chapter() >= shieldCfg.Chapter
+		and Config.chapter() == 2
 		and elapsed >= shieldUnlockAt
 		and math.random() < shieldChance
 	local shieldHitMin = shieldCfg.HitCountMin
 	local shieldHitMax = shieldCfg.HitCountMax
-	if Config.chapter() >= 2 and round >= r9.Round then
+	if Config.chapter() == 2 and round >= r9.Round then
 		shieldHitMin = r9.ShieldHitCountMin
 		shieldHitMax = r9.ShieldHitCountMax
-	elseif Config.chapter() >= 2 and round == r8.Round then
+	elseif Config.chapter() == 2 and round == r8.Round then
 		local r8inner = Config.Chapter2.Round8
 		if elapsedLocal >= r8inner.ShieldBoostAt then
 			shieldHitMin = r8inner.ShieldHitCountMin2
@@ -605,13 +611,13 @@ local function spawnOne()
 			shieldHitMin = r8inner.ShieldHitCountMin
 			shieldHitMax = r8inner.ShieldHitCountMax
 		end
-	elseif Config.chapter() >= 2 and round > r8.Round then
+	elseif Config.chapter() == 2 and round > r8.Round then
 		shieldHitMin = r8.ShieldHitCountMin
 		shieldHitMax = r8.ShieldHitCountMax
-	elseif Config.chapter() >= 2 and round == r6.Round then
+	elseif Config.chapter() == 2 and round == r6.Round then
 		shieldHitMin = r6.ShieldHitCountMin
 		shieldHitMax = r6.ShieldHitCountMax
-	elseif Config.chapter() >= 2 and round >= r3.Round then
+	elseif Config.chapter() == 2 and round >= r3.Round then
 		shieldHitMin = r3.ShieldHitCountMin
 		shieldHitMax = r3.ShieldHitCountMax
 	end
@@ -642,7 +648,7 @@ local function spawnOne()
 	elseif isDog then
 		health = dogCfg.Health + math.max(0, kills - killBaseline) * chapter2HealthPerKill() * 0.7
 		walkSpeed = dogCfg.WalkSpeed + elapsed * dogCfg.SpeedPerSecond
-		if Config.chapter() >= 2 and round == Config.Chapter2.Round10.Round then
+		if Config.chapter() == 2 and round == Config.Chapter2.Round10.Round then
 			walkSpeed *= Config.Chapter2.Round10.ZombieSpeedScale
 		end
 		contactDamage = dogCfg.ContactDamage
@@ -1100,17 +1106,18 @@ local function applyRoundFeatures(wave: number)
 	end
 end
 
-startChapter2 = function()
+local function startChapter(chapter: number)
 	destroyChapterPad()
 	paused = false
-	Config.setChapter(2)
+	Config.setChapter(chapter)
 	killBaseline = kills
 	CombatService.clear()
 	ZombieService.clear()
 	NumberGate.clear()
 	SupplyService.clearCrates()
-	setState("Chapter", 2)
-	setState("Wave", Config.Chapter2.Waves.From)
+	Arena.applyChapterLook(chapter)
+	setState("Chapter", chapter)
+	setState("Wave", Config.chapterStartWave(chapter))
 	setState("Elapsed", 0)
 	setState("Announce", "")
 	setState("HitPower", hitPower)
@@ -1156,20 +1163,28 @@ startChapter2 = function()
 			setState("Phase", "playing")
 			setState("Paused", false)
 			setState("Countdown", 0)
-			setState("Wave", Config.Chapter2.Waves.From)
+			setState("Wave", Config.chapterStartWave(chapter))
 			setState("HitPower", hitPower)
 		end
 	end)
 end
 
+startChapter2 = function()
+	startChapter(2)
+end
+
+startChapter3 = function()
+	startChapter(3)
+end
+
 local function beginChapterClear()
-	if chapterClearArmed or phase ~= "playing" or Config.chapter() >= 2 then
+	if chapterClearArmed or phase ~= "playing" or Config.chapter() >= 3 then
 		return
 	end
 	chapterClearArmed = true
 	phase = "chapterClear"
 	setState("Phase", "chapterClear")
-	setState("Announce", "1챕터 클리어")
+	setState("Announce", `{Config.chapter()}챕터 클리어`)
 	CombatService.clear()
 	NumberGate.clear()
 	SupplyService.clearCrates()
@@ -1189,6 +1204,7 @@ local function beginPlay()
 	killBaseline = 0
 	chapterClearArmed = false
 	Config.setChapter(1)
+	Arena.applyChapterLook(1)
 	destroyChapterPad()
 	setState("Chapter", 1)
 	-- First crate at FirstSpawnDelay, then every SpawnInterval after that.
@@ -1268,7 +1284,7 @@ local function jumpToRound(localRound: number)
 		else
 			matchStart = os.clock()
 			lastSpawnAt = 0
-			setState("Wave", Config.Chapter2.Waves.From)
+			setState("Wave", Config.chapterStartWave())
 			setState("Elapsed", 0)
 			setState("HitPower", hitPower)
 		end
@@ -1279,7 +1295,7 @@ local function jumpToRound(localRound: number)
 
 	local wave = localRound
 	if Config.chapter() >= 2 then
-		wave = Config.Chapter2.Waves.From + localRound - 1
+		wave = Config.chapterStartWave() + localRound - 1
 	end
 
 	hitPower = math.max(1, math.floor(keptHitPower))
@@ -1350,6 +1366,7 @@ local function returnToLobby()
 	killBaseline = 0
 	chapterClearArmed = false
 	Config.setChapter(1)
+	Arena.applyChapterLook(1)
 	destroyChapterPad()
 	CombatService.clear()
 	ZombieService.clear()
@@ -1701,7 +1718,7 @@ function GameService.start(remotes)
 		if id == "x2" or kind.Op == "mul" then
 			hitPower = math.max(1, math.floor(hitPower * math.max(1, value)))
 			local waveNow = (stateFolder:GetAttribute("Wave") :: number?) or 1
-			if Config.chapter() >= 2 then
+			if Config.chapter() == 2 then
 				local localRound = Config.chapterRound(waveNow)
 				if localRound == Config.Chapter2.Round4.Round then
 					ch2R4X2Collected = true
@@ -1786,7 +1803,9 @@ function GameService.start(remotes)
 			if not Config.Debug.Enabled or typeof(value) ~= "number" then
 				return
 			end
-			if (value :: number) >= 2 then
+			if (value :: number) >= 3 then
+				startChapter3()
+			elseif (value :: number) >= 2 then
 				startChapter2()
 			end
 		end)
@@ -1833,10 +1852,14 @@ function GameService.start(remotes)
 				setState("Wave", wave)
 			end
 			applyRoundFeatures(wave)
-			if Config.chapter() <= 1
-				and wave >= Config.FinalBoss.Round
-				and finalBossSpawned
-				and #ZombieService.getAlive() == 0
+			if (Config.chapter() <= 1
+					and wave >= Config.FinalBoss.Round
+					and finalBossSpawned
+					and #ZombieService.getAlive() == 0)
+				or (Config.chapter() == 2
+					and Config.chapterRound(wave) == Config.Chapter2.Round10.Round
+					and ch2R10BossSpawned
+					and #ZombieService.getAlive() == 0)
 			then
 				beginChapterClear()
 			end
@@ -1874,17 +1897,28 @@ function GameService.start(remotes)
 		if phase == "playing" then
 			local stats = currentStats()
 			local waveNow = (stateFolder:GetAttribute("Wave") :: number?) or 1
-			local holdSpawns = Config.chapter() <= 1
-				and waveNow >= Config.FinalBoss.Round
-				and finalBossSpawned
-				and (function()
-					for _, record in ZombieService.getAlive() do
-						if record.model:GetAttribute("IsFinalBoss") == true then
-							return false
+			local holdSpawns = (Config.chapter() <= 1
+					and waveNow >= Config.FinalBoss.Round
+					and finalBossSpawned
+					and (function()
+						for _, record in ZombieService.getAlive() do
+							if record.model:GetAttribute("IsFinalBoss") == true then
+								return false
+							end
 						end
-					end
-					return true
-				end)()
+						return true
+					end)())
+				or (Config.chapter() == 2
+					and Config.chapterRound(waveNow) == Config.Chapter2.Round10.Round
+					and ch2R10BossSpawned
+					and (function()
+						for _, record in ZombieService.getAlive() do
+							if record.model:GetAttribute("IsFinalBoss") == true then
+								return false
+							end
+						end
+						return true
+					end)())
 			if not holdSpawns and #ZombieService.getAlive() < stats.maxAlive and now - lastSpawnAt >= stats.gap then
 				lastSpawnAt = now
 				spawnOne()
@@ -1939,7 +1973,7 @@ function GameService.start(remotes)
 			end
 			end
 
-			if Config.chapter() >= 2 then
+			if Config.chapter() == 2 then
 				local sniperCfg = Config.SniperCrate
 				if chapter2PlusDueAt > 0 and not chapter2PlusSpawned and now >= chapter2PlusDueAt then
 					chapter2PlusSpawned = true

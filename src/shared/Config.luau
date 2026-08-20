@@ -658,10 +658,69 @@ Config.Chapter2 = {
 		HordeAt = 40,
 		HordeCount = 30,
 		LateHordeAt = 50,
-		LateHordeCount = 25,
+		LateHordeCount = 40,
 		ShieldSpawnChance = 0.05,
 		MaxAlive = 30,
 		SpawnGap = 0.4,
+	},
+}
+
+-- 3챕터 — 폐쇄된 군사통제구역 / DMZ (라운드 설계는 이후)
+Config.Chapter3 = {
+	Waves = {
+		From = 21,
+		Until = 30,
+		Duration = 60,
+	},
+	MaxHitPower = 34,
+
+	Zombie = {
+		Health = 36,
+		WalkSpeed = 6.2,
+		ContactDamage = 7,
+		ContactCooldown = 0.95,
+		HitRadius = 3.1,
+		SpawnGap = 0.9,
+		ChaseProgress = 0.8,
+		ChaseStrafeScale = 0.22,
+		ChaseStrafeFarScale = 0.42,
+		StopDistance = 7.5,
+		AttackDuration = 0.55,
+		ShambleSpeed = 2.4,
+		BodyColor = Color3.fromRGB(72, 112, 58),
+		ClothesColor = Color3.fromRGB(62, 48, 40),
+	},
+	ZombieDog = {
+		UnlockWave = 21,
+		SpawnChance = 0.32,
+		Health = 28,
+		WalkSpeed = 9.4,
+		ContactDamage = 6,
+		HitRadius = 4.2,
+		SizeScale = 0.85,
+		BodyColor = Color3.fromRGB(58, 72, 48),
+		SpeedPerSecond = 0.028,
+	},
+	Infinite = {
+		MaxAlive = 20,
+		SpawnGapStart = 0.5,
+		SpawnGapMin = 0.2,
+		LaneSlots = { -10, -5, 0, 5, 10 },
+		HealthPerKill = 0.17,
+		SpeedPerSecond = 0.022,
+		AllySpawnGapScale = 0.62,
+		AllyMaxAliveBonus = 4,
+	},
+	Lane = {
+		Width = 32,
+		Length = 220,
+		Thickness = 1,
+		CenterY = 0.5,
+		PlayerZ = 12512,
+		SpawnZ = 12700,
+		SidePathWidth = 10,
+		GapWidth = 6,
+		MergeUntilZ = 12542,
 	},
 }
 
@@ -700,6 +759,9 @@ function Config.chapter(): number
 end
 
 function Config.activeLane()
+	if Config._chapter >= 3 then
+		return Config.Chapter3.Lane
+	end
 	if Config._chapter >= 2 then
 		return Config.Chapter2.Lane
 	end
@@ -707,6 +769,9 @@ function Config.activeLane()
 end
 
 function Config.activeZombie()
+	if Config._chapter >= 3 then
+		return Config.Chapter3.Zombie
+	end
 	if Config._chapter >= 2 then
 		return Config.Chapter2.Zombie
 	end
@@ -714,6 +779,9 @@ function Config.activeZombie()
 end
 
 function Config.activeDog()
+	if Config._chapter >= 3 then
+		return Config.Chapter3.ZombieDog
+	end
 	if Config._chapter >= 2 then
 		return Config.Chapter2.ZombieDog
 	end
@@ -721,10 +789,24 @@ function Config.activeDog()
 end
 
 function Config.activeInfinite()
+	if Config._chapter >= 3 then
+		return Config.Chapter3.Infinite
+	end
 	if Config._chapter >= 2 then
 		return Config.Chapter2.Infinite
 	end
 	return Config.Infinite
+end
+
+function Config.chapterStartWave(chapter: number?): number
+	local ch = chapter or Config._chapter
+	if ch >= 3 then
+		return Config.Chapter3.Waves.From
+	end
+	if ch >= 2 then
+		return Config.Chapter2.Waves.From
+	end
+	return 1
 end
 
 function Config.playerStandY(): number
@@ -771,7 +853,7 @@ end
 function Config.numberedWeaponHits(kind: string, wave: number?): number
 	local r9 = Config.Chapter2.Round9
 	local w = wave or 1
-	local late = Config.chapter() >= 2 and Config.chapterRound(w) >= r9.Round
+	local late = Config.chapter() == 2 and Config.chapterRound(w) >= r9.Round
 	if kind == "sniper" then
 		return if late then r9.SniperHitDamage else Config.SniperCrate.HitDamage
 	elseif kind == "bomb" then
@@ -784,6 +866,9 @@ end
 
 function Config.maxHitPower(chapter: number?): number
 	local ch = chapter or Config.chapter()
+	if ch >= 3 then
+		return Config.Chapter3.MaxHitPower
+	end
 	if ch >= 2 then
 		return Config.Chapter2.MaxHitPower
 	end
@@ -792,6 +877,9 @@ end
 
 function Config.chapterRound(wave: number, chapter: number?): number
 	local ch = chapter or Config.chapter()
+	if ch >= 3 then
+		return math.max(1, math.floor(wave) - Config.Chapter3.Waves.From + 1)
+	end
 	if ch >= 2 then
 		return math.max(1, math.floor(wave) - Config.Chapter2.Waves.From + 1)
 	end
@@ -799,6 +887,12 @@ function Config.chapterRound(wave: number, chapter: number?): number
 end
 
 function Config.durationForWave(wave: number): number
+	if wave >= Config.Chapter3.Waves.From then
+		if wave > Config.Chapter3.Waves.Until then
+			return 1e9
+		end
+		return Config.Chapter3.Waves.Duration
+	end
 	if wave >= Config.Chapter2.Waves.From then
 		if wave > Config.Chapter2.Waves.Until then
 			return 1e9
@@ -818,7 +912,14 @@ function Config.durationForWave(wave: number): number
 end
 
 function Config.elapsedAtWaveStart(wave: number): number
-	local startWave = if wave >= Config.Chapter2.Waves.From then Config.Chapter2.Waves.From else 1
+	local startWave = 1
+	if wave >= Config.Chapter3.Waves.From then
+		startWave = Config.Chapter3.Waves.From
+	elseif wave >= Config.Chapter2.Waves.From then
+		startWave = Config.Chapter2.Waves.From
+	else
+		startWave = 1
+	end
 	local total = 0
 	for w = startWave, math.max(startWave, math.floor(wave)) - 1 do
 		total += Config.durationForWave(w)
@@ -828,6 +929,19 @@ end
 
 function Config.waveFromElapsed(elapsed: number, chapter: number?): number
 	local ch = chapter or Config.chapter()
+	if ch >= 3 then
+		local from = Config.Chapter3.Waves.From
+		local last = Config.Chapter3.Waves.Until
+		local t = 0
+		for w = from, last do
+			local d = Config.durationForWave(w)
+			if elapsed < t + d then
+				return w
+			end
+			t += d
+		end
+		return last
+	end
 	if ch >= 2 then
 		local from = Config.Chapter2.Waves.From
 		local last = Config.Chapter2.Waves.Until
