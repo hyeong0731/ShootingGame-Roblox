@@ -9,6 +9,7 @@ local Effects = require(script.Effects)
 local Input = require(script.Input)
 
 local CombatPose = require(script.CombatPose)
+local Chapter3Fog = require(script.Chapter3Fog)
 
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
@@ -22,3 +23,4 @@ Hud.start()
 Effects.start(remotes)
 Input.start(remotes)
 CombatPose.start()
+Chapter3Fog.start()

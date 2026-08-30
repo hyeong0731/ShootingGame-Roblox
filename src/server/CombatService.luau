@@ -16,6 +16,7 @@ local active = {} :: {
 		speed: number,
 		damage: number,
 		hits: number,
+		shieldHits: number?,
 		born: number,
 		pierce: boolean,
 		oneshot: boolean,
@@ -364,7 +365,9 @@ end
 
 function CombatService.fireShotgun(origin: Vector3, damage: number, hits: number?)
 	local cfg = Config.Shotgun
-	local pelletHits = math.max(1, math.floor((hits or 1) * cfg.HitsScale + 0.5))
+	local playerDps = math.max(1, math.floor(hits or 1))
+	local pelletHits = math.max(1, math.floor(playerDps * cfg.HitsScale + 0.5))
+	local pelletShieldHits = math.max(1, playerDps * (cfg.ShieldHitsPerPellet or 3))
 	local unitDmg = cfg.ReferenceUnitDamage or damage
 	local pelletDamage = math.max(1, unitDmg * cfg.DamageScale)
 	local lane = Config.activeLane()
@@ -390,6 +393,7 @@ function CombatService.fireShotgun(origin: Vector3, damage: number, hits: number
 			speed = cfg.ProjectileSpeed,
 			damage = pelletDamage,
 			hits = pelletHits,
+			shieldHits = pelletShieldHits,
 			born = os.clock(),
 			pierce = false,
 			oneshot = false,
@@ -419,7 +423,7 @@ local function shotFalloffScale(shot: typeof(active[1]), z: number): number
 	return 1 - t * (1 - minScale)
 end
 
-local function applyShot(model: Model, damage: number, hits: number, oneshot: boolean?): boolean
+local function applyShot(model: Model, damage: number, hits: number, oneshot: boolean?, shieldHits: number?): boolean
 	if model:GetAttribute("IsNumberGate") == true then
 		return NumberGate.damageModel(model, hits)
 	end
@@ -438,7 +442,8 @@ local function applyShot(model: Model, damage: number, hits: number, oneshot: bo
 			end
 		end
 	end
-	return ZombieService.damageModel(model, amount, hits)
+	local dpsHits = if model:GetAttribute("HasShield") == true and shieldHits then shieldHits else hits
+	return ZombieService.damageModel(model, amount, dpsHits)
 end
 
 local function pointToSegmentDist(point: Vector3, a: Vector3, b: Vector3): (number, Vector3)
@@ -529,7 +534,7 @@ local function pierceHitAll(from: Vector3, to: Vector3, shot: typeof(active[1]))
 		local pad = if record.isDog then 1.6 else 0.85
 		if dist <= radius + pad + shot.radius then
 			shot.hitSet[record.model] = true
-			applyShot(record.model, shot.damage, shot.hits, shot.oneshot)
+			applyShot(record.model, shot.damage, shot.hits, shot.oneshot, shot.shieldHits)
 		end
 	end
 
@@ -574,7 +579,7 @@ local function pierceHitAll(from: Vector3, to: Vector3, shot: typeof(active[1]))
 
 	if bestSideModel then
 		shot.hitSet[bestSideModel] = true
-		applyShot(bestSideModel, shot.damage, shot.hits, shot.oneshot)
+		applyShot(bestSideModel, shot.damage, shot.hits, shot.oneshot, shot.shieldHits)
 	end
 end
 
@@ -685,7 +690,7 @@ function CombatService.update(dt: number)
 					model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
 				end
 				if model then
-					damaged = applyShot(model, dmg, hits, shot.oneshot)
+					damaged = applyShot(model, dmg, hits, shot.oneshot, shot.shieldHits)
 				end
 			end
 			if not damaged then

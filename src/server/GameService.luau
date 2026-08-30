@@ -129,6 +129,21 @@ local ch3R1ShotgunSpawned = false
 local ch3R1SpikeSpawned = false
 local ch3R1SniperSpawned = false
 local ch3R1PlusSpawned = false
+local ch3R1Shotgun2Spawned = false
+local ch3R2MinusSpawned = false
+local ch3R2BombSpawned = false
+local ch3R2BigRightSpawned = false
+local ch3R2BigLeftSpawned = false
+local ch3R2MolotovSpawned = false
+local ch3R2DogSwarmSpawned = false
+local ch3R2SpikeSpawned = false
+local ch3R2ShotgunSpawned = false
+local ch3R3FogWarnShown = false
+local ch3R3FogActive = false
+local ch3R3FogEndAt = 0
+local ch3R3SniperSpawned = false
+local ch3R3X2Spawned = false
+local ch3R3SpikeSpawned = false
 
 local function setState(key: string, value: any)
 	stateFolder:SetAttribute(key, value)
@@ -467,12 +482,26 @@ local function currentStats()
 		end
 	end
 	if Config.chapter() == 3 then
-		-- R1 35초부터는 스폰 간격을 조금 늘려 압박을 살짝 낮춘다.
 		local r1 = Config.Chapter3.Round1
+		local r2 = Config.Chapter3.Round2
+		local r3 = Config.Chapter3.Round3
 		local localRound = Config.chapterRound(wave)
 		local localElapsed = math.max(0, elapsed - Config.elapsedAtWaveStart(wave))
-		if localRound > r1.Round or localElapsed >= r1.SpawnEaseAt then
+		if localRound <= r2.Round and localElapsed >= r1.SpawnEaseAt then
 			gap *= Config.Chapter3.SpawnEaseGapScale
+		end
+		if localRound == r2.Round and localElapsed >= r2.SpawnEase2At then
+			gap *= r2.SpawnEase2GapScale
+		end
+		if localRound == r3.Round then
+			if localElapsed >= r3.HordeStartAt and localElapsed < r3.HordeEndAt then
+				gap = r3.HordeSpawnGap
+				maxAlive = r3.HordeMaxAlive
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+					maxAlive += inf.AllyMaxAliveBonus
+				end
+			end
 		end
 	end
 	return {
@@ -504,6 +533,34 @@ local function resetChapter3Round1Events()
 	ch3R1SpikeSpawned = false
 	ch3R1SniperSpawned = false
 	ch3R1PlusSpawned = false
+	ch3R1Shotgun2Spawned = false
+end
+
+local function resetChapter3Round2Events()
+	ch3R2MinusSpawned = false
+	ch3R2BombSpawned = false
+	ch3R2BigRightSpawned = false
+	ch3R2BigLeftSpawned = false
+	ch3R2MolotovSpawned = false
+	ch3R2DogSwarmSpawned = false
+	ch3R2SpikeSpawned = false
+	ch3R2ShotgunSpawned = false
+end
+
+local function resetChapter3Round3Events()
+	ch3R3FogWarnShown = false
+	ch3R3FogActive = false
+	ch3R3FogEndAt = 0
+	ch3R3SniperSpawned = false
+	ch3R3X2Spawned = false
+	ch3R3SpikeSpawned = false
+	setState("Ch3FogActive", false)
+end
+
+local function resetChapter3Events()
+	resetChapter3Round1Events()
+	resetChapter3Round2Events()
+	resetChapter3Round3Events()
 end
 
 local function resetChapter2Round2Events()
@@ -619,10 +676,19 @@ local function spawnOne()
 		shieldChance = r3.ShieldSpawnChance / leftover
 	end
 	local ch3R1 = Config.Chapter3.Round1
-	local ch3ShieldOpen = Config.chapter() == 3
-		and (round > ch3R1.Round or elapsedLocal >= ch3R1.ShieldAt)
+	local ch3R3 = Config.Chapter3.Round3
+	local ch3ShieldOpen = false
+	if Config.chapter() == 3 then
+		if round == ch3R1.Round then
+			ch3ShieldOpen = elapsedLocal >= ch3R1.ShieldAt
+		elseif round == ch3R3.Round then
+			ch3ShieldOpen = elapsedLocal >= ch3R3.HordeStartAt and elapsedLocal < ch3R3.HordeEndAt
+		elseif round > ch3R1.Round then
+			ch3ShieldOpen = true
+		end
+	end
 	if ch3ShieldOpen then
-		shieldChance = ch3R1.ShieldSpawnChance
+		shieldChance = if round == ch3R3.Round then ch3R3.ShieldSpawnChance else ch3R1.ShieldSpawnChance
 	end
 	local isShield = (not isBoss)
 		and (not isDog)
@@ -676,17 +742,26 @@ local function spawnOne()
 	end
 
 	local throwerCfg = Config.ThrowerZombie
-	local isThrower = Config.chapter() == 3
-		and (not isBoss)
-		and (not isDog)
-		and (not isShield)
-		and (round > ch3R1.Round or elapsedLocal >= ch3R1.ThrowerAt)
-		and math.random() < throwerCfg.SpawnChance
+	local isThrower = false
+	if Config.chapter() == 3 and (not isBoss) and (not isDog) and (not isShield) then
+		if round == ch3R1.Round and elapsedLocal >= ch3R1.ThrowerAt then
+			isThrower = math.random() < throwerCfg.SpawnChance
+		elseif round == ch3R3.Round
+			and elapsedLocal >= ch3R3.ThrowerAt
+			and elapsedLocal < ch3R3.HordeEndAt
+		then
+			isThrower = math.random() < ch3R3.ThrowerSpawnChance
+		end
+	end
 	local throwerStopZ = if isThrower
 		then lane.PlayerZ + (lane.SpawnZ - lane.PlayerZ) * throwerCfg.StopRatio
 		else nil
 
-	local scale = if isBoss then Config.Boss.SizeMultiplier elseif isDog then dogCfg.SizeScale else 1
+	local scale = if isBoss
+		then Config.Boss.SizeMultiplier
+		elseif isThrower then throwerCfg.SizeScale
+		elseif isDog then dogCfg.SizeScale
+		else 1
 	local y = lane.CenterY + (if isDog then 1.35 else 2.4) * scale
 
 	local health: number
@@ -975,6 +1050,74 @@ local function spawnChapter2FinalHorde(count: number)
 	end
 end
 
+local function spawnChapter3BigZombie(spawnX: number)
+	local r2 = Config.Chapter3.Round2
+	local stats = currentStats()
+	local lane = Config.activeLane()
+	local scale = r2.BigZombieSizeScale
+	local y = lane.CenterY + 2.4 * scale
+	local zombie = ZombieService.create(Vector3.new(spawnX, y, lane.SpawnZ), {
+		health = stats.health * r2.BigZombieHealthMult,
+		walkSpeed = stats.speed * r2.BigZombieSpeedScale,
+		isBoss = true,
+		isBig = true,
+		isDog = false,
+		isShield = false,
+		contactDamage = Config.Boss.ContactDamage,
+		scale = scale,
+		hitCount = nil,
+	})
+	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+end
+
+local function spawnChapter3DogSwarm(count: number)
+	local r2 = Config.Chapter3.Round2
+	local spread = r2.DogSwarmDuration or 2
+	local n = math.max(1, math.floor(count))
+	task.spawn(function()
+		local lane = Config.activeLane()
+		local slots = Config.activeInfinite().LaneSlots
+		local dogCfg = Config.activeDog()
+		local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+		local delays: { number } = table.create(n)
+		for i = 1, n do
+			delays[i] = math.random() * spread
+		end
+		table.sort(delays)
+		local prev = 0
+		for i = 1, n do
+			if phase ~= "playing" then
+				return
+			end
+			local waitTime = delays[i] - prev
+			if waitTime > 0 then
+				task.wait(waitTime)
+			end
+			prev = delays[i]
+			if phase ~= "playing" then
+				return
+			end
+			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
+			x = math.clamp(x, minX, maxX)
+			local z = lane.SpawnZ + math.random() * 12
+			local elapsed = math.max(0, os.clock() - matchStart)
+			local y = lane.CenterY + 1.35
+			local zombie = ZombieService.create(Vector3.new(x, y, z), {
+				health = dogCfg.Health,
+				walkSpeed = dogCfg.WalkSpeed + elapsed * dogCfg.SpeedPerSecond,
+				isBoss = false,
+				isBig = false,
+				isDog = true,
+				isShield = false,
+				contactDamage = dogCfg.ContactDamage,
+				scale = dogCfg.SizeScale,
+				hitCount = nil,
+			})
+			ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+		end
+	end)
+end
+
 local function spawnChapter2ShieldPack(count: number?, hitMin: number?, hitMax: number?)
 	local r7 = Config.Chapter2.Round7
 	local stats = currentStats()
@@ -1225,7 +1368,7 @@ local function startChapter(chapter: number)
 			paused = false
 			matchStart = os.clock()
 			lastSpawnAt = 0
-			resetChapter3Round1Events()
+			resetChapter3Events()
 			setState("Phase", "playing")
 			setState("Paused", false)
 			setState("Countdown", 0)
@@ -1289,7 +1432,7 @@ local function beginPlay()
 	chapter2X2Spawned = false
 	chapter2PlusDueAt = 0
 	chapter2X2DueAt = 0
-	resetChapter3Round1Events()
+	resetChapter3Events()
 	resetChapter2Round2Events()
 	gatePlayArmed = false
 	lastGateSpawnAt = 0
@@ -1390,7 +1533,7 @@ local function jumpToRound(localRound: number)
 	resetChapter2Round2Events()
 	gatePlayArmed = false
 	setState("MolotovLeft", 0)
-	resetChapter3Round1Events()
+	resetChapter3Events()
 	applyRoundFeatures(wave)
 end
 
@@ -1553,7 +1696,7 @@ local function returnToLobby()
 	chapter2X2Spawned = false
 	chapter2PlusDueAt = 0
 	chapter2X2DueAt = 0
-	resetChapter3Round1Events()
+	resetChapter3Events()
 	resetChapter2Round2Events()
 	gatePlayArmed = false
 	hitPower = 1
@@ -1600,7 +1743,7 @@ local function startMatch()
 	chapter2X2Spawned = false
 	chapter2PlusDueAt = 0
 	chapter2X2DueAt = 0
-	resetChapter3Round1Events()
+	resetChapter3Events()
 	resetChapter2Round2Events()
 	gatePlayArmed = false
 	supplyRoundArmed = false
@@ -2502,8 +2645,15 @@ function GameService.start(remotes)
 
 			if Config.chapter() == 3 then
 				local r1 = Config.Chapter3.Round1
-				if Config.chapterRound(wave) == r1.Round then
-					local t = waveLocalElapsed(wave)
+				local r2 = Config.Chapter3.Round2
+				local r3 = Config.Chapter3.Round3
+				local round = Config.chapterRound(wave)
+				local t = waveLocalElapsed(wave)
+				if round ~= r3.Round and ch3R3FogActive then
+					ch3R3FogActive = false
+					setState("Ch3FogActive", false)
+				end
+				if round == r1.Round then
 					if t >= r1.ShotgunAt and not ch3R1ShotgunSpawned then
 						ch3R1ShotgunSpawned = true
 						SupplyService.createShotgun(true, r1.ShotgunHitCountMin, r1.ShotgunHitCountMax)
@@ -2519,6 +2669,92 @@ function GameService.start(remotes)
 					if t >= r1.PlusAt and not ch3R1PlusSpawned then
 						ch3R1PlusSpawned = true
 						NumberGate.createPlus(r1.PlusHitCountMin, r1.PlusHitCountMax, true)
+					end
+					if t >= r1.Shotgun2At and not ch3R1Shotgun2Spawned then
+						ch3R1Shotgun2Spawned = true
+						SupplyService.createShotgun(true, r1.Shotgun2HitCountMin, r1.Shotgun2HitCountMax)
+					end
+				end
+				if round == r2.Round then
+					if t >= r2.MinusAt and not ch3R2MinusSpawned then
+						ch3R2MinusSpawned = true
+						NumberGate.createMinus(
+							r2.MinusHitCountMin,
+							r2.MinusHitCountMax,
+							true,
+							r2.MinusWalkSpeedScale
+						)
+					end
+					if t >= r2.BombAt and not ch3R2BombSpawned then
+						ch3R2BombSpawned = true
+						SupplyService.createBomb(true, r2.BombHitCountMin, r2.BombHitCountMax)
+					end
+					if t >= r2.BigZombieRightAt and not ch3R2BigRightSpawned then
+						ch3R2BigRightSpawned = true
+						spawnChapter3BigZombie(r2.BigZombieRightX)
+					end
+					if t >= r2.BigZombieLeftAt and not ch3R2BigLeftSpawned then
+						ch3R2BigLeftSpawned = true
+						spawnChapter3BigZombie(r2.BigZombieLeftX)
+					end
+					if t >= r2.MolotovAt and not ch3R2MolotovSpawned then
+						ch3R2MolotovSpawned = true
+						SupplyService.createMolotov(true, nil, nil, r2.MolotovGrantCount)
+					end
+					if t >= r2.DogSwarmAt and not ch3R2DogSwarmSpawned then
+						ch3R2DogSwarmSpawned = true
+						spawnChapter3DogSwarm(r2.DogSwarmCount)
+					end
+					if t >= r2.SpikeAt and not ch3R2SpikeSpawned then
+						ch3R2SpikeSpawned = true
+						SpikeTrap.create()
+					end
+					if t >= r2.ShotgunAt and not ch3R2ShotgunSpawned then
+						ch3R2ShotgunSpawned = true
+						SupplyService.createShotgun(true, r2.ShotgunHitCountMin, r2.ShotgunHitCountMax)
+					end
+				end
+				if round == r3.Round then
+					local fogCfg = Config.Chapter3.Fog
+					if t >= r3.FogWarnAt and not ch3R3FogWarnShown then
+						ch3R3FogWarnShown = true
+						setState("Announce", fogCfg.WarnText)
+						task.delay(r3.FogStartAt - r3.FogWarnAt, function()
+							if (stateFolder:GetAttribute("Announce") or "") == fogCfg.WarnText then
+								setState("Announce", "")
+							end
+						end)
+					end
+					if t >= r3.FogStartAt and not ch3R3FogActive then
+						ch3R3FogActive = true
+						ch3R3FogEndAt = t + r3.FogDuration
+						setState("Ch3FogActive", true)
+					end
+					if ch3R3FogActive and t >= ch3R3FogEndAt then
+						ch3R3FogActive = false
+						setState("Ch3FogActive", false)
+					end
+					if t >= r3.SniperAt and not ch3R3SniperSpawned then
+						ch3R3SniperSpawned = true
+						SupplyService.createSniper(true, r3.SniperHitCountMin, r3.SniperHitCountMax)
+					end
+					if t >= r3.X2At and not ch3R3X2Spawned then
+						ch3R3X2Spawned = true
+						NumberGate.createX2(r3.X2HitCountMin, r3.X2HitCountMax, true)
+					end
+					if t >= r3.SpikeAt and not ch3R3SpikeSpawned then
+						ch3R3SpikeSpawned = true
+						local lane = Config.activeLane()
+						local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+						local half = Config.SpikeTrap.Size * 0.5
+						SpikeTrap.create(minX + half * 0.4)
+						task.spawn(function()
+							task.wait(r3.SpikeRightDelay)
+							if phase ~= "playing" then
+								return
+							end
+							SpikeTrap.create(maxX - half * 0.4)
+						end)
 					end
 				end
 			end

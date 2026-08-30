@@ -397,7 +397,7 @@ local function createHitCountBadge(parent: Instance): Frame
 	value.Position = UDim2.new(0.5, 0, 0.08, 0)
 	value.AnchorPoint = Vector2.new(0.5, 0)
 	value.Font = Enum.Font.GothamBlack
-	value.Text = "현재타수 : 1"
+	value.Text = "현재 DPS : 1"
 	value.TextColor3 = Color3.fromRGB(20, 28, 48)
 	value.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
 	value.TextStrokeTransparency = 0.35
@@ -416,7 +416,7 @@ local function createHitCountBadge(parent: Instance): Frame
 	maxValue.Position = UDim2.new(0.5, 0, 0.56, 0)
 	maxValue.AnchorPoint = Vector2.new(0.5, 0)
 	maxValue.Font = Enum.Font.GothamBold
-	maxValue.Text = `최대타수 : {Config.maxHitPower(1)}`
+	maxValue.Text = `최대 DPS : {Config.maxHitPower(1)}`
 	maxValue.TextColor3 = Color3.fromRGB(40, 70, 120)
 	maxValue.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
 	maxValue.TextStrokeTransparency = 0.45
@@ -803,13 +803,13 @@ function Hud.start()
 		hitsTitle.Size = UDim2.new(1, -8, 0, 22)
 		hitsTitle.Position = UDim2.fromOffset(4, 4)
 		hitsTitle.Font = Enum.Font.GothamBlack
-		hitsTitle.Text = "DEV 총알 타수"
+		hitsTitle.Text = "DEV 총알 DPS"
 		hitsTitle.TextColor3 = Color3.fromRGB(255, 200, 70)
 		hitsTitle.TextScaled = true
 		hitsTitle.ZIndex = 9
 		hitsTitle.Parent = hitsPanel
 
-		local powerValue, powerMinus, powerPlus = createDevStepper(hitsPanel, "HitPower", "현재 타수", 28)
+		local powerValue, powerMinus, powerPlus = createDevStepper(hitsPanel, "HitPower", "현재 DPS", 28)
 
 		local setHitPower = remotes:WaitForChild("DebugHitPower")
 		local function currentHitPower(): number
@@ -918,11 +918,11 @@ function Hud.start()
 		local hitPower = state:GetAttribute("HitPower") or 1
 		local hitValue = hitBadge:FindFirstChild("Value")
 		if hitValue and hitValue:IsA("TextLabel") then
-			hitValue.Text = `현재타수 : {hitPower}`
+			hitValue.Text = `현재 DPS : {hitPower}`
 		end
 		local maxValue = hitBadge:FindFirstChild("MaxValue")
 		if maxValue and maxValue:IsA("TextLabel") then
-			maxValue.Text = `최대타수 : {Config.maxHitPower(chapter)}`
+			maxValue.Text = `최대 DPS : {Config.maxHitPower(chapter)}`
 		end
 		local isLobby = currentPhase == "lobby"
 		local isClear = currentPhase == "chapterClear"

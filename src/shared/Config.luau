@@ -189,12 +189,13 @@ Config.Molotov = {
 Config.Shotgun = {
 	Duration = 10, -- 지속(초)
 	FireInterval = 0.65, -- 소총보다 느리게
-	PelletCount = 7,
+	PelletCount = 9,
 	-- +Z 기준 yaw(도). 바깥일수록 벌어져 V자 (좁은 집탄)
-	SpreadYawDeg = { -3.7, -2.5, -1.2, 0, 1.2, 2.5, 3.7 },
-	DamageScale = 0.8, -- 펠릿 2발 ≈ 일반 좀비(36) 처치 (기준 데미지 24)
+	SpreadYawDeg = { -3.7, -2.8, -2.5, -1.2, 0, 1.2, 2.5, 2.8, 3.7 },
+	DamageScale = 1.05, -- 펠릿당 데미지 상향
 	ReferenceUnitDamage = 24, -- 기본총 밸런스와 분리 (샷건 펠릿 기준)
-	HitsScale = 0.5, -- 펠릿당 타수 배수 (hitPower 기준)
+	HitsScale = 0.5, -- 펠릿당 DPS 배수 (상자·게이트)
+	ShieldHitsPerPellet = 3, -- 방패: 펠릿 1발당 플레이어 DPS × 이 값 (DPS 2 → 6)
 	ProjectileSpeed = 260,
 	ProjectileRadius = 1.15,
 	BoltSize = Vector3.new(0.22, 0.22, 2.2),
@@ -214,21 +215,22 @@ Config.SpikeTrap = {
 	BaseHeight = 0.35,
 	SpikeRows = 4, -- 가로/세로 가시 개수
 	SpikeHeight = 1.05,
-	SpeedScale = 1.18, -- 좀비 속도 배수 (약간 빠르게)
+	SpeedScale = 1.8,
 	DamagePercentPerSecond = 15, -- 서 있는 동안 초당 최대체력 %
 }
 
 -- 투척 좀비 (챕터3). 앞까지만 오고 돌을 던짐
 Config.ThrowerZombie = {
-	SpawnChance = 0.18, -- 일반 스폰 중 투척 좀비 비율
-	Health = 60, -- 기본총(12) 5방
-	WalkSpeed = 5.6,
+	SpawnChance = 0.15, -- 일반 스폰 중 투척 좀비 비율
+	Health = 100,
+	WalkSpeed = 8.8, -- 더 빠르게 — 멀리서도 먼저 보이게
+	SizeScale = 0.78, -- 일반 좀비보다 작게
 	StopRatio = 0.4, -- 캐릭터~스폰 거리의 이 비율까지만 접근
 	FirstThrowDelay = 1.1,
 	ThrowInterval = 2.6,
 	ThrowAnimTime = 0.95, -- 던지기 모션이 보이도록 충분히
 	ReleaseAt = 0.48, -- 던지기 모션 중 손 떠나는 시점(0~1)
-	RockDamage = 8.5, -- 약 12대에 사망 (체력 100)
+	RockDamage = 7.15, -- 약 14대에 사망 (체력 100)
 	RockRadius = 4.2,
 	RockSpeed = 72,
 	RockSize = 0.85,
@@ -780,7 +782,21 @@ Config.Chapter3 = {
 		MergeUntilZ = 12542,
 	},
 	SniperFireInterval = 1.5, -- 챕터3 스나이퍼 연사 (기본 0.7보다 훨씬 느리게)
-	SpawnEaseGapScale = 1.2, -- 스폰 간격 소폭 증가 (R1 35초 이후 계속)
+	SpawnEaseGapScale = 1.2, -- 스폰 간격 소폭 증가 (R1 35초 이후, R2만)
+	Fog = {
+		-- 그라데이션 Depth Fog (물리 벽 없음)
+		-- FogStart=20% / FogEnd=58% 선형 안개, 유닛은 smoothstep 보조
+		MaxDistance = nil,
+		ClearEndRatio = 0.2,
+		FeatherEndRatio = 0.4,
+		BlackoutFullRatio = 0.52, -- 40% 이후 ~52%까지 smoothstep으로 완전 가림
+		FeatherMinVisibility = 0.9,
+		EventAtmoDensity = 0.62,
+		EventAtmoHaze = 3.1,
+		Color = Color3.fromRGB(45, 42, 50),
+		TweenDuration = 1.5,
+		WarnText = "안개가 옵니다..",
+	},
 	Round1 = {
 		Round = 1,
 		ShotgunAt = 5, -- 샷건 보급상자
@@ -794,11 +810,63 @@ Config.Chapter3 = {
 		SniperAt = 22,
 		SniperHitCountMin = 25,
 		SniperHitCountMax = 40,
-		PlusAt = 27,
+		PlusAt = 31,
 		PlusHitCountMin = 41,
 		PlusHitCountMax = 50,
 		SpawnEaseAt = 35, -- 이후 스폰 간격 소폭 증가
 		ThrowerAt = 40, -- 투척 좀비 시작
+		Shotgun2At = 50, -- 2차 샷건
+		Shotgun2HitCountMin = 45,
+		Shotgun2HitCountMax = 55,
+	},
+	Round2 = {
+		Round = 2,
+		MinusAt = 0, -- 시작 즉시 -1 게이트
+		MinusHitCountMin = 20,
+		MinusHitCountMax = 25,
+		MinusWalkSpeedScale = 1.45,
+		BombAt = 7,
+		BombHitCountMin = 45,
+		BombHitCountMax = 53,
+		BigZombieRightAt = 10,
+		BigZombieRightX = 10,
+		BigZombieLeftAt = 16,
+		BigZombieLeftX = -10,
+		BigZombieSizeScale = 1.75,
+		BigZombieHealthMult = 5,
+		BigZombieSpeedScale = 0.58,
+		MolotovAt = 22,
+		MolotovGrantCount = 3,
+		DogSwarmAt = 35,
+		DogSwarmCount = 14,
+		DogSwarmDuration = 2, -- 2초 동안 무작위 위치·시간에 난잡하게 스폰
+		SpikeAt = 37,
+		ShotgunAt = 45,
+		ShotgunHitCountMin = 30,
+		ShotgunHitCountMax = 45,
+		SpawnEase2At = 40, -- R2 추가 스폰 완화
+		SpawnEase2GapScale = 1.18,
+	},
+	Round3 = {
+		Round = 3,
+		FogWarnAt = 10,
+		FogStartAt = 13, -- 경고 3초 뒤
+		FogDuration = 20,
+		HordeStartAt = 15,
+		HordeEndAt = 35,
+		HordeSpawnGap = 0.11,
+		HordeMaxAlive = 30,
+		ShieldSpawnChance = 0.10,
+		ThrowerAt = 20,
+		ThrowerSpawnChance = 0.20,
+		SniperAt = 20,
+		SniperHitCountMin = 40,
+		SniperHitCountMax = 50,
+		X2At = 40,
+		X2HitCountMin = 45,
+		X2HitCountMax = 55,
+		SpikeAt = 43,
+		SpikeRightDelay = 2.8, -- 왼쪽 압정 뒤 오른쪽 끝
 	},
 }
 
