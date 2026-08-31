@@ -865,8 +865,15 @@ Config.Chapter3 = {
 		X2At = 40,
 		X2HitCountMin = 45,
 		X2HitCountMax = 55,
+		X2RetryAt = 55, -- 40초 x2 못 먹었을 때만
 		SpikeAt = 43,
 		SpikeRightDelay = 2.8, -- 왼쪽 압정 뒤 오른쪽 끝
+	},
+	Round4 = {
+		Round = 4,
+		AllyAt = 5,
+		AllyHitCountMin = 75,
+		AllyHitCountMax = 85,
 	},
 }
 

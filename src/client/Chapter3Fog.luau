@@ -48,6 +48,15 @@ local activeTweens: { Tween } = {}
 local fogEventActive = false
 local touchedParts: { [BasePart]: boolean } = {}
 local targetFog = { start = 0, end_ = 0, color = Color3.new(), atmoDensity = 0, atmoHaze = 0, atmoColor = Color3.new() }
+local worldFogFrame = 0
+
+local function currentChapter(): number
+	local state = ReplicatedStorage:FindFirstChild("GameState")
+	if not state then
+		return 1
+	end
+	return (state:GetAttribute("Chapter") :: number?) or 1
+end
 
 local function fogCfg()
 	return Config.Chapter3.Fog
@@ -332,17 +341,25 @@ local function tweenToSaved()
 	local duration = fogCfg().TweenDuration or 1.5
 	local info = TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 
-	fogStartProxy!.Value = Lighting.FogStart
-	fogEndProxy!.Value = Lighting.FogEnd
+	local fogStart = fogStartProxy
+	local fogEnd = fogEndProxy
+	local atmoDensity = atmoDensityProxy
+	local atmoHaze = atmoHazeProxy
+	if not (fogStart and fogEnd and atmoDensity and atmoHaze) then
+		return
+	end
+
+	fogStart.Value = Lighting.FogStart
+	fogEnd.Value = Lighting.FogEnd
 	local atmosphere = getAtmosphere()
-	atmoDensityProxy!.Value = if atmosphere then atmosphere.Density else 0.3
-	atmoHazeProxy!.Value = if atmosphere then atmosphere.Haze else 1.35
+	atmoDensity.Value = if atmosphere then atmosphere.Density else 0.3
+	atmoHaze.Value = if atmosphere then atmosphere.Haze else 1.35
 
 	for _, tw in {
-		TweenService:Create(fogStartProxy, info, { Value = savedFog.fogStart }),
-		TweenService:Create(fogEndProxy, info, { Value = savedFog.fogEnd }),
-		TweenService:Create(atmoDensityProxy, info, { Value = savedFog.atmoDensity }),
-		TweenService:Create(atmoHazeProxy, info, { Value = savedFog.atmoHaze }),
+		TweenService:Create(fogStart, info, { Value = savedFog.fogStart }),
+		TweenService:Create(fogEnd, info, { Value = savedFog.fogEnd }),
+		TweenService:Create(atmoDensity, info, { Value = savedFog.atmoDensity }),
+		TweenService:Create(atmoHaze, info, { Value = savedFog.atmoHaze }),
 	} do
 		tw:Play()
 		table.insert(activeTweens, tw)
@@ -361,11 +378,19 @@ local function tweenToEvent()
 	ensureProxies()
 	cancelTweens()
 
-	fogStartProxy!.Value = Lighting.FogStart
-	fogEndProxy!.Value = Lighting.FogEnd
+	local fogStart = fogStartProxy
+	local fogEnd = fogEndProxy
+	local atmoDensity = atmoDensityProxy
+	local atmoHaze = atmoHazeProxy
+	if not (fogStart and fogEnd and atmoDensity and atmoHaze) then
+		return
+	end
+
+	fogStart.Value = Lighting.FogStart
+	fogEnd.Value = Lighting.FogEnd
 	local atmosphere = getAtmosphere()
-	atmoDensityProxy!.Value = if atmosphere then atmosphere.Density else 0.3
-	atmoHazeProxy!.Value = if atmosphere then atmosphere.Haze else 1.35
+	atmoDensity.Value = if atmosphere then atmosphere.Density else 0.3
+	atmoHaze.Value = if atmosphere then atmosphere.Haze else 1.35
 
 	Lighting.FogColor = targetFog.color
 	if atmosphere then
@@ -377,10 +402,10 @@ local function tweenToEvent()
 	local info = TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 
 	for _, tw in {
-		TweenService:Create(fogStartProxy, info, { Value = targetFog.start }),
-		TweenService:Create(fogEndProxy, info, { Value = targetFog.end_ }),
-		TweenService:Create(atmoDensityProxy, info, { Value = targetFog.atmoDensity }),
-		TweenService:Create(atmoHazeProxy, info, { Value = targetFog.atmoHaze }),
+		TweenService:Create(fogStart, info, { Value = targetFog.start }),
+		TweenService:Create(fogEnd, info, { Value = targetFog.end_ }),
+		TweenService:Create(atmoDensity, info, { Value = targetFog.atmoDensity }),
+		TweenService:Create(atmoHaze, info, { Value = targetFog.atmoHaze }),
 	} do
 		tw:Play()
 		table.insert(activeTweens, tw)
@@ -407,33 +432,47 @@ local function applyFogEvent(active: boolean)
 end
 
 local function isFogActive(): boolean
+	if currentChapter() < 3 then
+		return false
+	end
 	local state = ReplicatedStorage:FindFirstChild("GameState")
 	return state ~= nil and state:GetAttribute("Ch3FogActive") == true
 end
 
 function Chapter3Fog.start()
-	local state = ReplicatedStorage:WaitForChild("GameState")
-	ensureProxies()
-	saveBaselineIfNeeded()
-	refreshTargets()
-
-	applyFogEvent(isFogActive())
-	state:GetAttributeChangedSignal("Ch3FogActive"):Connect(function()
-		applyFogEvent(isFogActive())
-	end)
-	state:GetAttributeChangedSignal("Chapter"):Connect(function()
-		if (state:GetAttribute("Chapter") or 1) >= 3 then
-			refreshBaseline()
-		end
-	end)
-
-	RunService.RenderStepped:Connect(function()
-		if not fogEventActive then
+	task.spawn(function()
+		local state = ReplicatedStorage:WaitForChild("GameState", 30)
+		if not state then
+			warn("[Chapter3Fog] GameState missing — fog disabled")
 			return
 		end
+		ensureProxies()
+		saveBaselineIfNeeded()
 		refreshTargets()
-		applyLightingNow()
-		updateWorldFog()
+
+		applyFogEvent(isFogActive())
+		state:GetAttributeChangedSignal("Ch3FogActive"):Connect(function()
+			applyFogEvent(isFogActive())
+		end)
+		state:GetAttributeChangedSignal("Chapter"):Connect(function()
+			if currentChapter() < 3 and fogEventActive then
+				applyFogEvent(false)
+			elseif currentChapter() >= 3 then
+				refreshBaseline()
+			end
+		end)
+
+		RunService.RenderStepped:Connect(function()
+			if not fogEventActive or currentChapter() < 3 then
+				return
+			end
+			refreshTargets()
+			applyLightingNow()
+			worldFogFrame += 1
+			if worldFogFrame % 2 == 0 then
+				updateWorldFog()
+			end
+		end)
 	end)
 end
 

@@ -603,13 +603,14 @@ local function createDevStepper(parent: Instance, name: string, titleText: strin
 	return value, minus, plus
 end
 
-function Hud.start()
+function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 	local player = Players.LocalPlayer
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "LaneHud"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
 	gui.DisplayOrder = 5
+	gui.Enabled = true
 	gui.Parent = player:WaitForChild("PlayerGui")
 
 	local kills = textLabel(gui, "Kills", {
@@ -660,9 +661,9 @@ function Hud.start()
 	hitBadge.Visible = false
 	local molotovButton = createMolotovButton(gui)
 	local pauseButton = createPauseButton(gui)
-	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
-	local useMolotov = remotesFolder:WaitForChild("UseMolotov")
-	local togglePause = remotesFolder:WaitForChild("TogglePause")
+	local remotesFolder = remotes and remotes.UseMolotov.Parent or ReplicatedStorage:WaitForChild("Remotes")
+	local useMolotov = if remotes then remotes.UseMolotov else remotesFolder:WaitForChild("UseMolotov")
+	local togglePause = if remotes then remotes.TogglePause else remotesFolder:WaitForChild("TogglePause")
 	molotovButton.MouseButton1Click:Connect(function()
 		if useMolotov:IsA("RemoteEvent") then
 			useMolotov:FireServer()

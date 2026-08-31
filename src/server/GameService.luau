@@ -143,7 +143,10 @@ local ch3R3FogActive = false
 local ch3R3FogEndAt = 0
 local ch3R3SniperSpawned = false
 local ch3R3X2Spawned = false
+local ch3R3X2Collected = false
+local ch3R3X2RetrySpawned = false
 local ch3R3SpikeSpawned = false
+local ch3R4AllySpawned = false
 
 local function setState(key: string, value: any)
 	stateFolder:SetAttribute(key, value)
@@ -553,14 +556,21 @@ local function resetChapter3Round3Events()
 	ch3R3FogEndAt = 0
 	ch3R3SniperSpawned = false
 	ch3R3X2Spawned = false
+	ch3R3X2Collected = false
+	ch3R3X2RetrySpawned = false
 	ch3R3SpikeSpawned = false
 	setState("Ch3FogActive", false)
+end
+
+local function resetChapter3Round4Events()
+	ch3R4AllySpawned = false
 end
 
 local function resetChapter3Events()
 	resetChapter3Round1Events()
 	resetChapter3Round2Events()
 	resetChapter3Round3Events()
+	resetChapter3Round4Events()
 end
 
 local function resetChapter2Round2Events()
@@ -1998,6 +2008,7 @@ function GameService.start(remotes)
 	setState("HitPower", 1)
 	setState("GateLabelScale", Config.NumberGate.LabelScale)
 	setState("Announce", "")
+	setState("Ch3FogActive", false)
 
 	ZombieService.onDied(function()
 		onZombieDied()
@@ -2077,6 +2088,10 @@ function GameService.start(remotes)
 					ch2R4X2Collected = true
 				elseif localRound == Config.Chapter2.Round8.Round then
 					ch2R8X2Collected = true
+				end
+			elseif Config.chapter() == 3 then
+				if Config.chapterRound(waveNow) == Config.Chapter3.Round3.Round then
+					ch3R3X2Collected = true
 				end
 			end
 		elseif id == "div2" or kind.Op == "div" then
@@ -2647,6 +2662,7 @@ function GameService.start(remotes)
 				local r1 = Config.Chapter3.Round1
 				local r2 = Config.Chapter3.Round2
 				local r3 = Config.Chapter3.Round3
+				local r4 = Config.Chapter3.Round4
 				local round = Config.chapterRound(wave)
 				local t = waveLocalElapsed(wave)
 				if round ~= r3.Round and ch3R3FogActive then
@@ -2742,6 +2758,10 @@ function GameService.start(remotes)
 						ch3R3X2Spawned = true
 						NumberGate.createX2(r3.X2HitCountMin, r3.X2HitCountMax, true)
 					end
+					if t >= r3.X2RetryAt and not ch3R3X2RetrySpawned and not ch3R3X2Collected then
+						ch3R3X2RetrySpawned = true
+						NumberGate.createX2(r3.X2HitCountMin, r3.X2HitCountMax, true)
+					end
 					if t >= r3.SpikeAt and not ch3R3SpikeSpawned then
 						ch3R3SpikeSpawned = true
 						local lane = Config.activeLane()
@@ -2755,6 +2775,12 @@ function GameService.start(remotes)
 							end
 							SpikeTrap.create(maxX - half * 0.4)
 						end)
+					end
+				end
+				if round == r4.Round then
+					if t >= r4.AllyAt and not ch3R4AllySpawned then
+						ch3R4AllySpawned = true
+						SupplyService.create(true, r4.AllyHitCountMin, r4.AllyHitCountMax)
 					end
 				end
 			end

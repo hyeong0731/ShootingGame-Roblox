@@ -11,10 +11,13 @@ local function laneCamera(phase: string?): boolean
 	return phase == "playing" or phase == "countdown"
 end
 
+local function lobbyCamera(phase: string?): boolean
+	return phase == "lobby" or phase == "chapterClear"
+end
+
 function CameraController.start()
 	local player = Players.LocalPlayer
 	local camera = Workspace.CurrentCamera
-	local first = true
 	local lastPhase = ""
 
 	local function currentPhase(): string
@@ -28,33 +31,37 @@ function CameraController.start()
 	local function apply()
 		local phase = currentPhase()
 		if phase ~= lastPhase then
-			first = true
 			lastPhase = phase
 		end
 
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if not (root and root:IsA("BasePart")) then
+			if camera.CameraType == Enum.CameraType.Scriptable then
+				camera.CameraType = Enum.CameraType.Custom
+			end
 			return
 		end
 
+		local cam = Config.Camera
 		if laneCamera(phase) then
-			local cam = Config.Camera
 			local dist = math.clamp(cam.Distance or 1, 0.4, 1.5)
 			local height = math.clamp(cam.Height or 1, 0.5, 1.5)
 			local offset = Vector3.new(cam.Offset.X, cam.Offset.Y * height, cam.Offset.Z * dist)
 			camera.CameraType = Enum.CameraType.Scriptable
 			camera.FieldOfView = cam.FieldOfView
 			camera.CFrame = CFrame.lookAt(root.Position + offset, root.Position + cam.LookAhead)
-		else
-			if camera.CameraType == Enum.CameraType.Scriptable then
-				camera.CameraType = Enum.CameraType.Custom
-			end
+		elseif lobbyCamera(phase) then
+			camera.CameraType = Enum.CameraType.Scriptable
+			camera.FieldOfView = cam.FieldOfView
+			camera.CFrame = CFrame.lookAt(root.Position + cam.LobbyOffset, root.Position + cam.LobbyLookAhead)
+		elseif camera.CameraType == Enum.CameraType.Scriptable then
+			camera.CameraType = Enum.CameraType.Custom
 		end
 	end
 
 	player.CharacterAdded:Connect(function()
-		first = true
+		lastPhase = ""
 	end)
 
 	RunService.RenderStepped:Connect(apply)
