@@ -84,8 +84,8 @@ function Input.start(remotes)
 		end
 	end
 
-	UserInputService.InputBegan:Connect(function(input, processed)
-		if processed or not gameplay then
+	UserInputService.InputBegan:Connect(function(input, _processed)
+		if not gameplay then
 			return
 		end
 		if input.KeyCode == Enum.KeyCode.A or input.KeyCode == Enum.KeyCode.Left then
@@ -111,7 +111,7 @@ function Input.start(remotes)
 	gui.Name = "StrafeControls"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = 2
+	gui.DisplayOrder = 15
 	gui.Enabled = false
 	gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -139,11 +139,13 @@ function Input.start(remotes)
 		gameplay = on
 		gui.Enabled = on
 		if controls then
-			if on then
-				controls:Disable()
-			else
-				controls:Enable()
-			end
+			pcall(function()
+				if on then
+					controls:Disable()
+				else
+					controls:Enable()
+				end
+			end)
 		end
 		if not on then
 			held.left = false

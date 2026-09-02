@@ -603,13 +603,20 @@ local function createDevStepper(parent: Instance, name: string, titleText: strin
 	return value, minus, plus
 end
 
-function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
+function Hud.start(remotes: {
+	UseMolotov: Instance,
+	TogglePause: Instance,
+	DebugSetRound: Instance?,
+	DebugSetChapter: Instance?,
+	DebugHitPower: Instance?,
+}?)
 	local player = Players.LocalPlayer
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "LaneHud"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = 5
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.DisplayOrder = 20
 	gui.Enabled = true
 	gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -675,8 +682,43 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 		end
 	end)
 
+	local banner = textLabel(gui, "Banner", {
+		Size = UDim2.new(0.82, 0, 0.12, 0),
+		Position = UDim2.new(0.5, 0, 0.42, 0),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Align = Enum.TextXAlignment.Center,
+	})
+	banner.Text = ""
+	banner.TextColor3 = Color3.fromRGB(255, 230, 120)
+
+	local hint = textLabel(gui, "Hint", {
+		Size = UDim2.new(0.62, 0, 0.035, 0),
+		Position = UDim2.new(0.5, 0, 0.9, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Align = Enum.TextXAlignment.Center,
+	})
+	hint.Text = "초록 발판에 올라가면 게임이 시작됩니다"
+	hint.TextColor3 = Color3.fromRGB(220, 220, 230)
+	hint.TextTransparency = 0.15
+
 	if Config.Debug.Enabled then
-		local debugPanel = Instance.new("Frame")
+		local debugOk, debugErr = pcall(function()
+			local setRound = remotes and remotes.DebugSetRound
+			local setChapter = remotes and remotes.DebugSetChapter
+			local setHitPower = remotes and remotes.DebugHitPower
+			if not (setRound and setChapter and setHitPower) then
+				local folder = ReplicatedStorage:WaitForChild("Remotes", 10)
+				if folder then
+					setRound = setRound or folder:WaitForChild("DebugSetRound", 5)
+					setChapter = setChapter or folder:WaitForChild("DebugSetChapter", 5)
+					setHitPower = setHitPower or folder:WaitForChild("DebugHitPower", 5)
+				end
+			end
+			if not (setRound and setChapter and setHitPower) then
+				error("Debug remotes missing")
+			end
+
+			local debugPanel = Instance.new("Frame")
 		debugPanel.Name = "DevRounds"
 		debugPanel.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
 		debugPanel.BackgroundTransparency = 0.25
@@ -718,8 +760,6 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 		layout.SortOrder = Enum.SortOrder.LayoutOrder
 		layout.Parent = grid
 
-		local remotes = ReplicatedStorage:WaitForChild("Remotes")
-		local setRound = remotes:WaitForChild("DebugSetRound")
 		for i, round in Config.Debug.RoundButtons do
 			local btn = Instance.new("TextButton")
 			btn.Name = `Round{round}`
@@ -730,6 +770,7 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 			btn.TextColor3 = Color3.new(1, 1, 1)
 			btn.TextScaled = true
 			btn.AutoButtonColor = true
+			btn.Active = true
 			btn.LayoutOrder = i
 			btn.ZIndex = 10
 			btn.Parent = grid
@@ -741,7 +782,6 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 			end)
 		end
 
-		local setChapter = remotes:WaitForChild("DebugSetChapter")
 		local chapter2 = Instance.new("TextButton")
 		chapter2.Name = "Chapter2"
 		chapter2.BackgroundColor3 = Color3.fromRGB(36, 42, 62)
@@ -751,6 +791,7 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 		chapter2.TextColor3 = Color3.new(1, 1, 1)
 		chapter2.TextScaled = true
 		chapter2.AutoButtonColor = true
+		chapter2.Active = true
 		chapter2.Size = UDim2.new(1, -12, 0, 32)
 		chapter2.Position = UDim2.new(0, 6, 1, -76)
 		chapter2.ZIndex = 10
@@ -771,6 +812,7 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 		chapter3.TextColor3 = Color3.new(1, 1, 1)
 		chapter3.TextScaled = true
 		chapter3.AutoButtonColor = true
+		chapter3.Active = true
 		chapter3.Size = UDim2.new(1, -12, 0, 32)
 		chapter3.Position = UDim2.new(0, 6, 1, -40)
 		chapter3.ZIndex = 10
@@ -812,7 +854,6 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 
 		local powerValue, powerMinus, powerPlus = createDevStepper(hitsPanel, "HitPower", "현재 DPS", 28)
 
-		local setHitPower = remotes:WaitForChild("DebugHitPower")
 		local function currentHitPower(): number
 			local state = ReplicatedStorage:FindFirstChild("GameState")
 			local value = if state then state:GetAttribute("HitPower") else nil
@@ -844,26 +885,11 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 				setHitPower:FireServer(currentHitPower() + 1)
 			end
 		end)
+		end)
+		if not debugOk then
+			warn("[Hud] Debug panel failed:", debugErr)
+		end
 	end
-
-	local banner = textLabel(gui, "Banner", {
-		Size = UDim2.new(0.82, 0, 0.12, 0),
-		Position = UDim2.new(0.5, 0, 0.42, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Align = Enum.TextXAlignment.Center,
-	})
-	banner.Text = ""
-	banner.TextColor3 = Color3.fromRGB(255, 230, 120)
-
-	local hint = textLabel(gui, "Hint", {
-		Size = UDim2.new(0.62, 0, 0.035, 0),
-		Position = UDim2.new(0.5, 0, 0.9, 0),
-		AnchorPoint = Vector2.new(0.5, 0),
-		Align = Enum.TextXAlignment.Center,
-	})
-	hint.Text = "초록 발판에 올라가면 게임이 시작됩니다"
-	hint.TextColor3 = Color3.fromRGB(220, 220, 230)
-	hint.TextTransparency = 0.15
 
 	local worldBar: BillboardGui? = nil
 
@@ -1007,6 +1033,8 @@ function Hud.start(remotes: { UseMolotov: Instance, TogglePause: Instance }?)
 			task.wait(0.1)
 		end
 	end)
+
+	print("[Hud] Ready")
 end
 
 return Hud

@@ -68,20 +68,49 @@ local function boot()
 	local CombatPose = require(script.CombatPose)
 
 	local remotes = Remotes.clientWait(60)
-	CameraController.start()
-	Hud.start(remotes)
-	Effects.start(remotes)
-	Input.start(remotes)
-	CombatPose.start()
 
-	local ok, chapter3Fog = pcall(require, script.Chapter3Fog)
-	if ok and chapter3Fog and chapter3Fog.start then
-		chapter3Fog.start()
-	else
-		warn("[Client] Chapter3Fog failed to load:", chapter3Fog)
+	local bootErrors: { string } = {}
+	local function startModule(name: string, fn: () -> ())
+		local ok, err = pcall(fn)
+		if not ok then
+			local message = if typeof(err) == "string" then err else tostring(err)
+			table.insert(bootErrors, `{name}: {message}`)
+			warn(`[Client] {name} failed:`, err)
+		end
 	end
 
-	print("[Client] Ready")
+	-- Hud/Input first: one failure must not block the rest.
+	startModule("Hud", function()
+		Hud.start(remotes)
+	end)
+	startModule("Input", function()
+		Input.start(remotes)
+	end)
+	startModule("CameraController", function()
+		CameraController.start()
+	end)
+	startModule("Effects", function()
+		Effects.start(remotes)
+	end)
+	startModule("CombatPose", function()
+		CombatPose.start()
+	end)
+	startModule("Chapter3Fog", function()
+		local chapter3Fog = require(script.Chapter3Fog)
+		if chapter3Fog.start then
+			chapter3Fog.start()
+		end
+	end)
+
+	if #bootErrors > 0 then
+		local serverErr = ReplicatedStorage:FindFirstChild("BootError")
+		local serverText = if serverErr and serverErr:IsA("StringValue") and serverErr.Value ~= ""
+			then `서버: {serverErr.Value}\n`
+			else ""
+		showBootError(`{serverText}{table.concat(bootErrors, "\n")}`)
+	else
+		print("[Client] Ready")
+	end
 end
 
 local ok, err = pcall(boot)
