@@ -64,7 +64,7 @@ function Spawning.currentStats()
 	local z = Config.activeZombie()
 	local inf = Config.activeInfinite()
 	local scaledKills = math.max(0, ctx.kills - ctx.killBaseline)
-	local health = z.Health + scaledKills * chapter2HealthPerKill()
+	local health = z.Health + scaledKills * Spawning.chapter2HealthPerKill()
 	local speed = z.WalkSpeed + elapsed * inf.SpeedPerSecond
 	local spawnElapsed = elapsed
 	local wave = (ctx.stateFolder:GetAttribute("Wave") :: number?) or 1
@@ -204,14 +204,14 @@ function Spawning.chapter2BigUnlocked(wave: number, elapsedLocal: number): boole
 end
 
 function Spawning.spawnOne()
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local inf = Config.activeInfinite()
 	local lane = Config.activeLane()
 	local slots = inf.LaneSlots
 	local x = slots[math.random(1, #slots)]
 	local wave = (ctx.stateFolder:GetAttribute("Wave") :: number?) or 1
 	local elapsed = math.max(0, os.clock() - ctx.matchStart)
-	local elapsedLocal = waveLocalElapsed(wave)
+	local elapsedLocal = Spawning.waveLocalElapsed(wave)
 	local isBoss = Config.chapter() <= 1 and wave < Config.FinalBoss.Round and ctx.kills >= ctx.nextIsBossAt
 	if isBoss then
 		ctx.nextIsBossAt += Config.Boss.EveryNKills
@@ -306,7 +306,7 @@ function Spawning.spawnOne()
 		and (not isBoss)
 		and (not isDog)
 		and (not isShield)
-		and chapter2BigUnlocked(wave, elapsedLocal)
+		and Spawning.chapter2BigUnlocked(wave, elapsedLocal)
 	then
 		local bigChance = Config.Chapter2.BigZombie.SpawnChance
 		if round == r6.Round then
@@ -349,7 +349,7 @@ function Spawning.spawnOne()
 		walkSpeed = stats.speed * Config.Boss.SpeedMultiplier
 		contactDamage = Config.Boss.ContactDamage
 	elseif isDog then
-		health = dogCfg.Health + math.max(0, ctx.kills - ctx.killBaseline) * chapter2HealthPerKill() * 0.7
+		health = dogCfg.Health + math.max(0, ctx.kills - ctx.killBaseline) * Spawning.chapter2HealthPerKill() * 0.7
 		walkSpeed = dogCfg.WalkSpeed + elapsed * dogCfg.SpeedPerSecond
 		if Config.chapter() == 2 and round == Config.Chapter2.Round10.Round then
 			walkSpeed *= Config.Chapter2.Round10.ZombieSpeedScale
@@ -417,7 +417,7 @@ end
 function Spawning.spawnMegaBoss()
 	local slots = Config.Infinite.LaneSlots
 	local x = slots[math.ceil(#slots / 2)]
-	spawnMegaBossAt(x, Config.MegaBoss.HitCount, false)
+	Spawning.spawnMegaBossAt(x, Config.MegaBoss.HitCount, false)
 end
 
 function Spawning.spawnFinalBoss()
@@ -425,7 +425,7 @@ function Spawning.spawnFinalBoss()
 	local hits = math.random(cfg.HitCountMin, cfg.HitCountMax)
 	local slots = Config.Infinite.LaneSlots
 	local x = slots[math.ceil(#slots / 2)]
-	local zombie = spawnMegaBossAt(x, hits, false, {
+	local zombie = Spawning.spawnMegaBossAt(x, hits, false, {
 		scale = cfg.SizeScale,
 		walkSpeed = cfg.WalkSpeed,
 		contactDamage = cfg.ContactDamage,
@@ -445,18 +445,18 @@ function Spawning.spawnEliteBosses()
 		local t = if count == 1 then 0.5 else (i - 1) / (count - 1)
 		local index = 1 + math.floor(t * (#slots - 1) + 0.5)
 		local hits = math.random(minHits, maxHits)
-		spawnMegaBossAt(slots[index], hits, true)
+		Spawning.spawnMegaBossAt(slots[index], hits, true)
 	end
 end
 
 function Spawning.spawnChapter2MidBoss(spawnX: number, hitMin: number?, hitMax: number?)
 	local r5 = Config.Chapter2.Round5
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local walkSpeed = stats.speed * r5.SpeedMultiplier
 	local minH = math.max(1, math.floor(hitMin or r5.HitCountMin))
 	local maxH = math.max(minH, math.floor(hitMax or r5.HitCountMax))
 	local hits = math.random(minH, maxH)
-	local zombie = spawnMegaBossAt(spawnX, hits, false, {
+	local zombie = Spawning.spawnMegaBossAt(spawnX, hits, false, {
 		scale = r5.SizeScale,
 		walkSpeed = walkSpeed,
 		contactDamage = r5.ContactDamage,
@@ -467,7 +467,7 @@ function Spawning.spawnChapter2MidBoss(spawnX: number, hitMin: number?, hitMax: 
 end
 
 function Spawning.spawnChapter2DogSwarm(count: number)
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local lane = Config.activeLane()
 	local slots = Config.activeInfinite().LaneSlots
 	local n = math.max(1, math.floor(count))
@@ -493,7 +493,7 @@ end
 
 function Spawning.spawnChapter2FinalBoss()
 	local r10 = Config.Chapter2.Round10
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local walkSpeed = stats.speed * r10.SpeedMultiplier
 	local hits = math.random(r10.BossHitCountMin, r10.BossHitCountMax)
 	local lane = Config.activeLane()
@@ -519,7 +519,7 @@ end
 function Spawning.spawnChapter2OpeningSwarm()
 	local r10 = Config.Chapter2.Round10
 	local r9 = Config.Chapter2.Round9
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local lane = Config.activeLane()
 	local slots = Config.activeInfinite().LaneSlots
 	local dogCfg = Config.activeDog()
@@ -558,7 +558,7 @@ end
 
 function Spawning.spawnChapter2MidSwarm(count: number)
 	local r10 = Config.Chapter2.Round10
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local lane = Config.activeLane()
 	local slots = Config.activeInfinite().LaneSlots
 	local dogCfg = Config.activeDog()
@@ -593,7 +593,7 @@ function Spawning.spawnChapter2MidSwarm(count: number)
 end
 
 function Spawning.spawnChapter2FinalHorde(count: number)
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local lane = Config.activeLane()
 	local slots = Config.activeInfinite().LaneSlots
 	local n = math.max(1, math.floor(count))
@@ -636,7 +636,7 @@ function Spawning.spawnChapter3BigZombie(
 	}?
 )
 	local r = bigCfg or Config.Chapter3.Round2
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local lane = Config.activeLane()
 	local scale = r.BigZombieSizeScale
 	local y = lane.CenterY + 2.4 * scale
@@ -773,7 +773,7 @@ end
 
 function Spawning.spawnChapter2ShieldPack(count: number?, hitMin: number?, hitMax: number?)
 	local r7 = Config.Chapter2.Round7
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local lane = Config.activeLane()
 	local slots = Config.activeInfinite().LaneSlots
 	local n = math.max(1, math.floor(count or r7.ShieldPackCount))
@@ -802,10 +802,10 @@ end
 
 function Spawning.spawnChapter2SmallMidBoss()
 	local r9 = Config.Chapter2.Round9
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local walkSpeed = stats.speed * r9.SpeedMultiplier
 	local hits = math.random(r9.MidBossHitCountMin, r9.MidBossHitCountMax)
-	local zombie = spawnMegaBossAt(r9.SpawnX, hits, false, {
+	local zombie = Spawning.spawnMegaBossAt(r9.SpawnX, hits, false, {
 		scale = r9.SizeScale,
 		walkSpeed = walkSpeed,
 		contactDamage = r9.ContactDamage,
@@ -817,7 +817,7 @@ end
 
 function Spawning.spawnChapter2ZombieSwarm()
 	local r8 = Config.Chapter2.Round8
-	local stats = currentStats()
+	local stats = Spawning.currentStats()
 	local lane = Config.activeLane()
 	local slots = Config.activeInfinite().LaneSlots
 	local count = math.max(1, math.floor(r8.SwarmCount))

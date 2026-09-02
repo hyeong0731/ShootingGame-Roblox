@@ -1,1 +1,1 @@
-return require(script.Game)
+return require(script.Parent.Game)

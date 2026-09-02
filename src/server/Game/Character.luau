@@ -57,7 +57,7 @@ function Character.teleportToLobby(character: Model)
 		return
 	end
 	root.CFrame = CFrame.lookAt(Config.Lobby.Spawn, Vector3.new(Config.Lobby.StartPad.X, Config.Lobby.Spawn.Y, Config.Lobby.StartPad.Z))
-	applyLobbyCharacter(character)
+	Character.applyLobbyCharacter(character)
 end
 
 function Character.teleportToLane(character: Model)
@@ -118,7 +118,7 @@ function Character.teleportToChapterWalk(character: Model)
 		Vector3.new(0, standY, lane.PlayerZ + 24),
 		Vector3.new(0, standY, lane.SpawnZ)
 	)
-	applyWalkCharacter(character)
+	Character.applyWalkCharacter(character)
 end
 
 return Character

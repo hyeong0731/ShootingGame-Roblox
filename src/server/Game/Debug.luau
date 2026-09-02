@@ -37,7 +37,7 @@ end
 
 function Debug.debugEnterChapter(chapter: number)
 	chapter = math.clamp(math.floor(chapter), 2, 3)
-	destroyChapterPad()
+	Debug.destroyChapterPad()
 	ctx.paused = false
 	ctx.chapterClearArmed = false
 	Config.setChapter(chapter)
@@ -79,7 +79,7 @@ function Debug.debugEnterChapter(chapter: number)
 end
 
 function Debug.spawnChapterPad()
-	destroyChapterPad()
+	Debug.destroyChapterPad()
 	local arena = Workspace:FindFirstChild("Arena")
 	if not arena then
 		return

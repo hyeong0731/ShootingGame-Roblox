@@ -55,10 +55,10 @@ function Gates.respawnNumberGate()
 		NumberGate.createRandom()
 	elseif wave >= Config.NumberGate.PlusRound then
 		ctx.plusGateSpawned = false
-		spawnPlusGate()
+		Gates.spawnPlusGate()
 	elseif wave >= Config.NumberGate.UnlockRound then
 		ctx.introGateSpawned = false
-		spawnIntroGate()
+		Gates.spawnIntroGate()
 	end
 end
 
@@ -101,12 +101,12 @@ function Gates.applyRoundFeatures(wave: number)
 			end
 		end
 	elseif wave >= Config.NumberGate.PlusRound then
-		spawnPlusGate()
+		Gates.spawnPlusGate()
 		if ctx.extraX2DueAt == 0 and not ctx.extraX2Spawned then
 			ctx.extraX2DueAt = os.clock() + Config.NumberGate.ExtraX2Delay
 		end
 		if not ctx.extraX2Spawned and ctx.extraX2DueAt > 0 and os.clock() >= ctx.extraX2DueAt then
-			spawnExtraX2()
+			Gates.spawnExtraX2()
 		end
 	elseif wave >= Config.NumberGate.UnlockRound then
 		if ctx.introGateDueAt == 0 and not ctx.introGateSpawned then
@@ -119,7 +119,7 @@ function Gates.applyRoundFeatures(wave: number)
 			ctx.introGateDueAt = os.clock() + Config.NumberGate.IntroAfterBombDelay
 		end
 		if not ctx.introGateSpawned and ctx.introGateDueAt > 0 and os.clock() >= ctx.introGateDueAt then
-			spawnIntroGate()
+			Gates.spawnIntroGate()
 		end
 	end
 	if wave >= Config.Supply.UnlockRound and not ctx.supplyRoundArmed then

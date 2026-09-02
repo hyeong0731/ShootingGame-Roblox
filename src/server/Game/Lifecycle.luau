@@ -179,7 +179,7 @@ function Lifecycle.beginPlay()
 	end
 end
 
-function Lifecycle.startCountdown
+function Lifecycle.startCountdown()
 	ctx.phase = "countdown"
 	setState("Phase", "countdown")
 	setState("Elapsed", 0)

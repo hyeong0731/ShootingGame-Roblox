@@ -114,7 +114,7 @@ function Combat.restoreGun(data: PlayerData)
 	data.lastFire = 0
 end
 
-function Combat.grantBombs
+function Combat.grantBombs()
 	local untilTime = os.clock() + Config.BombCrate.Duration
 	for _, data in ctx.playerData do
 		data.bombUntil = untilTime
@@ -133,7 +133,7 @@ function Combat.grantBombs
 	setState("ShotgunLeft", 0)
 end
 
-function Combat.grantSniper
+function Combat.grantSniper()
 	local untilTime = os.clock() + Config.SniperCrate.Duration
 	for _, data in ctx.playerData do
 		data.sniperUntil = untilTime
@@ -152,7 +152,7 @@ function Combat.grantSniper
 	setState("ShotgunLeft", 0)
 end
 
-function Combat.grantShotgun
+function Combat.grantShotgun()
 	local untilTime = os.clock() + Config.Shotgun.Duration
 	for _, data in ctx.playerData do
 		data.shotgunUntil = untilTime
