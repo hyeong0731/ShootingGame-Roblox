@@ -26,7 +26,7 @@ export type SupplyRecord = {
 	label: TextLabel,
 	hitsLeft: number,
 	alive: boolean,
-	kind: "ally" | "bomb" | "sniper" | "molotov" | "shotgun",
+	kind: "ally" | "bomb" | "sniper" | "molotov" | "shotgun" | "fireboost",
 	grantCount: number?,
 }
 
@@ -67,6 +67,7 @@ local onBombPicked: (() -> ())? = nil
 local onSniperPicked: (() -> ())? = nil
 local onShotgunPicked: (() -> ())? = nil
 local onMolotovPicked: ((number) -> ())? = nil
+local onFireBoostPicked: (() -> ())? = nil
 local pickupGraceUntil = 0
 
 local function noteCratePicked()
@@ -250,6 +251,47 @@ local function buildCrateBomb(parent: Model, root: BasePart)
 	weldConstraint(root, spark)
 end
 
+local function buildCrateFireBoost(parent: Model, root: BasePart)
+	local shaft = makePart(
+		parent,
+		"ArrowShaft",
+		Vector3.new(0.42, 1.35, 0.42),
+		Color3.fromRGB(255, 210, 50),
+		root.CFrame * CFrame.new(0, 3.15, 0),
+		Enum.Material.Neon
+	)
+	weldConstraint(root, shaft)
+	local head = makePart(
+		parent,
+		"ArrowHead",
+		Vector3.new(1.05, 0.55, 1.05),
+		Color3.fromRGB(255, 230, 80),
+		root.CFrame * CFrame.new(0, 4.05, 0),
+		Enum.Material.Neon
+	)
+	weldConstraint(root, head)
+	for _, sign in { -1, 1 } do
+		local wing = makePart(
+			parent,
+			"ArrowWing",
+			Vector3.new(0.72, 0.18, 0.55),
+			Color3.fromRGB(255, 200, 40),
+			root.CFrame * CFrame.new(sign * 0.52, 3.55, 0) * CFrame.Angles(0, 0, math.rad(sign * 38)),
+			Enum.Material.Neon
+		)
+		weldConstraint(root, wing)
+	end
+	local stripe = makePart(
+		parent,
+		"BoostStripe",
+		Vector3.new(3.45, 0.55, 0.55),
+		Color3.fromRGB(255, 200, 50),
+		root.CFrame * CFrame.new(0, 0.2, 0),
+		Enum.Material.Metal
+	)
+	weldConstraint(root, stripe)
+end
+
 local function buildCrateMolotov(parent: Model, root: BasePart)
 	local bottle = makePart(
 		parent,
@@ -378,6 +420,10 @@ end
 
 function SupplyService.onMolotovPicked(callback: (number) -> ())
 	onMolotovPicked = callback
+end
+
+function SupplyService.onFireBoostPicked(callback: () -> ())
+	onFireBoostPicked = callback
 end
 
 function SupplyService.hasRecruitedThisMatch(): boolean
@@ -793,6 +839,71 @@ function SupplyService.createSniper(force: boolean?, overrideMin: number?, overr
 	return record
 end
 
+function SupplyService.createFireBoost(force: boolean?, overrideMin: number?, overrideMax: number?): SupplyRecord?
+	if not force and #supplies >= Config.Supply.MaxAlive then
+		return nil
+	end
+
+	local cfg = Config.Chapter3.FireBoostCrate
+	local folder = ensureFolder("Supplies")
+	local lane = Config.activeLane()
+	local position = Vector3.new(0, lane.CenterY + 1.6, lane.SpawnZ)
+	local minH = math.max(1, math.floor(overrideMin or cfg.HitCountMin))
+	local maxH = math.max(minH, math.floor(overrideMax or cfg.HitCountMax))
+	local hits = math.random(minH, maxH)
+
+	local model = Instance.new("Model")
+	model.Name = "FireBoostCrate"
+	model:SetAttribute("IsSupply", true)
+	model:SetAttribute("IsFireBoostCrate", true)
+	model:SetAttribute("HitsLeft", hits)
+
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(3.2, 2.4, 3.2)
+	root.Color = Color3.fromRGB(150, 96, 42)
+	root.Material = Enum.Material.Wood
+	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+	root.Anchored = true
+	root.CanCollide = true
+	root.Parent = model
+
+	local lid = makePart(
+		model,
+		"Lid",
+		Vector3.new(3.4, 0.35, 3.4),
+		Color3.fromRGB(120, 72, 32),
+		root.CFrame * CFrame.new(0, 1.35, 0),
+		Enum.Material.Wood
+	)
+	weldConstraint(root, lid)
+	buildCrateFireBoost(model, root)
+
+	model.PrimaryPart = root
+	model.Parent = folder
+	plantCrate(model, root)
+
+	local hitScale = Config.hitLabelScale(liveConfig().Supply.HitLabelScale)
+	local label = attachOverheadHits(
+		root,
+		hits,
+		Config.HitLabel.CrateFront,
+		Color3.fromRGB(255, 230, 90),
+		hitScale
+	)
+
+	local record: SupplyRecord = {
+		model = model,
+		root = root,
+		label = label,
+		hitsLeft = hits,
+		alive = true,
+		kind = "fireboost",
+	}
+	table.insert(supplies, record)
+	return record
+end
+
 function SupplyService.createShotgun(force: boolean?, overrideMin: number?, overrideMax: number?): SupplyRecord?
 	if not force and not SupplyService.canSpawnShotgun() then
 		return nil
@@ -996,6 +1107,11 @@ function SupplyService.damageModel(model: Model, hits: number?): boolean
 					record.model:Destroy()
 					if onMolotovPicked then
 						onMolotovPicked(record.grantCount or 1)
+					end
+				elseif record.kind == "fireboost" then
+					record.model:Destroy()
+					if onFireBoostPicked then
+						onFireBoostPicked()
 					end
 				else
 					recruitFrom(record)

@@ -382,7 +382,7 @@ local function attachShield(record: ZombieRecord, hits: number)
 
 	local head = record.model:FindFirstChild("Head")
 	local adornee: BasePart = if head and head:IsA("BasePart") then head else record.root
-	record.hitLabel = attachHitCount(adornee, record.shieldHits, 0.7, Config.HitLabel.ShieldScale)
+	record.hitLabel = attachHitCount(adornee, record.shieldHits or 1, 0.7, Config.HitLabel.ShieldScale)
 	local billboard = adornee:FindFirstChild("HitCount")
 	if billboard and billboard:IsA("BillboardGui") then
 		billboard.StudsOffset = Vector3.new(0, 1.75, 0)
@@ -446,11 +446,11 @@ local function finalizeModel(model: Model, root: BasePart, humanoid: Humanoid, s
 	humanoid.RequiresNeck = false
 	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
 
-	for _, track in humanoid:GetPlayingAnimationTracks() do
-		track:Stop(0)
-	end
 	local animator = humanoid:FindFirstChildOfClass("Animator")
 	if animator then
+		for _, track in animator:GetPlayingAnimationTracks() do
+			track:Stop(0)
+		end
 		animator:Destroy()
 	end
 	local animate = model:FindFirstChild("Animate")
@@ -872,11 +872,14 @@ local function setupMegaHits(record: ZombieRecord, hitCount: number?, scale: num
 	local head = record.model:FindFirstChild("Head", true)
 	local adornee = if head and head:IsA("BasePart") then head else record.root
 	record.hitLabel = attachHitCount(adornee, hits, 1, 1.15)
-	local hitBillboard = record.hitLabel.Parent
-	if hitBillboard and hitBillboard:IsA("BillboardGui") then
-		-- 머리에서 너무 멀리 뜨지 않도록 이마 바로 위에 고정하고 원거리에서도 표시한다.
-		hitBillboard.StudsOffset = Vector3.new(0, 2.8, 0)
-		hitBillboard.MaxDistance = 600
+	local hitLabel = record.hitLabel
+	if hitLabel then
+		local hitBillboard = hitLabel.Parent
+		if hitBillboard and hitBillboard:IsA("BillboardGui") then
+			-- 머리에서 너무 멀리 뜨지 않도록 이마 바로 위에 고정하고 원거리에서도 표시한다.
+			hitBillboard.StudsOffset = Vector3.new(0, 2.8, 0)
+			hitBillboard.MaxDistance = 600
+		end
 	end
 
 	local hitbox = record.model:FindFirstChild("Hitbox")

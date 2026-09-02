@@ -42,19 +42,36 @@ function Remotes.serverInit()
 	}
 end
 
-function Remotes.clientWait()
-	local folder = ReplicatedStorage:WaitForChild("Remotes")
+function Remotes.clientWait(timeout: number?)
+	local waitSec = timeout or 60
+	local folder = ReplicatedStorage:WaitForChild("Remotes", waitSec)
+	if not folder then
+		local bootErr = ReplicatedStorage:FindFirstChild("BootError")
+		if bootErr and bootErr:IsA("StringValue") and bootErr.Value ~= "" then
+			error(`Remotes missing (server boot error): {bootErr.Value}`)
+		end
+		error("Remotes missing — ServerScriptService.Server(init.server) 스크립트가 실행됐는지 확인")
+	end
+
+	local function waitRemote(name: string): RemoteEvent
+		local remote = folder:WaitForChild(name, waitSec)
+		if not remote or not remote:IsA("RemoteEvent") then
+			error(`Remote missing: {name}`)
+		end
+		return remote
+	end
+
 	return {
-		Strafe = folder:WaitForChild("Strafe"),
-		HitFx = folder:WaitForChild("HitFx"),
-		FireFx = folder:WaitForChild("FireFx"),
-		ExplodeFx = folder:WaitForChild("ExplodeFx"),
-		DebugSetRound = folder:WaitForChild("DebugSetRound"),
-		DebugSetChapter = folder:WaitForChild("DebugSetChapter"),
-		DebugHitPower = folder:WaitForChild("DebugHitPower"),
-		UseMolotov = folder:WaitForChild("UseMolotov"),
-		MolotovThrowAnim = folder:WaitForChild("MolotovThrowAnim"),
-		TogglePause = folder:WaitForChild("TogglePause"),
+		Strafe = waitRemote("Strafe"),
+		HitFx = waitRemote("HitFx"),
+		FireFx = waitRemote("FireFx"),
+		ExplodeFx = waitRemote("ExplodeFx"),
+		DebugSetRound = waitRemote("DebugSetRound"),
+		DebugSetChapter = waitRemote("DebugSetChapter"),
+		DebugHitPower = waitRemote("DebugHitPower"),
+		UseMolotov = waitRemote("UseMolotov"),
+		MolotovThrowAnim = waitRemote("MolotovThrowAnim"),
+		TogglePause = waitRemote("TogglePause"),
 	}
 end
 

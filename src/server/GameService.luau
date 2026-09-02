@@ -22,6 +22,7 @@ type PlayerData = {
 	hadSniper: boolean,
 	shotgunUntil: number,
 	hadShotgun: boolean,
+	fireRateMult: number,
 }
 
 local GameService = {}
@@ -137,7 +138,7 @@ local ch3R2BigLeftSpawned = false
 local ch3R2MolotovSpawned = false
 local ch3R2DogSwarmSpawned = false
 local ch3R2SpikeSpawned = false
-local ch3R2ShotgunSpawned = false
+local ch3R2SniperSpawned = false
 local ch3R3FogWarnShown = false
 local ch3R3FogActive = false
 local ch3R3FogEndAt = 0
@@ -147,6 +148,11 @@ local ch3R3X2Collected = false
 local ch3R3X2RetrySpawned = false
 local ch3R3SpikeSpawned = false
 local ch3R4AllySpawned = false
+local ch3R4FireBoostSpawned = false
+local ch3R4BigSwarmStarted = false
+local ch3R4MolotovSpawned = false
+local ch3R4PlusSpawned = false
+local ch3R4DogSwarmStarted = false
 
 local function setState(key: string, value: any)
 	stateFolder:SetAttribute(key, value)
@@ -265,12 +271,27 @@ local function applyWalkCharacter(character: Model)
 	humanoid.AutoRotate = true
 	humanoid.Health = humanoid.MaxHealth
 	root.Anchored = false
+	Gun.remove(character)
 	local player = Players:GetPlayerFromCharacter(character)
 	if player then
 		pcall(function()
 			root:SetNetworkOwner(player)
 		end)
 	end
+end
+
+local function teleportToChapterWalk(character: Model)
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+	local lane = Config.activeLane()
+	local standY = Config.playerStandY()
+	root.CFrame = CFrame.lookAt(
+		Vector3.new(0, standY, lane.PlayerZ + 24),
+		Vector3.new(0, standY, lane.SpawnZ)
+	)
+	applyWalkCharacter(character)
 end
 
 local function destroyChapterPad()
@@ -281,6 +302,49 @@ local function destroyChapterPad()
 	local pad = arena:FindFirstChild("ChapterPad")
 	if pad then
 		pad:Destroy()
+	end
+end
+
+local function debugEnterChapter(chapter: number)
+	chapter = math.clamp(math.floor(chapter), 2, 3)
+	destroyChapterPad()
+	paused = false
+	chapterClearArmed = false
+	Config.setChapter(chapter)
+	CombatService.clear()
+	SpikeTrap.clear()
+	ZombieService.clear()
+	SupplyService.clear()
+	NumberGate.clear()
+	Arena.applyChapterLook(chapter)
+	phase = "chapterClear"
+	setState("Chapter", chapter)
+	setState("Wave", Config.chapterStartWave(chapter))
+	setState("Elapsed", 0)
+	setState("Phase", "chapterClear")
+	setState("Paused", false)
+	setState("Countdown", 0)
+	setState("Announce", `{chapter}챕터`)
+	setState("BombLeft", 0)
+	setState("SniperLeft", 0)
+	setState("ShotgunLeft", 0)
+	setState("MolotovLeft", 0)
+	resetChapter3Events()
+	resetChapter2Round2Events()
+	for _, data in playerData do
+		data.bombUntil = 0
+		data.hadBomb = false
+		data.sniperUntil = 0
+		data.hadSniper = false
+		data.shotgunUntil = 0
+		data.hadShotgun = false
+		data.fireRateMult = 1
+		data.lastFire = 0
+	end
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			teleportToChapterWalk(player.Character)
+		end
 	end
 end
 
@@ -497,6 +561,8 @@ local function currentStats()
 			gap *= r2.SpawnEase2GapScale
 		end
 		if localRound == r3.Round then
+			gap = math.max(inf.SpawnGapMin, r3.SpawnGap)
+			maxAlive = r3.MaxAlive
 			if localElapsed >= r3.HordeStartAt and localElapsed < r3.HordeEndAt then
 				gap = r3.HordeSpawnGap
 				maxAlive = r3.HordeMaxAlive
@@ -504,6 +570,9 @@ local function currentStats()
 					gap *= inf.AllySpawnGapScale
 					maxAlive += inf.AllyMaxAliveBonus
 				end
+			elseif SupplyService.hasRecruitedThisMatch() then
+				gap *= inf.AllySpawnGapScale
+				maxAlive += inf.AllyMaxAliveBonus
 			end
 		end
 	end
@@ -547,7 +616,7 @@ local function resetChapter3Round2Events()
 	ch3R2MolotovSpawned = false
 	ch3R2DogSwarmSpawned = false
 	ch3R2SpikeSpawned = false
-	ch3R2ShotgunSpawned = false
+	ch3R2SniperSpawned = false
 end
 
 local function resetChapter3Round3Events()
@@ -564,6 +633,11 @@ end
 
 local function resetChapter3Round4Events()
 	ch3R4AllySpawned = false
+	ch3R4FireBoostSpawned = false
+	ch3R4BigSwarmStarted = false
+	ch3R4MolotovSpawned = false
+	ch3R4PlusSpawned = false
+	ch3R4DogSwarmStarted = false
 end
 
 local function resetChapter3Events()
@@ -1060,15 +1134,22 @@ local function spawnChapter2FinalHorde(count: number)
 	end
 end
 
-local function spawnChapter3BigZombie(spawnX: number)
-	local r2 = Config.Chapter3.Round2
+local function spawnChapter3BigZombie(
+	spawnX: number,
+	bigCfg: {
+		BigZombieSizeScale: number,
+		BigZombieHealthMult: number,
+		BigZombieSpeedScale: number,
+	}?
+)
+	local r = bigCfg or Config.Chapter3.Round2
 	local stats = currentStats()
 	local lane = Config.activeLane()
-	local scale = r2.BigZombieSizeScale
+	local scale = r.BigZombieSizeScale
 	local y = lane.CenterY + 2.4 * scale
 	local zombie = ZombieService.create(Vector3.new(spawnX, y, lane.SpawnZ), {
-		health = stats.health * r2.BigZombieHealthMult,
-		walkSpeed = stats.speed * r2.BigZombieSpeedScale,
+		health = stats.health * r.BigZombieHealthMult,
+		walkSpeed = stats.speed * r.BigZombieSpeedScale,
 		isBoss = true,
 		isBig = true,
 		isDog = false,
@@ -1078,6 +1159,75 @@ local function spawnChapter3BigZombie(spawnX: number)
 		hitCount = nil,
 	})
 	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+end
+
+local function spawnChapter3BigZombieSwarm(
+	count: number,
+	gap: number,
+	bigCfg: {
+		BigZombieSizeScale: number,
+		BigZombieHealthMult: number,
+		BigZombieSpeedScale: number,
+	}?
+)
+	task.spawn(function()
+		local lane = Config.activeLane()
+		local slots = Config.activeInfinite().LaneSlots
+		local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+		local n = math.max(1, math.floor(count))
+		for i = 1, n do
+			if phase ~= "playing" then
+				return
+			end
+			if i > 1 then
+				task.wait(gap)
+			end
+			if phase ~= "playing" then
+				return
+			end
+			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
+			x = math.clamp(x, minX, maxX)
+			spawnChapter3BigZombie(x, bigCfg)
+		end
+	end)
+end
+
+local function spawnChapter3DogSwarmEven(count: number, gap: number)
+	local n = math.max(1, math.floor(count))
+	task.spawn(function()
+		local lane = Config.activeLane()
+		local slots = Config.activeInfinite().LaneSlots
+		local dogCfg = Config.activeDog()
+		local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+		for i = 1, n do
+			if phase ~= "playing" then
+				return
+			end
+			if i > 1 then
+				task.wait(gap)
+			end
+			if phase ~= "playing" then
+				return
+			end
+			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
+			x = math.clamp(x, minX, maxX)
+			local z = lane.SpawnZ + math.random() * 12
+			local elapsed = math.max(0, os.clock() - matchStart)
+			local y = lane.CenterY + 1.35
+			local zombie = ZombieService.create(Vector3.new(x, y, z), {
+				health = dogCfg.Health,
+				walkSpeed = dogCfg.WalkSpeed + elapsed * dogCfg.SpeedPerSecond,
+				isBoss = false,
+				isBig = false,
+				isDog = true,
+				isShield = false,
+				contactDamage = dogCfg.ContactDamage,
+				scale = dogCfg.SizeScale,
+				hitCount = nil,
+			})
+			ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+		end
+	end)
 end
 
 local function spawnChapter3DogSwarm(count: number)
@@ -1356,6 +1506,7 @@ local function startChapter(chapter: number)
 		data.hadSniper = false
 		data.shotgunUntil = 0
 		data.hadShotgun = false
+		data.fireRateMult = 1
 		data.lastFire = 0
 	end
 	for _, player in Players:GetPlayers() do
@@ -1464,6 +1615,7 @@ local function beginPlay()
 		data.hadSniper = false
 		data.shotgunUntil = 0
 		data.hadShotgun = false
+		data.fireRateMult = 1
 		data.lastFire = 0
 	end
 end
@@ -1500,6 +1652,22 @@ local function jumpToRound(localRound: number)
 			end
 		end
 		beginPlay()
+	elseif phase == "chapterClear" then
+		for _, player in Players:GetPlayers() do
+			if player.Character then
+				teleportToLane(player.Character)
+			end
+		end
+		phase = "playing"
+		paused = false
+		matchStart = os.clock()
+		lastSpawnAt = 0
+		setState("Phase", "playing")
+		setState("Countdown", 0)
+		setState("Wave", Config.chapterStartWave())
+		setState("Elapsed", 0)
+		setState("HitPower", hitPower)
+		setState("Announce", "")
 	elseif phase == "countdown" then
 		-- 챕터2 카운트다운에서 beginPlay()를 호출하면 챕터1로 리셋됨
 		phase = "playing"
@@ -1717,6 +1885,7 @@ local function returnToLobby()
 		data.hadSniper = false
 		data.shotgunUntil = 0
 		data.hadShotgun = false
+		data.fireRateMult = 1
 	end
 
 	for _, player in Players:GetPlayers() do
@@ -1825,6 +1994,7 @@ local function setupPlayer(player: Player)
 		hadSniper = false,
 		shotgunUntil = 0,
 		hadShotgun = false,
+		fireRateMult = 1,
 	}
 
 	player.CharacterAdded:Connect(function(character)
@@ -1905,6 +2075,13 @@ grantShotgun = function()
 	setState("SniperLeft", 0)
 end
 
+local function grantFireBoost()
+	local mult = Config.Chapter3.FireBoostCrate.FireRateMultiplier
+	for _, data in playerData do
+		data.fireRateMult = mult
+	end
+end
+
 local function tryFire(now: number)
 	if phase ~= "playing" then
 		return
@@ -1929,6 +2106,9 @@ local function tryFire(now: number)
 			elseif usingBomb then Config.BombCrate.ThrowInterval
 			elseif usingShotgun then Config.Shotgun.FireInterval
 			else Config.Combat.FireInterval
+		if not usingBomb and not usingSniper then
+			interval /= math.max(1, data.fireRateMult or 1)
+		end
 		if now - data.lastFire < interval then
 			continue
 		end
@@ -1954,29 +2134,36 @@ local function tryFire(now: number)
 end
 
 local function bindStartPad()
-	local arena = Workspace:WaitForChild("Arena")
-	local pad = arena:WaitForChild("StartPad")
-	if not pad:IsA("BasePart") then
-		return
-	end
-
-	pad.Touched:Connect(function(hit)
-		if startPadDebounce or phase ~= "lobby" then
+	task.spawn(function()
+		local arena = Workspace:WaitForChild("Arena", 30)
+		if not arena then
+			warn("[GameService] Arena missing — StartPad not bound")
 			return
 		end
-		local character = hit:FindFirstAncestorOfClass("Model")
-		if not character then
-			return
-		end
-		local player = Players:GetPlayerFromCharacter(character)
-		if not player then
+		local pad = arena:WaitForChild("StartPad", 15)
+		if not pad or not pad:IsA("BasePart") then
+			warn("[GameService] StartPad missing — lobby start disabled")
 			return
 		end
 
-		startPadDebounce = true
-		startMatch()
-		task.delay(1.5, function()
-			startPadDebounce = false
+		pad.Touched:Connect(function(hit)
+			if startPadDebounce or phase ~= "lobby" then
+				return
+			end
+			local character = hit:FindFirstAncestorOfClass("Model")
+			if not character then
+				return
+			end
+			local player = Players:GetPlayerFromCharacter(character)
+			if not player then
+				return
+			end
+
+			startPadDebounce = true
+			startMatch()
+			task.delay(1.5, function()
+				startPadDebounce = false
+			end)
 		end)
 	end)
 end
@@ -2071,6 +2258,11 @@ function GameService.start(remotes)
 		if phase == "playing" then
 			local left = (stateFolder:GetAttribute("MolotovLeft") :: number?) or 0
 			setState("MolotovLeft", left + count)
+		end
+	end)
+	SupplyService.onFireBoostPicked(function()
+		if phase == "playing" then
+			grantFireBoost()
 		end
 	end)
 	NumberGate.onCollected(function(kind)
@@ -2172,9 +2364,9 @@ function GameService.start(remotes)
 				return
 			end
 			if (value :: number) >= 3 then
-				startChapter3()
+				debugEnterChapter(3)
 			elseif (value :: number) >= 2 then
-				startChapter2()
+				debugEnterChapter(2)
 			end
 		end)
 		remotes.DebugHitPower.OnServerEvent:Connect(function(_player: Player, value: unknown)
@@ -2725,9 +2917,9 @@ function GameService.start(remotes)
 						ch3R2SpikeSpawned = true
 						SpikeTrap.create()
 					end
-					if t >= r2.ShotgunAt and not ch3R2ShotgunSpawned then
-						ch3R2ShotgunSpawned = true
-						SupplyService.createShotgun(true, r2.ShotgunHitCountMin, r2.ShotgunHitCountMax)
+					if t >= r2.SniperAt and not ch3R2SniperSpawned then
+						ch3R2SniperSpawned = true
+						SupplyService.createSniper(true, r2.SniperHitCountMin, r2.SniperHitCountMax)
 					end
 				end
 				if round == r3.Round then
@@ -2781,6 +2973,26 @@ function GameService.start(remotes)
 					if t >= r4.AllyAt and not ch3R4AllySpawned then
 						ch3R4AllySpawned = true
 						SupplyService.create(true, r4.AllyHitCountMin, r4.AllyHitCountMax)
+					end
+					if t >= r4.FireBoostAt and not ch3R4FireBoostSpawned then
+						ch3R4FireBoostSpawned = true
+						SupplyService.createFireBoost(true)
+					end
+					if t >= r4.BigZombieAt and not ch3R4BigSwarmStarted then
+						ch3R4BigSwarmStarted = true
+						spawnChapter3BigZombieSwarm(r4.BigZombieCount, r4.BigZombieGap, r4)
+					end
+					if t >= r4.MolotovAt and not ch3R4MolotovSpawned then
+						ch3R4MolotovSpawned = true
+						SupplyService.createMolotov(true, nil, nil, r4.MolotovGrantCount)
+					end
+					if t >= r4.PlusAt and not ch3R4PlusSpawned then
+						ch3R4PlusSpawned = true
+						NumberGate.createPlus(r4.PlusHitCountMin, r4.PlusHitCountMax, true)
+					end
+					if t >= r4.DogSwarmAt and not ch3R4DogSwarmStarted then
+						ch3R4DogSwarmStarted = true
+						spawnChapter3DogSwarmEven(r4.DogSwarmCount, r4.DogSwarmGap)
 					end
 				end
 			end
