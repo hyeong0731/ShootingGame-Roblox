@@ -99,6 +99,43 @@ function Effects.start(remotes)
 			playThrowAnim()
 		end)
 	end
+
+	if remotes.FlashFx then
+		remotes.FlashFx.OnClientEvent:Connect(function(position: Vector3, radius: number)
+			local fxFolder = Workspace:FindFirstChild("Fx") or Workspace
+			local blast = Instance.new("Part")
+			blast.Name = "FlashBurst"
+			blast.Shape = Enum.PartType.Ball
+			blast.Anchored = true
+			blast.CanCollide = false
+			blast.CanQuery = false
+			blast.Material = Enum.Material.Neon
+			blast.Color = Color3.fromRGB(255, 255, 240)
+			blast.Transparency = 0.05
+			blast.Size = Vector3.new(2, 2, 2)
+			blast.CFrame = CFrame.new(position)
+			blast.Parent = fxFolder
+			Debris:AddItem(blast, 0.32)
+
+			local light = Instance.new("PointLight")
+			light.Brightness = 10
+			light.Range = radius * 1.8
+			light.Color = Color3.fromRGB(255, 255, 230)
+			light.Parent = blast
+
+			task.spawn(function()
+				local t = 0
+				while t < 0.28 and blast.Parent do
+					t += task.wait()
+					local u = math.clamp(t / 0.28, 0, 1)
+					local size = 2 + (radius * 2.2 - 2) * u
+					blast.Size = Vector3.new(size, size, size)
+					blast.Transparency = 0.05 + 0.9 * u
+					light.Brightness = 10 * (1 - u)
+				end
+			end)
+		end)
+	end
 end
 
 return Effects

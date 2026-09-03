@@ -90,6 +90,42 @@ local EventFlags = {
 		R4MolotovSpawned = false,
 		R4PlusSpawned = false,
 		R4DogSwarmStarted = false,
+		R5FlashbangSpawned = false,
+		R5HordeActive = false,
+		R5SniperSpawned = false,
+		R5ShotgunSpawned = false,
+		R5MinusSpawned = false,
+		R5MidBossSpawned = false,
+		R5ThrowerWaveStarted = false,
+		R5SpikeSpawned = false,
+		R6ShieldPackStarted = false,
+		R6PlusSpawned = false,
+		R6SniperSpawned = false,
+		R6Mine0 = false,
+		R6Mine15 = false,
+		R6Mine30 = false,
+		R6Mine50 = false,
+		R6MolotovSpawned = false,
+		R6BombSpawned = false,
+		R6ThrowerDogStarted = false,
+		R7BombSpawned = false,
+		R7ShieldBoostActive = false,
+		R7SpikeSpawned = false,
+		R7Mine10 = false,
+		R7MinusSpawned = false,
+		R7ThrowerWaveStarted = false,
+		R7MolotovSpawned = false,
+		R7Mine33 = false,
+		R7MidBossSpawned = false,
+		R7MidBoss2Spawned = false,
+		R8AllySpawned = false,
+		R8X2Spawned = false,
+		R8X2Collected = false,
+		R8X2RetrySpawned = false,
+		R8SniperSpawned = false,
+		R8Mine25 = false,
+		R8PlusSpawned = false,
+		R8MixedWaveStarted = false,
 	},
 }
 
@@ -143,11 +179,67 @@ function EventFlags.resetCh3Round4()
 	ch3.R4DogSwarmStarted = false
 end
 
+function EventFlags.resetCh3Round5()
+	local ch3 = EventFlags.Ch3
+	ch3.R5FlashbangSpawned = false
+	ch3.R5HordeActive = false
+	ch3.R5SniperSpawned = false
+	ch3.R5ShotgunSpawned = false
+	ch3.R5MinusSpawned = false
+	ch3.R5MidBossSpawned = false
+	ch3.R5ThrowerWaveStarted = false
+	ch3.R5SpikeSpawned = false
+end
+
+function EventFlags.resetCh3Round6()
+	local ch3 = EventFlags.Ch3
+	ch3.R6ShieldPackStarted = false
+	ch3.R6PlusSpawned = false
+	ch3.R6SniperSpawned = false
+	ch3.R6Mine0 = false
+	ch3.R6Mine15 = false
+	ch3.R6Mine30 = false
+	ch3.R6Mine50 = false
+	ch3.R6MolotovSpawned = false
+	ch3.R6BombSpawned = false
+	ch3.R6ThrowerDogStarted = false
+end
+
+function EventFlags.resetCh3Round7()
+	local ch3 = EventFlags.Ch3
+	ch3.R7BombSpawned = false
+	ch3.R7ShieldBoostActive = false
+	ch3.R7SpikeSpawned = false
+	ch3.R7Mine10 = false
+	ch3.R7MinusSpawned = false
+	ch3.R7ThrowerWaveStarted = false
+	ch3.R7MolotovSpawned = false
+	ch3.R7Mine33 = false
+	ch3.R7MidBossSpawned = false
+	ch3.R7MidBoss2Spawned = false
+end
+
+function EventFlags.resetCh3Round8()
+	local ch3 = EventFlags.Ch3
+	ch3.R8AllySpawned = false
+	ch3.R8X2Spawned = false
+	ch3.R8X2Collected = false
+	ch3.R8X2RetrySpawned = false
+	ch3.R8SniperSpawned = false
+	ch3.R8Mine25 = false
+	ch3.R8PlusSpawned = false
+	ch3.R8MixedWaveStarted = false
+end
+
 function EventFlags.resetCh3()
 	EventFlags.resetCh3Round1()
 	EventFlags.resetCh3Round2()
 	EventFlags.resetCh3Round3()
 	EventFlags.resetCh3Round4()
+	EventFlags.resetCh3Round5()
+	EventFlags.resetCh3Round6()
+	EventFlags.resetCh3Round7()
+	EventFlags.resetCh3Round8()
 end
 
 return EventFlags

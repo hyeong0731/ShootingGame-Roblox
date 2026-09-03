@@ -22,6 +22,7 @@ function StateSync.shiftPausedTimers(duration: number)
 	if ctx.chapter2PlusDueAt > 0 then ctx.chapter2PlusDueAt += duration end
 	if ctx.chapter2X2DueAt > 0 then ctx.chapter2X2DueAt += duration end
 	if ctx.lastMolotovAt > 0 then ctx.lastMolotovAt += duration end
+	if ctx.lastFlashbangAt > 0 then ctx.lastFlashbangAt += duration end
 	for _, data in ctx.playerData do
 		if data.lastFire > 0 then data.lastFire += duration end
 		if data.bombUntil > 0 then data.bombUntil += duration end

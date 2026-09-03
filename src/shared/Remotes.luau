@@ -38,6 +38,8 @@ function Remotes.serverInit()
 		DebugHitPower = ensureRemote(folder, "DebugHitPower"),
 		UseMolotov = ensureRemote(folder, "UseMolotov"),
 		MolotovThrowAnim = ensureRemote(folder, "MolotovThrowAnim"),
+		UseFlashbang = ensureRemote(folder, "UseFlashbang"),
+		FlashFx = ensureRemote(folder, "FlashFx"),
 		TogglePause = ensureRemote(folder, "TogglePause"),
 	}
 end
@@ -71,6 +73,8 @@ function Remotes.clientWait(timeout: number?)
 		DebugHitPower = waitRemote("DebugHitPower"),
 		UseMolotov = waitRemote("UseMolotov"),
 		MolotovThrowAnim = waitRemote("MolotovThrowAnim"),
+		UseFlashbang = waitRemote("UseFlashbang"),
+		FlashFx = waitRemote("FlashFx"),
 		TogglePause = waitRemote("TogglePause"),
 	}
 end

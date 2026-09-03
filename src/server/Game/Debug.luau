@@ -59,6 +59,7 @@ function Debug.debugEnterChapter(chapter: number)
 	setState("SniperLeft", 0)
 	setState("ShotgunLeft", 0)
 	setState("MolotovLeft", 0)
+	setState("FlashbangLeft", 0)
 	EventReset.resetChapter3Events(setState)
 	EventReset.resetChapter2Round2Events()
 	for _, data in ctx.playerData do
@@ -226,6 +227,7 @@ function Debug.jumpToRound(localRound: number)
 	EventReset.resetChapter2Round2Events()
 	ctx.gatePlayArmed = false
 	setState("MolotovLeft", 0)
+	setState("FlashbangLeft", 0)
 	EventReset.resetChapter3Events(setState)
 	applyRoundFeatures(wave)
 end

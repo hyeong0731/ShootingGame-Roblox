@@ -189,9 +189,9 @@ Config.Molotov = {
 Config.Shotgun = {
 	Duration = 10, -- 지속(초)
 	FireInterval = 0.65, -- 소총보다 느리게
-	PelletCount = 9,
-	-- +Z 기준 yaw(도). 바깥일수록 벌어져 V자 (좁은 집탄)
-	SpreadYawDeg = { -3.7, -2.8, -2.5, -1.2, 0, 1.2, 2.5, 2.8, 3.7 },
+	PelletCount = 11,
+	-- +Z 기준 yaw(도). 바깥일수록 벌어져 V자
+	SpreadYawDeg = { -4.6, -3.5, -2.5, -1.5, -0.7, 0, 0.7, 1.5, 2.5, 3.5, 4.6 },
 	DamageScale = 1.05, -- 펠릿당 데미지 상향
 	ReferenceUnitDamage = 24, -- 기본총 밸런스와 분리 (샷건 펠릿 기준)
 	HitsScale = 0.5, -- 펠릿당 DPS 배수 (상자·게이트)
@@ -207,6 +207,31 @@ Config.Shotgun = {
 	HitCountMin = 30,
 	HitCountMax = 45,
 	HitLabelScale = 1,
+}
+
+-- 지뢰병 좀비 (챕터3 R6). 빠른 지그재그, 사망/접촉 시 소형 폭발
+Config.MineZombie = {
+	HealthShots = 9, -- 기본총 기준 처치 탄수
+	WalkSpeed = 26,
+	SizeScale = 0.92,
+	ZigInterval = 0.28, -- 좌우 방향 바꾸기 간격
+	ZigAmplitude = 14, -- 목표 X 흔들림
+	BodyColor = Color3.fromRGB(48, 52, 38),
+	ClothesColor = Color3.fromRGB(28, 30, 24),
+	StripeColor = Color3.fromRGB(255, 200, 40),
+	PackColor = Color3.fromRGB(36, 40, 32),
+	Radius = 9, -- 폭탄(16)보다 작은 폭발
+	PlayerHpPercent = 20, -- 폭발 범위 내 플레이어 최대체력 %
+}
+
+-- 섬광탄: 폭탄과 같은 사거리·범위, 데미지 없이 기절
+Config.Flashbang = {
+	Count = 3,
+	CrateHitCountMin = 40,
+	CrateHitCountMax = 55,
+	WalkSpeed = 10,
+	StunDuration = 5,
+	-- Radius / ThrowDistance / FlightTime 은 BombCrate와 동일하게 사용
 }
 
 -- 압정 발판 (챕터3). 총알로 못 깨고 플레이어만 데미지
@@ -770,6 +795,9 @@ Config.Chapter3 = {
 		AllySpawnGapScale = 0.62,
 		AllyMaxAliveBonus = 4,
 	},
+	-- R6부터 방패 타수 (따로 말하기 전까지 유지)
+	ShieldHitCountMin = 55,
+	ShieldHitCountMax = 65,
 	Lane = {
 		Width = 32,
 		Length = 220,
@@ -837,6 +865,8 @@ Config.Chapter3 = {
 		BigZombieSpeedScale = 0.58,
 		MolotovAt = 22,
 		MolotovGrantCount = 3,
+		MolotovHitCountMin = 40,
+		MolotovHitCountMax = 55,
 		DogSwarmAt = 35,
 		DogSwarmCount = 14,
 		DogSwarmDuration = 2, -- 2초 동안 무작위 위치·시간에 난잡하게 스폰
@@ -851,7 +881,7 @@ Config.Chapter3 = {
 		Round = 3,
 		FogWarnAt = 10,
 		FogStartAt = 13, -- 경고 3초 뒤
-		FogDuration = 20,
+		FogDuration = 30,
 		HordeStartAt = 15,
 		HordeEndAt = 35,
 		SpawnGap = 0.38, -- R3 기본 스폰 간격 (전체적으로 완화)
@@ -864,10 +894,10 @@ Config.Chapter3 = {
 		SniperAt = 20,
 		SniperHitCountMin = 30,
 		SniperHitCountMax = 40,
-		X2At = 40,
+		X2At = 35,
 		X2HitCountMin = 45,
 		X2HitCountMax = 55,
-		X2RetryAt = 55, -- 40초 x2 못 먹었을 때만
+		X2RetryAt = 57, -- 35초 x2 못 먹었을 때만
 		SpikeAt = 43,
 		SpikeRightDelay = 2.8, -- 왼쪽 압정 뒤 오른쪽 끝
 	},
@@ -896,6 +926,133 @@ Config.Chapter3 = {
 		DogSwarmAt = 40,
 		DogSwarmCount = 10,
 		DogSwarmGap = 1,
+	},
+	Round5 = {
+		Round = 5,
+		ShieldHitCountMin = 45,
+		ShieldHitCountMax = 55,
+		FlashbangAt = 0,
+		FlashbangGrantCount = 3,
+		FlashbangHitCountMin = 40,
+		FlashbangHitCountMax = 55,
+		HordeStartAt = 10,
+		HordeEndAt = 28,
+		HordeSpawnGap = 0.12,
+		HordeMaxAlive = 30,
+		ShieldSpawnChance = 0.18,
+		DogSpawnChance = 0.16,
+		BigSpawnChance = 0.12,
+		ThrowerSpawnChance = 0.14,
+		BigZombieSizeScale = 1.75,
+		BigZombieHealthMult = 5,
+		BigZombieSpeedScale = 0.58,
+		ShotgunAt = 22,
+		ShotgunHitCountMin = 40,
+		ShotgunHitCountMax = 45,
+		MinusAt = 30,
+		MinusHitCountMin = 58,
+		MinusHitCountMax = 58,
+		MinusWalkSpeedScale = 1.7,
+		MidBossAt = 40,
+		MidBossHitCountMin = 1000,
+		MidBossHitCountMax = 1100,
+		MidBossSizeScale = 2.6,
+		MidBossWalkSpeed = 4.2,
+		MidBossContactDamage = 18,
+		ThrowerWaveAt = 44,
+		ThrowerWaveCount = 5,
+		ThrowerWaveGap = 1,
+		SpikeAt = 50,
+		SniperAt = 9,
+		SniperHitCount = 66,
+		-- 투척 웨이브 이후~라운드 종료: 스폰 완화 (보스 집중)
+		BossFocusGapScale = 1.85,
+		BossFocusMaxAlive = 12,
+	},
+	Round6 = {
+		Round = 6,
+		-- 시작 10초: R5 잔여 정리용 스폰 대폭 완화
+		ClearGraceUntil = 10,
+		ClearGraceGapScale = 2.6,
+		ClearGraceMaxAlive = 8,
+		ShieldPackAt = 0,
+		ShieldPackCount = 8,
+		ShieldPackGap = 1,
+		ShieldHitCountMin = 55,
+		ShieldHitCountMax = 65,
+		PlusAt = 0,
+		PlusHitCount = 53,
+		SniperAt = 10,
+		SniperHitCount = 62,
+		MineAt = { 0, 15, 30 },
+		MinePairAt = 50,
+		MinePairCount = 3,
+		BigFromAt = 30,
+		BigSpawnChance = 0.10,
+		MolotovAt = 30,
+		MolotovHitCount = 39,
+		MolotovGrantCount = 3,
+		BombAt = 40,
+		BombHitCount = 54,
+		ThrowerDogAt = 50,
+		ThrowerCount = 6,
+		DogCount = 6,
+		ThrowerDogGap = 0.55,
+	},
+	Round7 = {
+		Round = 7,
+		BombAt = 0,
+		BombHitCount = 72,
+		ShieldBoostAt = 5,
+		ShieldBoostUntil = 15,
+		ShieldBoostChance = 0.5, -- 5~15초: 스폰의 50% 방패 (이후 R1 비율로 복귀)
+		SpikeAt = 5,
+		MineAt = { 10, 33 },
+		MinusAt = 12,
+		MinusHitCount = 46,
+		MinusWalkSpeedScale = 1.7,
+		BigFromAt = 20,
+		BigSpawnChance = 0.30,
+		ThrowerWaveAt = 25,
+		ThrowerWaveCount = 7,
+		ThrowerWaveGap = 1,
+		MolotovAt = 30,
+		MolotovHitCount = 42,
+		MolotovGrantCount = 3,
+		MidBossAt = 40,
+		MidBossHitCountMin = 550,
+		MidBossHitCountMax = 600,
+		MidBoss2At = 55,
+		MidBoss2HitCountMin = 500,
+		MidBoss2HitCountMax = 550,
+	},
+	Round8 = {
+		Round = 8,
+		AllyAt = 0,
+		AllyHitCountMin = 85,
+		AllyHitCountMax = 95,
+		ShieldSpawnChance = 0.25, -- 시작~40초
+		ShieldSpawnChanceLate = 0.15, -- 40초~
+		ShieldShiftAt = 40,
+		ShieldHitCountMin = 82, -- R8부터 지속 (따로 말하기 전까지)
+		ShieldHitCountMax = 92,
+		X2At = 13,
+		X2HitCount = 75,
+		X2RetryAt = 40, -- 13초 x2 못 먹었을 때만
+		SniperAt = 22,
+		SniperHitCount = 91,
+		SniperShieldHitDamage = 60, -- R8부터 스나이퍼→방패 (따로 말하기 전까지)
+		MineAt = 25,
+		BigFromAt = 40,
+		BigSpawnChance = 0.25,
+		PlusAt = 42,
+		PlusHitCount = 68,
+		MixedWaveAt = 52,
+		MixedWaveDuration = 10,
+		MixedWaveNormal = 8,
+		MixedWaveDog = 12,
+		MixedWaveBig = 4,
+		MixedWaveShield = 8,
 	},
 }
 
@@ -1047,6 +1204,14 @@ function Config.numberedWeaponHits(kind: string, wave: number?): number
 		return if late then r9.MolotovHitDamage else Config.Molotov.HitDamage
 	end
 	return 1
+end
+
+function Config.sniperShieldHits(wave: number?): number
+	local w = wave or 1
+	if Config.chapter() >= 3 and Config.chapterRound(w) >= Config.Chapter3.Round8.Round then
+		return Config.Chapter3.Round8.SniperShieldHitDamage
+	end
+	return Config.numberedWeaponHits("sniper", w)
 end
 
 function Config.maxHitPower(chapter: number?): number

@@ -57,6 +57,7 @@ local function startChapter(chapter: number)
 	setState("SniperLeft", 0)
 	setState("ShotgunLeft", 0)
 	setState("MolotovLeft", 0)
+	setState("FlashbangLeft", 0)
 	setState("Paused", false)
 	for _, data in ctx.playerData do
 		data.bombUntil = 0
@@ -166,6 +167,7 @@ function Lifecycle.beginPlay()
 	setState("SniperLeft", 0)
 	setState("ShotgunLeft", 0)
 	setState("MolotovLeft", 0)
+	setState("FlashbangLeft", 0)
 	setState("HitPower", ctx.hitPower)
 	for _, data in ctx.playerData do
 		data.bombUntil = 0
@@ -224,6 +226,7 @@ function Lifecycle.returnToLobby()
 	setState("SniperLeft", 0)
 	setState("ShotgunLeft", 0)
 	setState("MolotovLeft", 0)
+	setState("FlashbangLeft", 0)
 	setState("Paused", false)
 	setState("HitPower", 1)
 	setState("Announce", "")

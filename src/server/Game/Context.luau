@@ -46,6 +46,7 @@ local Context = {
 	heartbeatConn = nil :: RBXScriptConnection?,
 	startPadDebounce = false,
 	lastMolotovAt = 0,
+	lastFlashbangAt = 0,
 }
 
 return Context

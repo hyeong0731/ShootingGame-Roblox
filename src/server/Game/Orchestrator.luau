@@ -6,6 +6,7 @@ local ZombieService = require(script.Parent.Parent.ZombieService)
 local CombatService = require(script.Parent.Parent.CombatService)
 local SupplyService = require(script.Parent.Parent.SupplyService)
 local NumberGate = require(script.Parent.Parent.NumberGate)
+local Gun = require(script.Parent.Parent.Gun)
 local Context = require(script.Parent.Context)
 local StateSync = require(script.Parent.StateSync)
 local Lifecycle = require(script.Parent.Lifecycle)
@@ -44,6 +45,7 @@ function Orchestrator.start(remotes)
 	setState("SniperLeft", 0)
 	setState("ShotgunLeft", 0)
 	setState("MolotovLeft", 0)
+	setState("FlashbangLeft", 0)
 	setState("HitPower", 1)
 	setState("GateLabelScale", Config.NumberGate.LabelScale)
 	setState("Announce", "")
@@ -53,6 +55,34 @@ function Orchestrator.start(remotes)
 
 	ZombieService.onDied(function()
 		Debug.onZombieDied()
+	end)
+	ZombieService.onMineExplode(function(position: Vector3)
+		local cfg = Config.MineZombie
+		if remotes.ExplodeFx then
+			remotes.ExplodeFx:FireAllClients(position, cfg.Radius)
+		end
+		local playerDamageRatio = cfg.PlayerHpPercent / 100
+		for _, player in Players:GetPlayers() do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if root and root:IsA("BasePart") and humanoid and humanoid.Health > 0 then
+				local delta = root.Position - position
+				if delta.X * delta.X + delta.Z * delta.Z <= cfg.Radius * cfg.Radius then
+					humanoid:TakeDamage(humanoid.MaxHealth * playerDamageRatio)
+				end
+			end
+		end
+		-- 지원군도 플레이어와 동일 비율 피해
+		for _, ally in SupplyService.getAllies() do
+			if not ally.alive or not ally.model.Parent then
+				continue
+			end
+			local delta = ally.root.Position - position
+			if delta.X * delta.X + delta.Z * delta.Z <= cfg.Radius * cfg.Radius then
+				SupplyService.damageAlly(ally, ally.humanoid.MaxHealth * playerDamageRatio)
+			end
+		end
 	end)
 	ZombieService.onThrow(function(record)
 		if ctx.phase ~= "playing" then
@@ -65,6 +95,7 @@ function Orchestrator.start(remotes)
 			return
 		end
 		Combat.damagePlayersNear(position, radius, damage)
+		SupplyService.damageAlliesNear(position, radius, damage)
 	end)
 	ZombieService.onReached(function(record)
 		if ctx.phase ~= "playing" then
@@ -114,6 +145,12 @@ function Orchestrator.start(remotes)
 			setState("MolotovLeft", left + count)
 		end
 	end)
+	SupplyService.onFlashbangPicked(function(count: number)
+		if ctx.phase == "playing" then
+			local left = (ctx.stateFolder:GetAttribute("FlashbangLeft") :: number?) or 0
+			setState("FlashbangLeft", left + count)
+		end
+	end)
 	SupplyService.onFireBoostPicked(function()
 		if ctx.phase == "playing" then
 			Combat.grantFireBoost()
@@ -136,8 +173,11 @@ function Orchestrator.start(remotes)
 					Ev.Ch2.R8X2Collected = true
 				end
 			elseif Config.chapter() == 3 then
-				if Config.chapterRound(waveNow) == Config.Chapter3.Round3.Round then
+				local localRound = Config.chapterRound(waveNow)
+				if localRound == Config.Chapter3.Round3.Round then
 					Ev.Ch3.R3X2Collected = true
+				elseif localRound == Config.Chapter3.Round8.Round then
+					Ev.Ch3.R8X2Collected = true
 				end
 			end
 		elseif id == "div2" or kind.Op == "div" then
@@ -178,8 +218,6 @@ function Orchestrator.start(remotes)
 		if now - ctx.lastMolotovAt < 0.35 then
 			return
 		end
-		ctx.lastMolotovAt = now
-		setState("MolotovLeft", left - 1)
 		local origins = SupplyService.allyThrowOrigins()
 		local playerThrowing = #origins == 0
 		if playerThrowing then
@@ -188,8 +226,8 @@ function Orchestrator.start(remotes)
 				if not character then
 					continue
 				end
-				local muzzle = Gun.getMuzzlePosition(character)
 				local root = character:FindFirstChild("HumanoidRootPart")
+				local muzzle = Gun.getMuzzlePosition(character)
 				if muzzle then
 					table.insert(origins, muzzle)
 				elseif root and root:IsA("BasePart") then
@@ -198,12 +236,53 @@ function Orchestrator.start(remotes)
 				break
 			end
 		end
-		if origins[1] then
-			if playerThrowing and remotes.MolotovThrowAnim then
-				remotes.MolotovThrowAnim:FireAllClients()
-			end
-			CombatService.throwMolotov(origins[1])
+		if not origins[1] then
+			return
 		end
+		ctx.lastMolotovAt = now
+		setState("MolotovLeft", left - 1)
+		if playerThrowing and remotes.MolotovThrowAnim then
+			remotes.MolotovThrowAnim:FireAllClients()
+		end
+		CombatService.throwMolotov(origins[1])
+	end)
+
+	remotes.UseFlashbang.OnServerEvent:Connect(function(_player: Player)
+		if ctx.phase ~= "playing" or ctx.paused then
+			return
+		end
+		local left = (ctx.stateFolder:GetAttribute("FlashbangLeft") :: number?) or 0
+		if left <= 0 then
+			return
+		end
+		local now = os.clock()
+		if now - ctx.lastFlashbangAt < 0.35 then
+			return
+		end
+		local origins = SupplyService.allyThrowOrigins()
+		local playerThrowing = #origins == 0
+		if playerThrowing then
+			for _, data in ctx.playerData do
+				local character = data.character
+				if not character then
+					continue
+				end
+				local root = character:FindFirstChild("HumanoidRootPart")
+				local muzzle = Gun.getMuzzlePosition(character)
+				if muzzle then
+					table.insert(origins, muzzle)
+				elseif root and root:IsA("BasePart") then
+					table.insert(origins, root.Position + Vector3.new(0, 1.2, 1.4))
+				end
+				break
+			end
+		end
+		if not origins[1] then
+			return
+		end
+		ctx.lastFlashbangAt = now
+		setState("FlashbangLeft", left - 1)
+		CombatService.throwFlashbang(origins[1])
 	end)
 
 	if Config.Debug.Enabled then

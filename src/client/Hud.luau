@@ -512,6 +512,76 @@ local function createMolotovButton(parent: Instance): TextButton
 	return btn
 end
 
+local function createFlashbangButton(parent: Instance): TextButton
+	local size = Config.Hud.WeaponButtonSize
+	local btn = Instance.new("TextButton")
+	btn.Name = "FlashbangButton"
+	btn.AutoButtonColor = true
+	btn.Text = ""
+	btn.BackgroundColor3 = Color3.fromRGB(200, 205, 220)
+	btn.BorderSizePixel = 0
+	btn.Size = UDim2.fromOffset(size, size)
+	btn.Position = UDim2.new(0.02, 0, 0.22, (size + 12) * 2)
+	btn.ZIndex = 6
+	btn.Visible = false
+	btn.Parent = parent
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0.16, 0)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = math.max(3, math.floor(size / 22))
+	stroke.Color = Color3.fromRGB(0, 0, 0)
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = btn
+	addStuds(btn)
+
+	local can = Instance.new("Frame")
+	can.Name = "Can"
+	can.BackgroundColor3 = Color3.fromRGB(230, 230, 240)
+	can.BorderSizePixel = 0
+	can.Size = UDim2.fromScale(0.34, 0.46)
+	can.Position = UDim2.fromScale(0.5, 0.43)
+	can.AnchorPoint = Vector2.new(0.5, 0.5)
+	can.ZIndex = 7
+	can.Parent = btn
+	Instance.new("UICorner", can).CornerRadius = UDim.new(0.18, 0)
+
+	local tip = Instance.new("Frame")
+	tip.BackgroundColor3 = Color3.fromRGB(255, 240, 120)
+	tip.BorderSizePixel = 0
+	tip.Size = UDim2.fromScale(0.7, 0.18)
+	tip.Position = UDim2.fromScale(0.5, -0.08)
+	tip.AnchorPoint = Vector2.new(0.5, 1)
+	tip.ZIndex = 8
+	tip.Parent = can
+	Instance.new("UICorner", tip).CornerRadius = UDim.new(0.4, 0)
+
+	local caption = Instance.new("TextLabel")
+	caption.Name = "Caption"
+	caption.BackgroundTransparency = 1
+	caption.Size = UDim2.new(1, -6, 0.22, 0)
+	caption.Position = UDim2.new(0.5, 0, 0.72, 0)
+	caption.AnchorPoint = Vector2.new(0.5, 0)
+	caption.Font = Enum.Font.GothamBlack
+	caption.Text = "섬광탄"
+	caption.TextColor3 = Color3.fromRGB(255, 255, 255)
+	caption.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	caption.TextStrokeTransparency = 0
+	caption.TextScaled = true
+	caption.ZIndex = 8
+	caption.Parent = btn
+
+	local count = caption:Clone()
+	count.Name = "Count"
+	count.Position = UDim2.new(0.5, 0, 0.88, 0)
+	count.Size = UDim2.new(1, -6, 0.16, 0)
+	count.Text = "남은개수 : 0"
+	count.TextColor3 = Color3.fromRGB(255, 240, 90)
+	count.ZIndex = 8
+	count.Parent = btn
+
+	return btn
+end
+
 local function createPauseButton(parent: Instance): TextButton
 	local button = Instance.new("TextButton")
 	button.Name = "PauseButton"
@@ -605,6 +675,7 @@ end
 
 function Hud.start(remotes: {
 	UseMolotov: Instance,
+	UseFlashbang: Instance?,
 	TogglePause: Instance,
 	DebugSetRound: Instance?,
 	DebugSetChapter: Instance?,
@@ -667,15 +738,24 @@ function Hud.start(remotes: {
 	local hitBadge = createHitCountBadge(gui)
 	hitBadge.Visible = false
 	local molotovButton = createMolotovButton(gui)
+	local flashbangButton = createFlashbangButton(gui)
 	local pauseButton = createPauseButton(gui)
 	local remotesFolder = remotes and remotes.UseMolotov.Parent or ReplicatedStorage:WaitForChild("Remotes")
 	local useMolotov = if remotes then remotes.UseMolotov else remotesFolder:WaitForChild("UseMolotov")
+	local useFlashbang = if remotes and remotes.UseFlashbang
+		then remotes.UseFlashbang
+		else remotesFolder:WaitForChild("UseFlashbang", 5)
 	local togglePause = if remotes then remotes.TogglePause else remotesFolder:WaitForChild("TogglePause")
 	molotovButton.MouseButton1Click:Connect(function()
 		if useMolotov:IsA("RemoteEvent") then
 			useMolotov:FireServer()
 		end
 	end)
+	if useFlashbang and useFlashbang:IsA("RemoteEvent") then
+		flashbangButton.MouseButton1Click:Connect(function()
+			useFlashbang:FireServer()
+		end)
+	end
 	pauseButton.MouseButton1Click:Connect(function()
 		if togglePause:IsA("RemoteEvent") then
 			togglePause:FireServer()
@@ -966,6 +1046,12 @@ function Hud.start(remotes: {
 		local molotovCount = molotovButton:FindFirstChild("Count")
 		if molotovCount and molotovCount:IsA("TextLabel") then
 			molotovCount.Text = `남은개수 : {molotovLeft}`
+		end
+		local flashbangLeft = state:GetAttribute("FlashbangLeft") or 0
+		flashbangButton.Visible = currentPhase == "playing" and flashbangLeft > 0
+		local flashbangCount = flashbangButton:FindFirstChild("Count")
+		if flashbangCount and flashbangCount:IsA("TextLabel") then
+			flashbangCount.Text = `남은개수 : {flashbangLeft}`
 		end
 		ensureWorldBar(currentPhase)
 

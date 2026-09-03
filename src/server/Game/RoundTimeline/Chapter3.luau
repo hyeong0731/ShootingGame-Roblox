@@ -74,7 +74,12 @@ function Chapter3.tick(now: number, wave: number)
  					end
  					if t >= r2.MolotovAt and not Ev.Ch3.R2MolotovSpawned then
  						Ev.Ch3.R2MolotovSpawned = true
- 						SupplyService.createMolotov(true, nil, nil, r2.MolotovGrantCount)
+ 						SupplyService.createMolotov(
+ 							true,
+ 							r2.MolotovHitCountMin,
+ 							r2.MolotovHitCountMax,
+ 							r2.MolotovGrantCount
+ 						)
  					end
  					if t >= r2.DogSwarmAt and not Ev.Ch3.R2DogSwarmSpawned then
  						Ev.Ch3.R2DogSwarmSpawned = true
@@ -162,7 +167,202 @@ function Chapter3.tick(now: number, wave: number)
  						Spawning.spawnChapter3DogSwarmEven(r4.DogSwarmCount, r4.DogSwarmGap)
  					end
  				end
- 			end
+ 				local r5 = Config.Chapter3.Round5
+ 				if round == r5.Round then
+ 					if t >= r5.FlashbangAt and not Ev.Ch3.R5FlashbangSpawned then
+ 						Ev.Ch3.R5FlashbangSpawned = true
+ 						SupplyService.createFlashbang(
+ 							true,
+ 							r5.FlashbangHitCountMin,
+ 							r5.FlashbangHitCountMax,
+ 							r5.FlashbangGrantCount
+ 						)
+ 					end
+ 					if t >= r5.SniperAt and not Ev.Ch3.R5SniperSpawned then
+ 						Ev.Ch3.R5SniperSpawned = true
+ 						SupplyService.createSniper(true, r5.SniperHitCount, r5.SniperHitCount)
+ 					end
+ 					if t >= r5.HordeStartAt and not Ev.Ch3.R5HordeActive then
+ 						Ev.Ch3.R5HordeActive = true
+ 					end
+ 					if t >= r5.ShotgunAt and not Ev.Ch3.R5ShotgunSpawned then
+ 						Ev.Ch3.R5ShotgunSpawned = true
+ 						SupplyService.createShotgun(true, r5.ShotgunHitCountMin, r5.ShotgunHitCountMax)
+ 					end
+ 					if t >= r5.MinusAt and not Ev.Ch3.R5MinusSpawned then
+ 						Ev.Ch3.R5MinusSpawned = true
+ 						NumberGate.createMinus(
+ 							r5.MinusHitCountMin,
+ 							r5.MinusHitCountMax,
+ 							true,
+ 							r5.MinusWalkSpeedScale
+ 						)
+ 					end
+ 					if t >= r5.MidBossAt and not Ev.Ch3.R5MidBossSpawned then
+ 						Ev.Ch3.R5MidBossSpawned = true
+ 						Spawning.spawnChapter3MidBoss()
+ 					end
+ 					if t >= r5.ThrowerWaveAt and not Ev.Ch3.R5ThrowerWaveStarted then
+ 						Ev.Ch3.R5ThrowerWaveStarted = true
+ 						Spawning.spawnChapter3ThrowerWave(r5.ThrowerWaveCount, r5.ThrowerWaveGap)
+ 					end
+ 					if t >= r5.SpikeAt and not Ev.Ch3.R5SpikeSpawned then
+ 						Ev.Ch3.R5SpikeSpawned = true
+ 						local lane = Config.activeLane()
+ 						local minX, _maxX = Config.zombieXBounds(lane.SpawnZ)
+ 						local half = Config.SpikeTrap.Size * 0.5
+ 						SpikeTrap.create(minX + half * 0.4)
+ 					end
+ 				end
+ 				local r6 = Config.Chapter3.Round6
+ 				if round == r6.Round then
+ 					if t >= r6.ShieldPackAt and not Ev.Ch3.R6ShieldPackStarted then
+ 						Ev.Ch3.R6ShieldPackStarted = true
+ 						Spawning.spawnChapter3ShieldPack(
+ 							r6.ShieldPackCount,
+ 							r6.ShieldPackGap,
+ 							Config.Chapter3.ShieldHitCountMin,
+ 							Config.Chapter3.ShieldHitCountMax
+ 						)
+ 					end
+ 					if t >= r6.PlusAt and not Ev.Ch3.R6PlusSpawned then
+ 						Ev.Ch3.R6PlusSpawned = true
+ 						NumberGate.createPlus(r6.PlusHitCount, r6.PlusHitCount, true)
+ 					end
+ 					if t >= r6.MineAt[1] and not Ev.Ch3.R6Mine0 then
+ 						Ev.Ch3.R6Mine0 = true
+ 						Spawning.spawnChapter3MineZombie()
+ 					end
+ 					if t >= r6.SniperAt and not Ev.Ch3.R6SniperSpawned then
+ 						Ev.Ch3.R6SniperSpawned = true
+ 						SupplyService.createSniper(true, r6.SniperHitCount, r6.SniperHitCount)
+ 					end
+ 					if t >= r6.MineAt[2] and not Ev.Ch3.R6Mine15 then
+ 						Ev.Ch3.R6Mine15 = true
+ 						Spawning.spawnChapter3MineZombie()
+ 					end
+ 					if t >= r6.MineAt[3] and not Ev.Ch3.R6Mine30 then
+ 						Ev.Ch3.R6Mine30 = true
+ 						Spawning.spawnChapter3MineZombie()
+ 					end
+ 					if t >= r6.MolotovAt and not Ev.Ch3.R6MolotovSpawned then
+ 						Ev.Ch3.R6MolotovSpawned = true
+ 						SupplyService.createMolotov(
+ 							true,
+ 							r6.MolotovHitCount,
+ 							r6.MolotovHitCount,
+ 							r6.MolotovGrantCount
+ 						)
+ 					end
+ 					if t >= r6.BombAt and not Ev.Ch3.R6BombSpawned then
+ 						Ev.Ch3.R6BombSpawned = true
+ 						SupplyService.createBomb(true, r6.BombHitCount, r6.BombHitCount)
+ 					end
+ 					if t >= r6.MinePairAt and not Ev.Ch3.R6Mine50 then
+ 						Ev.Ch3.R6Mine50 = true
+ 						Spawning.spawnChapter3MineWave(r6.MinePairCount)
+ 					end
+					if t >= r6.ThrowerDogAt and not Ev.Ch3.R6ThrowerDogStarted then
+						Ev.Ch3.R6ThrowerDogStarted = true
+						Spawning.spawnChapter3ThrowerAndDogWave(
+							r6.ThrowerCount,
+							r6.DogCount,
+							r6.ThrowerDogGap
+						)
+					end
+				end
+				local r7 = Config.Chapter3.Round7
+				if round == r7.Round then
+					if t >= r7.BombAt and not Ev.Ch3.R7BombSpawned then
+						Ev.Ch3.R7BombSpawned = true
+						SupplyService.createBomb(true, r7.BombHitCount, r7.BombHitCount)
+					end
+					if t >= r7.ShieldBoostAt and not Ev.Ch3.R7ShieldBoostActive then
+						Ev.Ch3.R7ShieldBoostActive = true
+					end
+					if t >= r7.SpikeAt and not Ev.Ch3.R7SpikeSpawned then
+						Ev.Ch3.R7SpikeSpawned = true
+						SpikeTrap.create()
+					end
+					if t >= r7.MineAt[1] and not Ev.Ch3.R7Mine10 then
+						Ev.Ch3.R7Mine10 = true
+						Spawning.spawnChapter3MineZombie()
+					end
+					if t >= r7.MinusAt and not Ev.Ch3.R7MinusSpawned then
+						Ev.Ch3.R7MinusSpawned = true
+						NumberGate.createMinus(
+							r7.MinusHitCount,
+							r7.MinusHitCount,
+							true,
+							r7.MinusWalkSpeedScale
+						)
+					end
+					if t >= r7.ThrowerWaveAt and not Ev.Ch3.R7ThrowerWaveStarted then
+						Ev.Ch3.R7ThrowerWaveStarted = true
+						Spawning.spawnChapter3ThrowerWave(r7.ThrowerWaveCount, r7.ThrowerWaveGap)
+					end
+					if t >= r7.MolotovAt and not Ev.Ch3.R7MolotovSpawned then
+						Ev.Ch3.R7MolotovSpawned = true
+						SupplyService.createMolotov(
+							true,
+							r7.MolotovHitCount,
+							r7.MolotovHitCount,
+							r7.MolotovGrantCount
+						)
+					end
+					if t >= r7.MineAt[2] and not Ev.Ch3.R7Mine33 then
+						Ev.Ch3.R7Mine33 = true
+						Spawning.spawnChapter3MineZombie()
+					end
+					if t >= r7.MidBossAt and not Ev.Ch3.R7MidBossSpawned then
+						Ev.Ch3.R7MidBossSpawned = true
+						Spawning.spawnChapter3MidBoss(r7.MidBossHitCountMin, r7.MidBossHitCountMax)
+					end
+					if t >= r7.MidBoss2At and not Ev.Ch3.R7MidBoss2Spawned then
+						Ev.Ch3.R7MidBoss2Spawned = true
+						Spawning.spawnChapter3MidBoss(r7.MidBoss2HitCountMin, r7.MidBoss2HitCountMax)
+					end
+				end
+				local r8 = Config.Chapter3.Round8
+				if round == r8.Round then
+					if t >= r8.AllyAt and not Ev.Ch3.R8AllySpawned then
+						Ev.Ch3.R8AllySpawned = true
+						SupplyService.create(true, r8.AllyHitCountMin, r8.AllyHitCountMax, true)
+					end
+					if t >= r8.X2At and not Ev.Ch3.R8X2Spawned then
+						Ev.Ch3.R8X2Spawned = true
+						NumberGate.createX2(r8.X2HitCount, r8.X2HitCount, true)
+					end
+					if t >= r8.SniperAt and not Ev.Ch3.R8SniperSpawned then
+						Ev.Ch3.R8SniperSpawned = true
+						SupplyService.createSniper(true, r8.SniperHitCount, r8.SniperHitCount)
+					end
+					if t >= r8.MineAt and not Ev.Ch3.R8Mine25 then
+						Ev.Ch3.R8Mine25 = true
+						Spawning.spawnChapter3MineZombie()
+					end
+					if t >= r8.X2RetryAt and not Ev.Ch3.R8X2RetrySpawned and not Ev.Ch3.R8X2Collected then
+						Ev.Ch3.R8X2RetrySpawned = true
+						NumberGate.createX2(r8.X2HitCount, r8.X2HitCount, true)
+					end
+					if t >= r8.PlusAt and not Ev.Ch3.R8PlusSpawned then
+						Ev.Ch3.R8PlusSpawned = true
+						NumberGate.createPlus(r8.PlusHitCount, r8.PlusHitCount, true)
+					end
+					if t >= r8.MixedWaveAt and not Ev.Ch3.R8MixedWaveStarted then
+						Ev.Ch3.R8MixedWaveStarted = true
+						Spawning.spawnChapter3TimedMix(
+							r8.MixedWaveNormal,
+							r8.MixedWaveDog,
+							r8.MixedWaveBig,
+							r8.MixedWaveShield,
+							r8.MixedWaveDuration,
+							r8.ShieldHitCountMin,
+							r8.ShieldHitCountMax
+						)
+					end
+				end
+			end
 end
 
 return Chapter3

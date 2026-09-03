@@ -155,6 +155,7 @@ function Spawning.currentStats()
 		local r1 = Config.Chapter3.Round1
 		local r2 = Config.Chapter3.Round2
 		local r3 = Config.Chapter3.Round3
+		local r5 = Config.Chapter3.Round5
 		local localRound = Config.chapterRound(wave)
 		local localElapsed = math.max(0, elapsed - Config.elapsedAtWaveStart(wave))
 		if localRound <= r2.Round and localElapsed >= r1.SpawnEaseAt then
@@ -173,6 +174,32 @@ function Spawning.currentStats()
 					gap *= inf.AllySpawnGapScale
 					maxAlive += inf.AllyMaxAliveBonus
 				end
+			elseif SupplyService.hasRecruitedThisMatch() then
+				gap *= inf.AllySpawnGapScale
+				maxAlive += inf.AllyMaxAliveBonus
+			end
+		end
+		if localRound == r5.Round then
+			if localElapsed >= r5.HordeStartAt and localElapsed < r5.HordeEndAt then
+				gap = r5.HordeSpawnGap
+				maxAlive = r5.HordeMaxAlive
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+					maxAlive += inf.AllyMaxAliveBonus
+				end
+			elseif localElapsed >= r5.ThrowerWaveAt then
+				gap *= r5.BossFocusGapScale
+				maxAlive = math.min(maxAlive, r5.BossFocusMaxAlive)
+			elseif SupplyService.hasRecruitedThisMatch() then
+				gap *= inf.AllySpawnGapScale
+				maxAlive += inf.AllyMaxAliveBonus
+			end
+		end
+		local r6 = Config.Chapter3.Round6
+		if localRound == r6.Round then
+			if localElapsed < r6.ClearGraceUntil then
+				gap *= r6.ClearGraceGapScale
+				maxAlive = math.min(maxAlive, r6.ClearGraceMaxAlive)
 			elseif SupplyService.hasRecruitedThisMatch() then
 				gap *= inf.AllySpawnGapScale
 				maxAlive += inf.AllyMaxAliveBonus
@@ -219,10 +246,16 @@ function Spawning.spawnOne()
 	end
 
 	local dogCfg = Config.activeDog()
-	local isDog = Config.chapter() ~= 3
-		and (not isBoss)
-		and wave >= dogCfg.UnlockWave
-		and math.random() < dogCfg.SpawnChance
+	local round = Config.chapterRound(wave)
+	local ch3Round5 = Config.Chapter3.Round5
+	local r5Horde = Config.chapter() == 3
+		and round == ch3Round5.Round
+		and elapsedLocal >= ch3Round5.HordeStartAt
+		and elapsedLocal < ch3Round5.HordeEndAt
+	local isDog = (not isBoss) and (
+		(Config.chapter() ~= 3 and wave >= dogCfg.UnlockWave and math.random() < dogCfg.SpawnChance)
+		or (r5Horde and math.random() < ch3Round5.DogSpawnChance)
+	)
 
 	local shieldCfg = Config.ShieldZombie
 	local shieldUnlockAt = Config.elapsedAtWaveStart(Config.Chapter2.Waves.From + shieldCfg.UnlockRound - 1)
@@ -233,7 +266,6 @@ function Spawning.spawnOne()
 	local r7 = Config.Chapter2.Round7
 	local r8 = Config.Chapter2.Round8
 	local r9 = Config.Chapter2.Round9
-	local round = Config.chapterRound(wave)
 	local shieldChance = shieldCfg.SpawnChance
 	if Config.chapter() == 2 and round == r4.Round then
 		local leftover = math.max(0.01, 1 - dogCfg.SpawnChance)
@@ -254,18 +286,40 @@ function Spawning.spawnOne()
 	end
 	local ch3Round1 = Config.Chapter3.Round1
 	local ch3Round3 = Config.Chapter3.Round3
+	local ch3Round6Early = Config.Chapter3.Round6
+	local ch3Round7 = Config.Chapter3.Round7
+	local ch3Round8 = Config.Chapter3.Round8
 	local ch3ShieldOpen = false
 	if Config.chapter() == 3 then
 		if round == ch3Round1.Round then
 			ch3ShieldOpen = elapsedLocal >= ch3Round1.ShieldAt
 		elseif round == ch3Round3.Round then
 			ch3ShieldOpen = elapsedLocal >= ch3Round3.HordeStartAt and elapsedLocal < ch3Round3.HordeEndAt
+		elseif round == ch3Round5.Round then
+			ch3ShieldOpen = r5Horde
 		elseif round > ch3Round1.Round then
 			ch3ShieldOpen = true
 		end
 	end
 	if ch3ShieldOpen then
-		shieldChance = if round == ch3Round3.Round then ch3Round3.ShieldSpawnChance else ch3Round1.ShieldSpawnChance
+		if round == ch3Round5.Round then
+			shieldChance = ch3Round5.ShieldSpawnChance
+		elseif round == ch3Round3.Round then
+			shieldChance = ch3Round3.ShieldSpawnChance
+		elseif round == ch3Round8.Round then
+			if elapsedLocal >= ch3Round8.ShieldShiftAt then
+				shieldChance = ch3Round8.ShieldSpawnChanceLate
+			else
+				shieldChance = ch3Round8.ShieldSpawnChance
+			end
+		elseif round == ch3Round7.Round
+			and elapsedLocal >= ch3Round7.ShieldBoostAt
+			and elapsedLocal < ch3Round7.ShieldBoostUntil
+		then
+			shieldChance = ch3Round7.ShieldBoostChance
+		else
+			shieldChance = ch3Round1.ShieldSpawnChance
+		end
 	end
 	local isShield = (not isBoss)
 		and (not isDog)
@@ -296,23 +350,54 @@ function Spawning.spawnOne()
 		shieldHitMax = r3.ShieldHitCountMax
 	end
 	if Config.chapter() == 3 then
-		shieldHitMin = ch3Round1.ShieldHitCountMin
-		shieldHitMax = ch3Round1.ShieldHitCountMax
+		if round == ch3Round5.Round then
+			shieldHitMin = ch3Round5.ShieldHitCountMin
+			shieldHitMax = ch3Round5.ShieldHitCountMax
+		elseif round >= ch3Round8.Round then
+			-- R8부터 지속 (별도 언급 전까지)
+			shieldHitMin = ch3Round8.ShieldHitCountMin
+			shieldHitMax = ch3Round8.ShieldHitCountMax
+		elseif round >= ch3Round6Early.Round then
+			-- R6~R7
+			shieldHitMin = Config.Chapter3.ShieldHitCountMin
+			shieldHitMax = Config.Chapter3.ShieldHitCountMax
+		else
+			shieldHitMin = ch3Round1.ShieldHitCountMin
+			shieldHitMax = ch3Round1.ShieldHitCountMax
+		end
 	end
 	local shieldHits = if isShield then math.random(shieldHitMin, shieldHitMax) else nil
 
 	local isBig = false
-	if Config.chapter() ~= 3
-		and (not isBoss)
-		and (not isDog)
-		and (not isShield)
-		and Spawning.chapter2BigUnlocked(wave, elapsedLocal)
-	then
-		local bigChance = Config.Chapter2.BigZombie.SpawnChance
-		if round == r6.Round then
-			bigChance = r6.BigZombieSpawnChance
+	local ch3Round6 = ch3Round6Early
+	local r6BigOpen = Config.chapter() == 3
+		and round == ch3Round6.Round
+		and elapsedLocal >= ch3Round6.BigFromAt
+	local r7BigOpen = Config.chapter() == 3
+		and round == ch3Round7.Round
+		and elapsedLocal >= ch3Round7.BigFromAt
+	local r8BigOpen = Config.chapter() == 3
+		and round == ch3Round8.Round
+		and elapsedLocal >= ch3Round8.BigFromAt
+	local ch3BigOpen = r5Horde or r6BigOpen or r7BigOpen or r8BigOpen
+	if (not isBoss) and (not isDog) and (not isShield) then
+		local wantBig = false
+		if r5Horde then
+			wantBig = math.random() < ch3Round5.BigSpawnChance
+		elseif r6BigOpen then
+			wantBig = math.random() < ch3Round6.BigSpawnChance
+		elseif r7BigOpen then
+			wantBig = math.random() < ch3Round7.BigSpawnChance
+		elseif r8BigOpen then
+			wantBig = math.random() < ch3Round8.BigSpawnChance
+		elseif Config.chapter() ~= 3 and Spawning.chapter2BigUnlocked(wave, elapsedLocal) then
+			local bigChance = Config.Chapter2.BigZombie.SpawnChance
+			if round == r6.Round then
+				bigChance = r6.BigZombieSpawnChance
+			end
+			wantBig = math.random() < bigChance
 		end
-		if math.random() < bigChance then
+		if wantBig then
 			isBoss = true
 			isBig = true
 		end
@@ -328,13 +413,18 @@ function Spawning.spawnOne()
 			and elapsedLocal < ch3Round3.HordeEndAt
 		then
 			isThrower = math.random() < ch3Round3.ThrowerSpawnChance
+		elseif r5Horde then
+			isThrower = math.random() < ch3Round5.ThrowerSpawnChance
 		end
 	end
 	local throwerStopZ = if isThrower
 		then lane.PlayerZ + (lane.SpawnZ - lane.PlayerZ) * throwerCfg.StopRatio
 		else nil
 
-	local scale = if isBoss
+	local ch3BigScale = if ch3BigOpen then ch3Round5.BigZombieSizeScale else nil
+	local scale = if ch3BigScale and isBig
+		then ch3BigScale
+		elseif isBoss
 		then Config.Boss.SizeMultiplier
 		elseif isThrower then throwerCfg.SizeScale
 		elseif isDog then dogCfg.SizeScale
@@ -344,7 +434,11 @@ function Spawning.spawnOne()
 	local health: number
 	local walkSpeed: number
 	local contactDamage: number
-	if isBoss then
+	if isBig and ch3BigOpen then
+		health = stats.health * ch3Round5.BigZombieHealthMult
+		walkSpeed = stats.speed * ch3Round5.BigZombieSpeedScale
+		contactDamage = Config.Boss.ContactDamage
+	elseif isBoss then
 		health = stats.health * Config.Boss.HealthMultiplier
 		walkSpeed = stats.speed * Config.Boss.SpeedMultiplier
 		contactDamage = Config.Boss.ContactDamage
@@ -680,7 +774,7 @@ function Spawning.spawnChapter3BigZombieSwarm(
 			end
 			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
 			x = math.clamp(x, minX, maxX)
-			spawnChapter3BigZombie(x, bigCfg)
+			Spawning.spawnChapter3BigZombie(x, bigCfg)
 		end
 	end)
 end
@@ -846,6 +940,313 @@ function Spawning.spawnChapter2ZombieSwarm()
 		})
 		ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 	end
+end
+
+function Spawning.spawnChapter3MidBoss(hitMin: number?, hitMax: number?)
+	local r5 = Config.Chapter3.Round5
+	local lane = Config.activeLane()
+	local slots = Config.activeInfinite().LaneSlots
+	local x = slots[math.ceil(#slots / 2)]
+	local minH = hitMin or r5.MidBossHitCountMin
+	local maxH = hitMax or r5.MidBossHitCountMax
+	if maxH < minH then
+		maxH = minH
+	end
+	local hits = math.random(minH, maxH)
+	local zombie = Spawning.spawnMegaBossAt(x, hits, false, {
+		scale = r5.MidBossSizeScale,
+		walkSpeed = r5.MidBossWalkSpeed,
+		contactDamage = r5.MidBossContactDamage,
+	})
+	if zombie then
+		zombie.model:SetAttribute("IsMidBoss", true)
+	end
+end
+
+function Spawning.spawnChapter3ThrowerWave(count: number, gap: number)
+	local n = math.max(1, math.floor(count))
+	task.spawn(function()
+		local lane = Config.activeLane()
+		local slots = Config.activeInfinite().LaneSlots
+		local throwerCfg = Config.ThrowerZombie
+		local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+		local stopZ = lane.PlayerZ + (lane.SpawnZ - lane.PlayerZ) * throwerCfg.StopRatio
+		for i = 1, n do
+			if ctx.phase ~= "playing" then
+				return
+			end
+			if i > 1 then
+				task.wait(gap)
+			end
+			if ctx.phase ~= "playing" then
+				return
+			end
+			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
+			x = math.clamp(x, minX, maxX)
+			local scale = throwerCfg.SizeScale
+			local y = lane.CenterY + 2.4 * scale
+			local zombie = ZombieService.create(Vector3.new(x, y, lane.SpawnZ), {
+				health = throwerCfg.Health,
+				walkSpeed = throwerCfg.WalkSpeed,
+				isBoss = false,
+				isBig = false,
+				isDog = false,
+				isShield = false,
+				isThrower = true,
+				stopZ = stopZ,
+				contactDamage = 0,
+				scale = scale,
+				hitCount = nil,
+			})
+			ZombieService.setAttackTarget(zombie, { kind = "player", ally = nil })
+		end
+	end)
+end
+
+function Spawning.spawnChapter3MineZombie()
+	local mineCfg = Config.MineZombie
+	local lane = Config.activeLane()
+	local slots = Config.activeInfinite().LaneSlots
+	local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+	local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 3.5
+	x = math.clamp(x, minX, maxX)
+	local scale = mineCfg.SizeScale
+	local y = lane.CenterY + 2.4 * scale
+	local health = Config.Chapter3.UnitDamage * mineCfg.HealthShots
+	local zombie = ZombieService.create(Vector3.new(x, y, lane.SpawnZ), {
+		health = health,
+		walkSpeed = mineCfg.WalkSpeed,
+		isBoss = false,
+		isBig = false,
+		isDog = false,
+		isShield = false,
+		isThrower = false,
+		isMine = true,
+		contactDamage = 0,
+		scale = scale,
+		hitCount = nil,
+	})
+	ZombieService.setAttackTarget(zombie, { kind = "player", ally = nil })
+	return zombie
+end
+
+function Spawning.spawnChapter3MineWave(count: number)
+	local n = math.max(1, math.floor(count))
+	for _ = 1, n do
+		Spawning.spawnChapter3MineZombie()
+	end
+end
+
+function Spawning.spawnChapter3ShieldPack(count: number, gap: number, hitMin: number, hitMax: number)
+	local n = math.max(1, math.floor(count))
+	task.spawn(function()
+		local lane = Config.activeLane()
+		local slots = Config.activeInfinite().LaneSlots
+		local stats = Spawning.currentStats()
+		local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+		for i = 1, n do
+			if ctx.phase ~= "playing" then
+				return
+			end
+			if i > 1 then
+				task.wait(gap)
+			end
+			if ctx.phase ~= "playing" then
+				return
+			end
+			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
+			x = math.clamp(x, minX, maxX)
+			local hits = math.random(hitMin, hitMax)
+			local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4, lane.SpawnZ), {
+				health = stats.health,
+				walkSpeed = stats.speed,
+				isBoss = false,
+				isBig = false,
+				isDog = false,
+				isShield = true,
+				contactDamage = Config.activeZombie().ContactDamage,
+				scale = 1,
+				hitCount = hits,
+			})
+			ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+		end
+	end)
+end
+
+function Spawning.spawnChapter3ThrowerAndDogWave(throwerCount: number, dogCount: number, gap: number)
+	task.spawn(function()
+		local total = math.max(0, math.floor(throwerCount)) + math.max(0, math.floor(dogCount))
+		local kinds = {}
+		for _ = 1, math.floor(throwerCount) do
+			table.insert(kinds, "thrower")
+		end
+		for _ = 1, math.floor(dogCount) do
+			table.insert(kinds, "dog")
+		end
+		-- shuffle
+		for i = #kinds, 2, -1 do
+			local j = math.random(1, i)
+			kinds[i], kinds[j] = kinds[j], kinds[i]
+		end
+		local lane = Config.activeLane()
+		local slots = Config.activeInfinite().LaneSlots
+		local throwerCfg = Config.ThrowerZombie
+		local dogCfg = Config.activeDog()
+		local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+		local stopZ = lane.PlayerZ + (lane.SpawnZ - lane.PlayerZ) * throwerCfg.StopRatio
+		for i = 1, total do
+			if ctx.phase ~= "playing" then
+				return
+			end
+			if i > 1 then
+				task.wait(gap)
+			end
+			if ctx.phase ~= "playing" then
+				return
+			end
+			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
+			x = math.clamp(x, minX, maxX)
+			if kinds[i] == "thrower" then
+				local scale = throwerCfg.SizeScale
+				local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4 * scale, lane.SpawnZ), {
+					health = throwerCfg.Health,
+					walkSpeed = throwerCfg.WalkSpeed,
+					isBoss = false,
+					isDog = false,
+					isShield = false,
+					isThrower = true,
+					stopZ = stopZ,
+					contactDamage = 0,
+					scale = scale,
+					hitCount = nil,
+				})
+				ZombieService.setAttackTarget(zombie, { kind = "player", ally = nil })
+			else
+				local scale = dogCfg.SizeScale
+				local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 1.35 * scale, lane.SpawnZ), {
+					health = dogCfg.Health,
+					walkSpeed = dogCfg.WalkSpeed,
+					isBoss = false,
+					isDog = true,
+					isShield = false,
+					contactDamage = dogCfg.ContactDamage,
+					scale = scale,
+					hitCount = nil,
+				})
+				ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+			end
+		end
+	end)
+end
+
+function Spawning.spawnChapter3TimedMix(
+	normalCount: number,
+	dogCount: number,
+	bigCount: number,
+	shieldCount: number,
+	duration: number,
+	shieldHitMin: number,
+	shieldHitMax: number
+)
+	task.spawn(function()
+		local kinds = {}
+		for _ = 1, math.max(0, math.floor(normalCount)) do
+			table.insert(kinds, "normal")
+		end
+		for _ = 1, math.max(0, math.floor(dogCount)) do
+			table.insert(kinds, "dog")
+		end
+		for _ = 1, math.max(0, math.floor(bigCount)) do
+			table.insert(kinds, "big")
+		end
+		for _ = 1, math.max(0, math.floor(shieldCount)) do
+			table.insert(kinds, "shield")
+		end
+		for i = #kinds, 2, -1 do
+			local j = math.random(1, i)
+			kinds[i], kinds[j] = kinds[j], kinds[i]
+		end
+		local n = #kinds
+		if n <= 0 then
+			return
+		end
+		local spread = math.max(0.2, duration)
+		local delays: { number } = table.create(n)
+		for i = 1, n do
+			delays[i] = math.random() * spread
+		end
+		table.sort(delays)
+		local lane = Config.activeLane()
+		local slots = Config.activeInfinite().LaneSlots
+		local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+		local stats = Spawning.currentStats()
+		local dogCfg = Config.activeDog()
+		local r5 = Config.Chapter3.Round5
+		local hitMin = math.max(1, math.floor(shieldHitMin))
+		local hitMax = math.max(hitMin, math.floor(shieldHitMax))
+		local prev = 0
+		for i = 1, n do
+			if ctx.phase ~= "playing" then
+				return
+			end
+			local waitTime = delays[i] - prev
+			if waitTime > 0 then
+				task.wait(waitTime)
+			end
+			prev = delays[i]
+			if ctx.phase ~= "playing" then
+				return
+			end
+			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
+			x = math.clamp(x, minX, maxX)
+			local kind = kinds[i]
+			if kind == "dog" then
+				local scale = dogCfg.SizeScale
+				local elapsed = math.max(0, os.clock() - ctx.matchStart)
+				local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 1.35 * scale, lane.SpawnZ), {
+					health = dogCfg.Health,
+					walkSpeed = dogCfg.WalkSpeed + elapsed * dogCfg.SpeedPerSecond,
+					isBoss = false,
+					isBig = false,
+					isDog = true,
+					isShield = false,
+					contactDamage = dogCfg.ContactDamage,
+					scale = scale,
+					hitCount = nil,
+				})
+				ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+			elseif kind == "big" then
+				Spawning.spawnChapter3BigZombie(x, r5)
+			elseif kind == "shield" then
+				local hits = math.random(hitMin, hitMax)
+				local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4, lane.SpawnZ), {
+					health = stats.health,
+					walkSpeed = stats.speed,
+					isBoss = false,
+					isBig = false,
+					isDog = false,
+					isShield = true,
+					contactDamage = Config.activeZombie().ContactDamage,
+					scale = 1,
+					hitCount = hits,
+				})
+				ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+			else
+				local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4, lane.SpawnZ), {
+					health = stats.health,
+					walkSpeed = stats.speed,
+					isBoss = false,
+					isBig = false,
+					isDog = false,
+					isShield = false,
+					contactDamage = Config.activeZombie().ContactDamage,
+					scale = 1,
+					hitCount = nil,
+				})
+				ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+			end
+		end
+	end)
 end
 
 return Spawning

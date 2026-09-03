@@ -20,6 +20,22 @@ function EventReset.resetChapter3Round4Events(setState: (string, any) -> ())
 	Ev.resetCh3Round4()
 end
 
+function EventReset.resetChapter3Round5Events(setState: (string, any) -> ())
+	Ev.resetCh3Round5()
+end
+
+function EventReset.resetChapter3Round6Events(setState: (string, any) -> ())
+	Ev.resetCh3Round6()
+end
+
+function EventReset.resetChapter3Round7Events(setState: (string, any) -> ())
+	Ev.resetCh3Round7()
+end
+
+function EventReset.resetChapter3Round8Events(setState: (string, any) -> ())
+	Ev.resetCh3Round8()
+end
+
 function EventReset.resetChapter3Events(setState: (string, any) -> ())
 	Ev.resetCh3()
 	setState("Ch3FogActive", false)

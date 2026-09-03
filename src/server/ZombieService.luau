@@ -52,13 +52,18 @@ export type ZombieRecord = {
 	hasShield: boolean?,
 	shieldHits: number?,
 	isThrower: boolean?,
+	isMine: boolean?,
 	stopZ: number?,
 	nextThrowAt: number?,
 	throwReleased: boolean?,
 	handRock: BasePart?,
+	mineZigUntil: number?,
+	mineZigTargetX: number?,
+	mineExploded: boolean?,
 	deathT: number,
 	deathStart: CFrame,
 	deathSide: number,
+	stunUntil: number?,
 }
 
 local FALL_TIME = 0.22
@@ -71,6 +76,7 @@ ZombieService._corpses = {} :: { ZombieRecord }
 ZombieService._onDied = nil :: ((ZombieRecord) -> ())?
 ZombieService._onReached = nil :: ((ZombieRecord) -> ())?
 ZombieService._onThrow = nil :: ((ZombieRecord) -> ())?
+ZombieService._onMineExplode = nil :: ((Vector3) -> ())?
 
 local kill: (ZombieRecord) -> ()
 
@@ -974,6 +980,82 @@ local function setupThrower(record: ZombieRecord, stopZ: number?)
 	end
 end
 
+local function tintMine(model: Model)
+	local cfg = Config.MineZombie
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			local name = string.lower(desc.Name)
+			if string.find(name, "torso") or string.find(name, "upper") or string.find(name, "lower") then
+				desc.Color = cfg.ClothesColor
+			elseif string.find(name, "head") or string.find(name, "arm") or string.find(name, "hand")
+				or string.find(name, "leg") or string.find(name, "foot")
+			then
+				desc.Color = cfg.BodyColor
+			end
+		end
+	end
+	local torso = model:FindFirstChild("Torso", true) or model:FindFirstChild("UpperTorso", true)
+		or model:FindFirstChild("HumanoidRootPart")
+	if torso and torso:IsA("BasePart") then
+		local pack = Instance.new("Part")
+		pack.Name = "MinePack"
+		pack.Size = Vector3.new(1.35, 1.15, 0.55)
+		pack.Material = Enum.Material.Metal
+		pack.Color = cfg.PackColor
+		pack.CanCollide = false
+		pack.CanQuery = false
+		pack.Massless = true
+		pack.CFrame = torso.CFrame * CFrame.new(0, 0.15, 0.55)
+		pack.Parent = model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = torso
+		weld.Part1 = pack
+		weld.Parent = pack
+		for i = 1, 3 do
+			local stripe = Instance.new("Part")
+			stripe.Name = "MineStripe" .. i
+			stripe.Size = Vector3.new(1.4, 0.12, 0.08)
+			stripe.Material = Enum.Material.Neon
+			stripe.Color = cfg.StripeColor
+			stripe.CanCollide = false
+			stripe.CanQuery = false
+			stripe.Massless = true
+			stripe.CFrame = pack.CFrame * CFrame.new(0, 0.35 - (i - 1) * 0.28, -0.28)
+			stripe.Parent = model
+			local sw = Instance.new("WeldConstraint")
+			sw.Part0 = pack
+			sw.Part1 = stripe
+			sw.Parent = stripe
+		end
+		local band = Instance.new("Part")
+		band.Name = "MineBand"
+		band.Size = Vector3.new(torso.Size.X * 1.05, 0.22, torso.Size.Z * 1.05)
+		band.Material = Enum.Material.Neon
+		band.Color = cfg.StripeColor
+		band.CanCollide = false
+		band.CanQuery = false
+		band.Massless = true
+		band.CFrame = torso.CFrame * CFrame.new(0, -0.15, 0)
+		band.Parent = model
+		local bw = Instance.new("WeldConstraint")
+		bw.Part0 = torso
+		bw.Part1 = band
+		bw.Parent = band
+	end
+end
+
+local function setupMine(record: ZombieRecord)
+	record.isMine = true
+	record.mineExploded = false
+	record.mineZigUntil = 0
+	record.mineZigTargetX = record.root.Position.X
+	record.model:SetAttribute("IsMineZombie", true)
+	tintMine(record.model)
+	record.walkSpeed = Config.MineZombie.WalkSpeed
+end
+
+local explodeMine: (ZombieRecord) -> ()
+
 function ZombieService.create(position: Vector3, stats: {
 	health: number,
 	walkSpeed: number,
@@ -983,6 +1065,7 @@ function ZombieService.create(position: Vector3, stats: {
 	isDog: boolean?,
 	isShield: boolean?,
 	isThrower: boolean?,
+	isMine: boolean?,
 	stopZ: number?,
 	contactDamage: number,
 	scale: number,
@@ -1020,6 +1103,9 @@ function ZombieService.create(position: Vector3, stats: {
 		if stats.isThrower == true then
 			setupThrower(fromProto, stats.stopZ)
 		end
+		if stats.isMine == true then
+			setupMine(fromProto)
+		end
 		return fromProto
 	end
 
@@ -1043,12 +1129,65 @@ function ZombieService.create(position: Vector3, stats: {
 	if stats.isThrower == true then
 		setupThrower(fallback, stats.stopZ)
 	end
+	if stats.isMine == true then
+		setupMine(fallback)
+	end
 	return fallback
+end
+
+explodeMine = function(record: ZombieRecord)
+	if record.mineExploded then
+		return
+	end
+	record.mineExploded = true
+	local cfg = Config.MineZombie
+	local pos = record.root.Position
+	if ZombieService._onMineExplode then
+		ZombieService._onMineExplode(pos)
+	end
+	local snapshot = ZombieService.getAlive()
+	local radius = cfg.Radius
+	for _, other in snapshot do
+		if other == record or not other.alive then
+			continue
+		end
+		-- 중간보스·메가·다른 지뢰병은 제외
+		if other.isMine or other.isMega == true then
+			continue
+		end
+		local offset = other.root.Position - pos
+		if offset.X * offset.X + offset.Z * offset.Z > radius * radius then
+			continue
+		end
+		if other.isBig == true then
+			-- 큰 좀비: 최대체력의 70%로 남김
+			other.hp = math.min(other.hp, other.maxHp * 0.7)
+			other.humanoid.MaxHealth = other.maxHp
+			other.humanoid.Health = other.hp
+			other.model:SetAttribute("Hp", other.hp)
+			refreshHealthBar(other)
+			if other.hp <= 0 then
+				kill(other)
+			end
+		elseif other.hasShield == true or other.isDog == true or other.isBoss ~= true then
+			-- 일반·방패·개: 즉사
+			if other.hasShield == true then
+				other.shieldHits = 0
+				other.hasShield = false
+			end
+			other.hp = 0
+			kill(other)
+		end
+		-- isBoss이고 isBig이 아닌 일반 보스만 면역
+	end
 end
 
 kill = function(record: ZombieRecord)
 	if not record.alive then
 		return
+	end
+	if record.isMine and not record.mineExploded then
+		explodeMine(record)
 	end
 	record.alive = false
 	record.humanoid.Health = 0
@@ -1195,6 +1334,26 @@ function ZombieService.damageInRadius(position: Vector3, radius: number, amount:
 	return hit
 end
 
+function ZombieService.stunInRadius(position: Vector3, radius: number, duration: number): number
+	local hit = 0
+	local untilTime = os.clock() + math.max(0.1, duration)
+	for _, record in ZombieService.getAlive() do
+		local offset = record.root.Position - position
+		local reach = radius + ((record.model:GetAttribute("HitRadius") :: number?) or 0) * 0.3
+		if offset.X * offset.X + offset.Z * offset.Z <= reach * reach then
+			record.stunUntil = math.max(record.stunUntil or 0, untilTime)
+			record.attackUntil = 0
+			record.throwReleased = true
+			if record.handRock then
+				record.handRock.Transparency = 1
+			end
+			record.model:SetAttribute("Stunned", true)
+			hit += 1
+		end
+	end
+	return hit
+end
+
 function ZombieService.retargetApproaching(assign: (ZombieRecord) -> { kind: string, ally: any? })
 	local meleeZ = Config.activeLane().PlayerZ + Config.activeZombie().StopDistance + 6
 	for _, record in ZombieService.getAlive() do
@@ -1210,6 +1369,10 @@ end
 
 function ZombieService.onThrow(callback: (ZombieRecord) -> ())
 	ZombieService._onThrow = callback
+end
+
+function ZombieService.onMineExplode(callback: (Vector3) -> ())
+	ZombieService._onMineExplode = callback
 end
 
 function ZombieService.onReached(callback: (ZombieRecord) -> ())
@@ -1473,8 +1636,33 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 
 		local pos = record.root.Position
 		local focus = resolveTargetPosition(record, playerPosition)
+		local stunned = now < (record.stunUntil or 0)
+		if stunned then
+			record.model:SetAttribute("Stunned", true)
+			-- 기절: 제자리 고정, 공격·투척·이동 없음
+			local lookAt = Vector3.new(focus.X, pos.Y, focus.Z)
+			local base = if (lookAt - pos).Magnitude > 0.05
+				then CFrame.lookAt(pos, lookAt)
+				else CFrame.new(pos) * CFrame.Angles(0, math.pi, 0)
+			record.root.CFrame = base
+			continue
+		elseif record.model:GetAttribute("Stunned") == true then
+			record.model:SetAttribute("Stunned", false)
+		end
+
 		local targetX = pos.X
 		local stopZ = record.stopZ or (focus.Z + zombieCfg.StopDistance)
+		if record.isMine then
+			stopZ = focus.Z + 2.2
+			local mineCfg = Config.MineZombie
+			if now >= (record.mineZigUntil or 0) then
+				record.mineZigUntil = now + mineCfg.ZigInterval
+				local minX, maxX = Config.zombieXBounds(pos.Z)
+				local jitter = (math.random() * 2 - 1) * mineCfg.ZigAmplitude
+				record.mineZigTargetX = math.clamp(focus.X + jitter, minX, maxX)
+			end
+			targetX = record.mineZigTargetX or focus.X
+		end
 		local moving = pos.Z > stopZ + 0.15
 		local nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
 		if nextZ < stopZ then
@@ -1482,7 +1670,15 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		end
 
 		local minX, maxX = Config.zombieXBounds(nextZ)
-		if pos.Z <= Config.chaseStartZ() then
+		if record.isMine then
+			local dx = (record.mineZigTargetX or focus.X) - pos.X
+			local maxStep = record.walkSpeed * 1.35 * dt
+			if math.abs(dx) > 0.05 then
+				targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
+			else
+				targetX = record.mineZigTargetX or focus.X
+			end
+		elseif pos.Z <= Config.chaseStartZ() then
 			local chaseSpeed = record.walkSpeed * zombieCfg.ChaseStrafeScale
 			if math.abs(focus.X - pos.X) > 6 then
 				chaseSpeed = record.walkSpeed * zombieCfg.ChaseStrafeFarScale
@@ -1555,14 +1751,22 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		record.root.CFrame = base * CFrame.Angles(lean + leanAmt + lurch * 0.4, sway, roll)
 
 		-- 투척 좀비는 근접 공격을 하지 않는다 (멀리서 돌만 던짐)
-		local inFront = (not record.isThrower) and pos.Z <= stopZ + 1.2
-		local flatX = math.abs(pos.X - focus.X)
-		local reachX = (record.model:GetAttribute("HitRadius") :: number) + 2.2
-		if inFront and flatX <= reachX and now - record.lastContact >= zombieCfg.ContactCooldown then
-			record.lastContact = now
-			record.attackUntil = now + zombieCfg.AttackDuration
-			if ZombieService._onReached then
-				ZombieService._onReached(record)
+		-- 지뢰병은 플레이어 앞에 오면 폭발
+		if record.isMine then
+			local flatX = math.abs(pos.X - focus.X)
+			if pos.Z <= stopZ + 1.4 and flatX <= 5.5 then
+				kill(record)
+			end
+		else
+			local inFront = (not record.isThrower) and pos.Z <= stopZ + 1.2
+			local flatX = math.abs(pos.X - focus.X)
+			local reachX = (record.model:GetAttribute("HitRadius") :: number) + 2.2
+			if inFront and flatX <= reachX and now - record.lastContact >= zombieCfg.ContactCooldown then
+				record.lastContact = now
+				record.attackUntil = now + zombieCfg.AttackDuration
+				if ZombieService._onReached then
+					ZombieService._onReached(record)
+				end
 			end
 		end
 	end
@@ -1595,6 +1799,9 @@ function ZombieService.shiftTimers(duration: number)
 		end
 		if record.attackUntil > 0 then
 			record.attackUntil += duration
+		end
+		if record.stunUntil and record.stunUntil > 0 then
+			record.stunUntil += duration
 		end
 		if record.nextThrowAt then
 			record.nextThrowAt += duration

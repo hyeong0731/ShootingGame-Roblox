@@ -26,8 +26,9 @@ export type SupplyRecord = {
 	label: TextLabel,
 	hitsLeft: number,
 	alive: boolean,
-	kind: "ally" | "bomb" | "sniper" | "molotov" | "shotgun" | "fireboost",
+	kind: "ally" | "bomb" | "sniper" | "molotov" | "shotgun" | "fireboost" | "flashbang",
 	grantCount: number?,
+	preferLeft: boolean?,
 }
 
 export type AllyRecord = {
@@ -68,6 +69,7 @@ local onSniperPicked: (() -> ())? = nil
 local onShotgunPicked: (() -> ())? = nil
 local onMolotovPicked: ((number) -> ())? = nil
 local onFireBoostPicked: (() -> ())? = nil
+local onFlashbangPicked: ((number) -> ())? = nil
 local pickupGraceUntil = 0
 
 local function noteCratePicked()
@@ -422,6 +424,10 @@ function SupplyService.onMolotovPicked(callback: (number) -> ())
 	onMolotovPicked = callback
 end
 
+function SupplyService.onFlashbangPicked(callback: (number) -> ())
+	onFlashbangPicked = callback
+end
+
 function SupplyService.onFireBoostPicked(callback: () -> ())
 	onFireBoostPicked = callback
 end
@@ -557,7 +563,7 @@ function SupplyService.clearCrates()
 	end
 end
 
-function SupplyService.create(force: boolean?, hitMin: number?, hitMax: number?): SupplyRecord?
+function SupplyService.create(force: boolean?, hitMin: number?, hitMax: number?, preferLeft: boolean?): SupplyRecord?
 	if not force and not SupplyService.canSpawn() then
 		return nil
 	end
@@ -623,6 +629,7 @@ function SupplyService.create(force: boolean?, hitMin: number?, hitMax: number?)
 		hitsLeft = hits,
 		alive = true,
 		kind = "ally",
+		preferLeft = preferLeft == true,
 	}
 	table.insert(supplies, record)
 	return record
@@ -778,6 +785,101 @@ function SupplyService.createMolotov(
 	return record
 end
 
+function SupplyService.createFlashbang(
+	force: boolean?,
+	overrideMin: number?,
+	overrideMax: number?,
+	grantCount: number?
+): SupplyRecord?
+	if not force and #supplies >= Config.Supply.MaxAlive then
+		return nil
+	end
+
+	local cfg = Config.Flashbang
+	local minHits = math.max(1, math.floor(overrideMin or cfg.CrateHitCountMin))
+	local maxHits = math.max(minHits, math.floor(overrideMax or cfg.CrateHitCountMax))
+	local hits = math.random(minHits, maxHits)
+	local folder = ensureFolder("Supplies")
+	local lane = Config.activeLane()
+	local position = Vector3.new(Config.sidePathCenterX(), lane.CenterY + 1.6, lane.SpawnZ)
+
+	local model = Instance.new("Model")
+	model.Name = "FlashbangCrate"
+	model:SetAttribute("IsSupply", true)
+	model:SetAttribute("IsFlashbangCrate", true)
+	model:SetAttribute("HitsLeft", hits)
+
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(3.2, 2.4, 3.2)
+	root.Color = Color3.fromRGB(88, 92, 104)
+	root.Material = Enum.Material.Wood
+	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+	root.Anchored = true
+	root.CanCollide = true
+	root.Parent = model
+
+	local lid = makePart(
+		model,
+		"Lid",
+		Vector3.new(3.4, 0.35, 3.4),
+		Color3.fromRGB(70, 74, 86),
+		root.CFrame * CFrame.new(0, 1.35, 0),
+		Enum.Material.Wood
+	)
+	weldConstraint(root, lid)
+	local stripe = makePart(
+		model,
+		"Stripe",
+		Vector3.new(3.45, 0.55, 0.55),
+		Color3.fromRGB(255, 240, 120),
+		root.CFrame * CFrame.new(0, 0.2, 0),
+		Enum.Material.Neon
+	)
+	weldConstraint(root, stripe)
+	local can = makePart(
+		model,
+		"FlashCan",
+		Vector3.new(1.0, 1.7, 1.0),
+		Color3.fromRGB(220, 220, 230),
+		root.CFrame * CFrame.new(0, 2.35, 0),
+		Enum.Material.Metal
+	)
+	weldConstraint(root, can)
+	local tip = makePart(
+		model,
+		"FlashTip",
+		Vector3.new(0.7, 0.28, 0.7),
+		Color3.fromRGB(255, 245, 160),
+		can.CFrame * CFrame.new(0, 1.0, 0),
+		Enum.Material.Neon
+	)
+	weldConstraint(root, tip)
+
+	model.PrimaryPart = root
+	model.Parent = folder
+	plantCrate(model, root)
+
+	local label = attachOverheadHits(
+		root,
+		hits,
+		Config.HitLabel.CrateFront,
+		Color3.fromRGB(255, 245, 140),
+		Config.hitLabelScale(1)
+	)
+	local record: SupplyRecord = {
+		model = model,
+		root = root,
+		label = label,
+		hitsLeft = hits,
+		alive = true,
+		kind = "flashbang",
+		grantCount = math.max(1, math.floor(grantCount or cfg.Count or 1)),
+	}
+	table.insert(supplies, record)
+	return record
+end
+
 function SupplyService.createSniper(force: boolean?, overrideMin: number?, overrideMax: number?): SupplyRecord?
 	if not force and not SupplyService.canSpawnSniper() then
 		return nil
@@ -847,7 +949,7 @@ function SupplyService.createFireBoost(force: boolean?, overrideMin: number?, ov
 	local cfg = Config.Chapter3.FireBoostCrate
 	local folder = ensureFolder("Supplies")
 	local lane = Config.activeLane()
-	local position = Vector3.new(0, lane.CenterY + 1.6, lane.SpawnZ)
+	local position = Vector3.new(Config.sidePathCenterX(), lane.CenterY + 1.6, lane.SpawnZ)
 	local minH = math.max(1, math.floor(overrideMin or cfg.HitCountMin))
 	local maxH = math.max(minH, math.floor(overrideMax or cfg.HitCountMax))
 	local hits = math.random(minH, maxH)
@@ -996,6 +1098,22 @@ function SupplyService.damageAlly(ally: AllyRecord, amount: number): boolean
 	return true
 end
 
+function SupplyService.damageAlliesNear(position: Vector3, radius: number, amount: number): number
+	local hit = 0
+	for _, ally in SupplyService.getAllies() do
+		if not ally.alive or not ally.model.Parent then
+			continue
+		end
+		local delta = ally.root.Position - position
+		if delta.X * delta.X + delta.Z * delta.Z <= radius * radius then
+			if SupplyService.damageAlly(ally, amount) then
+				hit += 1
+			end
+		end
+	end
+	return hit
+end
+
 local function recruitFrom(record: SupplyRecord)
 	if #SupplyService.getAllies() >= Config.Supply.MaxAllies then
 		record.model:Destroy()
@@ -1004,6 +1122,14 @@ local function recruitFrom(record: SupplyRecord)
 
 	local alliesFolder = ensureFolder("Allies")
 	local slot = #allies + 1
+	if record.preferLeft then
+		for _, existing in allies do
+			if existing.slot == 1 then
+				existing.slot = 2
+			end
+		end
+		slot = 1
+	end
 
 	local model = Instance.new("Model")
 	model.Name = "Ally"
@@ -1108,6 +1234,11 @@ function SupplyService.damageModel(model: Model, hits: number?): boolean
 					if onMolotovPicked then
 						onMolotovPicked(record.grantCount or 1)
 					end
+				elseif record.kind == "flashbang" then
+					record.model:Destroy()
+					if onFlashbangPicked then
+						onFlashbangPicked(record.grantCount or 1)
+					end
 				elseif record.kind == "fireboost" then
 					record.model:Destroy()
 					if onFireBoostPicked then
@@ -1169,6 +1300,8 @@ function SupplyService.update(dt: number, playerPosition: Vector3?, strafe: numb
 			walkSpeed = Config.Shotgun.WalkSpeed or walkSpeed
 		elseif record.kind == "molotov" then
 			walkSpeed = Config.Molotov.WalkSpeed or walkSpeed
+		elseif record.kind == "flashbang" then
+			walkSpeed = Config.Flashbang.WalkSpeed or walkSpeed
 		end
 		local nextZ = pos.Z - walkSpeed * dt
 		if nextZ < Config.crateDespawnZ() then

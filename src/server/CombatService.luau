@@ -53,6 +53,17 @@ local molotovs = {} :: {
 	}
 }
 
+local flashbangs = {} :: {
+	{
+		part: BasePart,
+		direction: Vector3,
+		speed: number,
+		born: number,
+		startZ: number,
+		targetZ: number,
+	}
+}
+
 local groundFires = {} :: {
 	{
 		part: BasePart,
@@ -265,6 +276,97 @@ function CombatService.throwMolotov(origin: Vector3)
 	})
 end
 
+local function spawnThrownFlashbang(origin: Vector3): BasePart
+	local can = Instance.new("Part")
+	can.Name = "ThrownFlashbang"
+	can.Size = Vector3.new(0.7, 1.05, 0.7)
+	can.Material = Enum.Material.Metal
+	can.Color = Color3.fromRGB(210, 210, 220)
+	can.Anchored = true
+	can.CanCollide = false
+	can.CanQuery = false
+	can.CFrame = CFrame.new(origin)
+	can.Parent = Workspace:FindFirstChild("Fx") or Workspace
+
+	local tip = Instance.new("Part")
+	tip.Name = "Tip"
+	tip.Size = Vector3.new(0.55, 0.22, 0.55)
+	tip.Material = Enum.Material.Neon
+	tip.Color = Color3.fromRGB(255, 245, 160)
+	tip.Anchored = true
+	tip.CanCollide = false
+	tip.CanQuery = false
+	tip.CFrame = can.CFrame * CFrame.new(0, 0.58, 0)
+	tip.Parent = can
+
+	return can
+end
+
+local function explodeFlashbangAt(position: Vector3)
+	local bombCfg = Config.BombCrate
+	local stunDur = Config.Flashbang.StunDuration
+	ZombieService.stunInRadius(position, bombCfg.Radius, stunDur)
+	if CombatService._remotes then
+		if CombatService._remotes.FlashFx then
+			CombatService._remotes.FlashFx:FireAllClients(position, bombCfg.Radius)
+		else
+			CombatService._remotes.ExplodeFx:FireAllClients(position, bombCfg.Radius)
+		end
+	end
+	-- 서버 측 번쩍 이펙트
+	local fxFolder = Workspace:FindFirstChild("Fx") or Workspace
+	local flash = Instance.new("Part")
+	flash.Name = "FlashbangBurst"
+	flash.Shape = Enum.PartType.Ball
+	flash.Anchored = true
+	flash.CanCollide = false
+	flash.CanQuery = false
+	flash.Material = Enum.Material.Neon
+	flash.Color = Color3.fromRGB(255, 255, 240)
+	flash.Transparency = 0.05
+	flash.Size = Vector3.new(2, 2, 2)
+	flash.CFrame = CFrame.new(position)
+	flash.Parent = fxFolder
+	local light = Instance.new("PointLight")
+	light.Brightness = 8
+	light.Range = bombCfg.Radius * 1.6
+	light.Color = Color3.fromRGB(255, 255, 220)
+	light.Parent = flash
+	task.delay(0.35, function()
+		if flash.Parent then
+			flash:Destroy()
+		end
+	end)
+	task.spawn(function()
+		local t0 = os.clock()
+		while flash.Parent and os.clock() - t0 < 0.28 do
+			local u = (os.clock() - t0) / 0.28
+			local size = 2 + (bombCfg.Radius * 2 - 2) * u
+			flash.Size = Vector3.new(size, size, size)
+			flash.Transparency = 0.05 + 0.9 * u
+			task.wait()
+		end
+		if flash.Parent then
+			flash:Destroy()
+		end
+	end)
+end
+
+function CombatService.throwFlashbang(origin: Vector3)
+	local bombCfg = Config.BombCrate
+	local part = spawnThrownFlashbang(origin)
+	local direction = Vector3.new(0, 0, 1)
+	local speed = bombCfg.ThrowDistance / math.max(0.05, bombCfg.FlightTime)
+	table.insert(flashbangs, {
+		part = part,
+		direction = direction,
+		speed = speed,
+		born = os.clock(),
+		startZ = origin.Z,
+		targetZ = origin.Z + bombCfg.ThrowDistance,
+	})
+end
+
 local function spawnRock(origin: Vector3): BasePart
 	local cfg = Config.ThrowerZombie
 	local rock = Instance.new("Part")
@@ -310,6 +412,9 @@ function CombatService.shiftTimers(duration: number)
 	for _, molotov in molotovs do
 		molotov.born += duration
 	end
+	for _, flash in flashbangs do
+		flash.born += duration
+	end
 	for _, rock in rocks do
 		rock.born += duration
 	end
@@ -353,6 +458,7 @@ function CombatService.fireSniper(origin: Vector3, damage: number, hits: number?
 		speed = cfg.ProjectileSpeed,
 		damage = damage,
 		hits = math.max(1, math.floor(Config.numberedWeaponHits("sniper", currentWave()))),
+		shieldHits = math.max(1, math.floor(Config.sniperShieldHits(currentWave()))),
 		born = os.clock(),
 		pierce = true,
 		oneshot = true,
@@ -791,6 +897,39 @@ function CombatService.update(dt: number)
 	end
 	molotovs = molotovKeep
 
+	local flashKeep = {}
+	for _, flash in flashbangs do
+		if not flash.part.Parent then
+			continue
+		end
+		if now - flash.born > 2.4 then
+			local pos = flash.part.Position
+			flash.part:Destroy()
+			explodeFlashbangAt(pos)
+			continue
+		end
+		local nextPos = flash.part.Position + flash.direction * flash.speed * dt
+		local travel = nextPos - flash.part.Position
+		local hit = Workspace:Spherecast(flash.part.Position, 1.1, travel, bombParams)
+		local nearPos = bombProximityHit(flash.part.Position, nextPos + flash.direction * 2)
+		local traveled = nextPos.Z - flash.startZ
+		local reachedEnd = nextPos.Z >= flash.targetZ or traveled >= Config.BombCrate.ThrowDistance
+		if hit or nearPos or reachedEnd then
+			local pos = if hit then hit.Position elseif nearPos then nearPos else nextPos
+			flash.part:Destroy()
+			explodeFlashbangAt(pos)
+			continue
+		end
+		local spin = (now - flash.born) * 14
+		flash.part.CFrame = CFrame.new(nextPos) * CFrame.Angles(spin, spin * 0.3, 0)
+		local tip = flash.part:FindFirstChild("Tip")
+		if tip and tip:IsA("BasePart") then
+			tip.CFrame = flash.part.CFrame * CFrame.new(0, 0.58, 0)
+		end
+		table.insert(flashKeep, flash)
+	end
+	flashbangs = flashKeep
+
 	local rockCfg = Config.ThrowerZombie
 	local rockKeep = {}
 	for _, rock in rocks do
@@ -857,6 +996,12 @@ function CombatService.clear()
 		end
 	end
 	molotovs = {}
+	for _, flash in flashbangs do
+		if flash.part.Parent then
+			flash.part:Destroy()
+		end
+	end
+	flashbangs = {}
 	for _, rock in rocks do
 		if rock.part.Parent then
 			rock.part:Destroy()
