@@ -795,9 +795,9 @@ Config.Chapter3 = {
 		AllySpawnGapScale = 0.62,
 		AllyMaxAliveBonus = 4,
 	},
-	-- R6부터 방패 타수 (따로 말하기 전까지 유지)
-	ShieldHitCountMin = 55,
-	ShieldHitCountMax = 65,
+	-- R6~R7 방패 타수 (R8부터는 Round8 값)
+	ShieldHitCountMin = 50,
+	ShieldHitCountMax = 60,
 	Lane = {
 		Width = 32,
 		Length = 220,
@@ -975,11 +975,15 @@ Config.Chapter3 = {
 		ClearGraceUntil = 10,
 		ClearGraceGapScale = 2.6,
 		ClearGraceMaxAlive = 8,
+		-- 30초~라운드 종료: 스폰 소폭 완화
+		LateEaseFrom = 30,
+		LateEaseGapScale = 1.45,
+		LateEaseMaxAlive = 22,
 		ShieldPackAt = 0,
-		ShieldPackCount = 8,
+		ShieldPackCount = 5,
 		ShieldPackGap = 1,
-		ShieldHitCountMin = 55,
-		ShieldHitCountMax = 65,
+		ShieldHitCountMin = 50,
+		ShieldHitCountMax = 60,
 		PlusAt = 0,
 		PlusHitCount = 53,
 		SniperAt = 10,
@@ -1001,20 +1005,23 @@ Config.Chapter3 = {
 	},
 	Round7 = {
 		Round = 7,
+		-- 라운드 전체 스폰 완화
+		SpawnGapScale = 1.4,
+		MaxAliveCap = 22,
 		BombAt = 0,
 		BombHitCount = 72,
 		ShieldBoostAt = 5,
 		ShieldBoostUntil = 15,
-		ShieldBoostChance = 0.5, -- 5~15초: 스폰의 50% 방패 (이후 R1 비율로 복귀)
+		ShieldBoostChance = 0.35, -- 5~15초: 스폰의 35% 방패 (이후 R1 비율로 복귀)
 		SpikeAt = 5,
 		MineAt = { 10, 33 },
 		MinusAt = 12,
 		MinusHitCount = 46,
 		MinusWalkSpeedScale = 1.7,
 		BigFromAt = 20,
-		BigSpawnChance = 0.30,
+		BigSpawnChance = 0.20,
 		ThrowerWaveAt = 25,
-		ThrowerWaveCount = 7,
+		ThrowerWaveCount = 5,
 		ThrowerWaveGap = 1,
 		MolotovAt = 30,
 		MolotovHitCount = 42,
@@ -1047,12 +1054,71 @@ Config.Chapter3 = {
 		BigSpawnChance = 0.25,
 		PlusAt = 42,
 		PlusHitCount = 68,
+		MolotovAt = 34,
+		MolotovHitCount = 51,
+		MolotovGrantCount = 3,
+		BombShieldHitDamage = 60, -- R8부터 폭탄→방패 (따로 말하기 전까지)
 		MixedWaveAt = 52,
 		MixedWaveDuration = 10,
 		MixedWaveNormal = 8,
 		MixedWaveDog = 12,
 		MixedWaveBig = 4,
 		MixedWaveShield = 8,
+	},
+	Round9 = {
+		Round = 9,
+		-- 시작 10초: R8 잔여 정리용 스폰 완화
+		ClearGraceUntil = 10,
+		ClearGraceGapScale = 2.5,
+		ClearGraceMaxAlive = 8,
+		MolotovAt = 0,
+		MolotovHitCount = 42,
+		MolotovGrantCount = 3,
+		FlashbangAt = 10,
+		FlashbangHitCount = 58,
+		FlashbangGrantCount = 3,
+		SniperAt = 17,
+		SniperHitCount = 70,
+		WindWarnAt = 20,
+		WindWarnText = "강풍경보! 총알과 발걸음이 무거워집니다!",
+		WindAt = 23,
+		WindDuration = 20,
+		WindSpeedScale = 0.6, -- 약 40% 느림
+		MidBossAt = 25,
+		MidBossHitCountMin = 340,
+		MidBossHitCountMax = 380,
+		MineAt = 30,
+		MinusAt = 33,
+		MinusHitCount = 52,
+		MinusWalkSpeedScale = 2.4,
+		SpikeAt = 36,
+		MixedWaveAt = 50,
+		MixedWaveDuration = 10,
+		MixedWaveNormal = 6,
+		MixedWaveDog = 8,
+		MixedWaveBig = 3,
+		MixedWaveShield = 5,
+	},
+	Round10 = {
+		Round = 10,
+		-- 시작 10초: R9 혼합웨이브 잔여 정리
+		ClearGraceUntil = 10,
+		ClearGraceGapScale = 2.5,
+		ClearGraceMaxAlive = 8,
+		-- 왼쪽 철조망 외곽 → 대각선 접근 → 쌓임 → 돌파
+		OutsideSpawnAt = 10,
+		OutsideSpawnGap = 1.1,
+		OutsideSpawnUntil = 28, -- 돌파 직후에도 잠시 왼쪽 라인으로 계속
+		OutsideSpawnXMin = 19.5,
+		OutsideSpawnXMax = 26,
+		OutsideSpawnZPad = 6, -- SpawnZ + pad
+		FencePileX = 17.35,
+		FencePileZ = 12638, -- 약 10초 이동 후 도착
+		ApproachWalkSpeed = 6.5,
+		BreachAt = 23,
+		BreachGapHalf = 8,
+		BreachWarnText = "철조망이 무너진다!",
+		PostBreachEnterX = 9.5,
 	},
 }
 
@@ -1212,6 +1278,14 @@ function Config.sniperShieldHits(wave: number?): number
 		return Config.Chapter3.Round8.SniperShieldHitDamage
 	end
 	return Config.numberedWeaponHits("sniper", w)
+end
+
+function Config.bombShieldHits(wave: number?): number
+	local w = wave or 1
+	if Config.chapter() >= 3 and Config.chapterRound(w) >= Config.Chapter3.Round8.Round then
+		return Config.Chapter3.Round8.BombShieldHitDamage
+	end
+	return Config.numberedWeaponHits("bomb", w)
 end
 
 function Config.maxHitPower(chapter: number?): number

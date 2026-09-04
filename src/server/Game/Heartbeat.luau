@@ -93,7 +93,11 @@ function Heartbeat.connect()
   				local standY = Config.playerStandY()
   				local minX, maxX = Config.laneXBounds()
   				-- Camera looks toward +Z, so D (screen-right) moves toward world -X / side path.
-  				local x = math.clamp(root.Position.X - data.strafe * Config.Player.StrafeSpeed * dt, minX, maxX)
+  				local x = math.clamp(
+  					root.Position.X - data.strafe * Config.Player.StrafeSpeed * math.max(0.05, ctx.windSpeedScale or 1) * dt,
+  					minX,
+  					maxX
+  				)
   				root.CFrame = CFrame.lookAt(
   					Vector3.new(x, standY, lane.PlayerZ),
   					Vector3.new(x, standY, lane.PlayerZ + 12)

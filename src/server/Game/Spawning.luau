@@ -200,6 +200,42 @@ function Spawning.currentStats()
 			if localElapsed < r6.ClearGraceUntil then
 				gap *= r6.ClearGraceGapScale
 				maxAlive = math.min(maxAlive, r6.ClearGraceMaxAlive)
+			elseif localElapsed >= r6.LateEaseFrom then
+				gap *= r6.LateEaseGapScale
+				maxAlive = math.min(maxAlive, r6.LateEaseMaxAlive)
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+					maxAlive += inf.AllyMaxAliveBonus
+				end
+			elseif SupplyService.hasRecruitedThisMatch() then
+				gap *= inf.AllySpawnGapScale
+				maxAlive += inf.AllyMaxAliveBonus
+			end
+		end
+		local r7 = Config.Chapter3.Round7
+		if localRound == r7.Round then
+			gap *= r7.SpawnGapScale
+			maxAlive = math.min(maxAlive, r7.MaxAliveCap)
+			if SupplyService.hasRecruitedThisMatch() then
+				gap *= inf.AllySpawnGapScale
+				maxAlive += inf.AllyMaxAliveBonus
+			end
+		end
+		local r9 = Config.Chapter3.Round9
+		if localRound == r9.Round then
+			if localElapsed < r9.ClearGraceUntil then
+				gap *= r9.ClearGraceGapScale
+				maxAlive = math.min(maxAlive, r9.ClearGraceMaxAlive)
+			elseif SupplyService.hasRecruitedThisMatch() then
+				gap *= inf.AllySpawnGapScale
+				maxAlive += inf.AllyMaxAliveBonus
+			end
+		end
+		local r10 = Config.Chapter3.Round10
+		if localRound == r10.Round then
+			if localElapsed < r10.ClearGraceUntil then
+				gap *= r10.ClearGraceGapScale
+				maxAlive = math.min(maxAlive, r10.ClearGraceMaxAlive)
 			elseif SupplyService.hasRecruitedThisMatch() then
 				gap *= inf.AllySpawnGapScale
 				maxAlive += inf.AllyMaxAliveBonus
@@ -1245,6 +1281,53 @@ function Spawning.spawnChapter3TimedMix(
 				})
 				ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 			end
+		end
+	end)
+end
+
+function Spawning.spawnChapter3FenceApproachZombie()
+	local r10 = Config.Chapter3.Round10
+	local lane = Config.activeLane()
+	local stats = Spawning.currentStats()
+	local x = r10.OutsideSpawnXMin + math.random() * (r10.OutsideSpawnXMax - r10.OutsideSpawnXMin)
+	local z = lane.SpawnZ + (r10.OutsideSpawnZPad or 0)
+	local pileX = r10.FencePileX + (math.random() * 2 - 1) * 0.8
+	local pileZ = r10.FencePileZ + (math.random() * 2 - 1) * 2.5
+	local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4, z), {
+		health = stats.health,
+		walkSpeed = r10.ApproachWalkSpeed,
+		isBoss = false,
+		isBig = false,
+		isDog = false,
+		isShield = false,
+		fenceApproach = true,
+		fenceTargetX = pileX,
+		fenceTargetZ = pileZ,
+		fenceEnterX = r10.PostBreachEnterX,
+		contactDamage = Config.activeZombie().ContactDamage,
+		scale = 1,
+		hitCount = nil,
+	})
+	if ctx.stateFolder and ctx.stateFolder:GetAttribute("Ch3FenceBreached") == true then
+		zombie.fencePhase = "enter"
+		zombie.stopZ = nil
+	end
+	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+	return zombie
+end
+
+function Spawning.startChapter3FenceApproachWave()
+	local r10 = Config.Chapter3.Round10
+	task.spawn(function()
+		local started = os.clock()
+		local duration = math.max(0.5, r10.OutsideSpawnUntil - r10.OutsideSpawnAt)
+		local gap = math.max(0.35, r10.OutsideSpawnGap)
+		while os.clock() - started < duration do
+			if ctx.phase ~= "playing" then
+				return
+			end
+			Spawning.spawnChapter3FenceApproachZombie()
+			task.wait(gap)
 		end
 	end)
 end

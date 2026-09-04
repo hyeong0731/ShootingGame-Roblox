@@ -37,11 +37,11 @@ local function signLabel(host: Part, text: string, face: Enum.NormalId, color: C
 	label.Parent = gui
 end
 
-local function barbedSpan(folder: Folder, x: number, y: number, zA: number, zB: number)
+local function barbedSpan(folder: Folder, x: number, y: number, zA: number, zB: number, side: string?)
 	local midZ = (zA + zB) * 0.5
 	local length = math.abs(zB - zA)
 	for _, wy in { y + 1.15, y + 2.05, y + 2.95, y + 3.85 } do
-		part({
+		local wire = part({
 			Name = "BarbedWire",
 			Parent = folder,
 			Color = Color3.fromRGB(38, 36, 34),
@@ -51,8 +51,12 @@ local function barbedSpan(folder: Folder, x: number, y: number, zA: number, zB: 
 			CanCollide = false,
 			CastShadow = false,
 		})
+		if side then
+			wire:SetAttribute("FenceSide", side)
+			wire:SetAttribute("FenceZ", midZ)
+		end
 	end
-	part({
+	local x1 = part({
 		Name = "BarbedX",
 		Parent = folder,
 		Color = Color3.fromRGB(42, 40, 38),
@@ -62,7 +66,7 @@ local function barbedSpan(folder: Folder, x: number, y: number, zA: number, zB: 
 		CanCollide = false,
 		CastShadow = false,
 	})
-	part({
+	local x2 = part({
 		Name = "BarbedX",
 		Parent = folder,
 		Color = Color3.fromRGB(42, 40, 38),
@@ -72,15 +76,21 @@ local function barbedSpan(folder: Folder, x: number, y: number, zA: number, zB: 
 		CanCollide = false,
 		CastShadow = false,
 	})
+	if side then
+		x1:SetAttribute("FenceSide", side)
+		x1:SetAttribute("FenceZ", midZ)
+		x2:SetAttribute("FenceSide", side)
+		x2:SetAttribute("FenceZ", midZ)
+	end
 end
 
-local function fenceLine(folder: Folder, x: number, y: number, zStart: number, zEnd: number)
+local function fenceLine(folder: Folder, x: number, y: number, zStart: number, zEnd: number, side: string?)
 	local spacing = 9
 	local posts = {}
 	local z = zStart
 	while z <= zEnd + 0.1 do
 		table.insert(posts, z)
-		part({
+		local post = part({
 			Name = "FencePost",
 			Parent = folder,
 			Color = Color3.fromRGB(52, 50, 46),
@@ -88,7 +98,7 @@ local function fenceLine(folder: Folder, x: number, y: number, zStart: number, z
 			Size = Vector3.new(0.38, 4.8, 0.38),
 			CFrame = CFrame.new(x, y + 2.55, z),
 		})
-		part({
+		local jersey = part({
 			Name = "Jersey",
 			Parent = folder,
 			Color = Color3.fromRGB(118, 114, 104),
@@ -96,15 +106,21 @@ local function fenceLine(folder: Folder, x: number, y: number, zStart: number, z
 			Size = Vector3.new(0.85, 1.15, spacing - 0.4),
 			CFrame = CFrame.new(x, y + 0.7, z + spacing * 0.45),
 		})
+		if side then
+			post:SetAttribute("FenceSide", side)
+			post:SetAttribute("FenceZ", z)
+			jersey:SetAttribute("FenceSide", side)
+			jersey:SetAttribute("FenceZ", z + spacing * 0.45)
+		end
 		z += spacing
 	end
 	for i = 1, #posts - 1 do
-		barbedSpan(folder, x, y, posts[i], posts[i + 1])
+		barbedSpan(folder, x, y, posts[i], posts[i + 1], side)
 	end
 end
 
-local function coil(folder: Folder, x: number, y: number, z: number)
-	part({
+local function coil(folder: Folder, x: number, y: number, z: number): Part
+	return part({
 		Name = "RazorCoil",
 		Parent = folder,
 		Color = Color3.fromRGB(70, 68, 64),
@@ -264,11 +280,13 @@ function Dmz.build(folder: Folder)
 		CFrame = CFrame.new(outerX - 35, 0.35, midZ),
 	})
 
-	fenceLine(folder, leftX + 0.55, 0, zStart, zEnd)
-	fenceLine(folder, outerX - 0.55, 0, zStart, zEnd)
+	fenceLine(folder, leftX + 0.55, 0, zStart, zEnd, "left")
+	fenceLine(folder, outerX - 0.55, 0, zStart, zEnd, "right")
 
 	for i = 0, 10 do
-		coil(folder, leftX + 1.35, 0, lane.PlayerZ + 6 + i * 18)
+		local leftCoil = coil(folder, leftX + 1.35, 0, lane.PlayerZ + 6 + i * 18)
+		leftCoil:SetAttribute("FenceSide", "left")
+		leftCoil:SetAttribute("FenceZ", lane.PlayerZ + 6 + i * 18)
 		coil(folder, outerX - 1.35, 0, lane.PlayerZ + 12 + i * 18)
 	end
 
@@ -403,7 +421,7 @@ function Dmz.build(folder: Folder)
 		CFrame = CFrame.new(leftX + 0.7, deckY + 8, midZ),
 		CastShadow = false,
 		Transparency = 1,
-	})
+	}):SetAttribute("FenceSide", "left")
 	part({
 		Name = "LaneBarrier",
 		Parent = folder,
@@ -414,6 +432,86 @@ function Dmz.build(folder: Folder)
 		CastShadow = false,
 		Transparency = 1,
 	})
+end
+
+function Dmz.breachLeftFence(centerZ: number, halfLength: number)
+	local Workspace = game:GetService("Workspace")
+	local arena = Workspace:FindFirstChild("Arena")
+	if not (arena and arena:IsA("Folder")) then
+		return
+	end
+	local lane = Config.Chapter3.Lane
+	local leftX = lane.Width / 2
+	local half = math.max(2, halfLength)
+	local rubbleFolder = Workspace:FindFirstChild("Fx") or Workspace
+	for _, child in arena:GetChildren() do
+		if not child:IsA("BasePart") then
+			continue
+		end
+		if child:GetAttribute("FenceSide") ~= "left" then
+			continue
+		end
+		local fz = (child:GetAttribute("FenceZ") :: number?) or child.Position.Z
+		if math.abs(fz - centerZ) > half then
+			continue
+		end
+		if child.Name == "LaneBarrier" then
+			continue
+		end
+		local chip = child:Clone()
+		chip.Anchored = false
+		chip.CanCollide = false
+		chip.Parent = rubbleFolder
+		chip.AssemblyLinearVelocity = Vector3.new(
+			(math.random() - 0.5) * 18,
+			8 + math.random() * 10,
+			(math.random() - 0.5) * 12
+		)
+		task.delay(1.4, function()
+			if chip.Parent then
+				chip:Destroy()
+			end
+		end)
+		child:Destroy()
+	end
+	-- 왼쪽 LaneBarrier를 위·아래 두 조각으로 갈라 구멍 만들기
+	for _, child in arena:GetChildren() do
+		if child:IsA("BasePart") and child.Name == "LaneBarrier" and child:GetAttribute("FenceSide") == "left" then
+			local deckY = lane.CenterY
+			local zLo = lane.PlayerZ - 14
+			local zHi = lane.SpawnZ + 16
+			local gapLo = centerZ - half
+			local gapHi = centerZ + half
+			child:Destroy()
+			if gapLo > zLo + 1 then
+				local len = gapLo - zLo
+				local mid = (zLo + gapLo) * 0.5
+				local south = Instance.new("Part")
+				south.Name = "LaneBarrier"
+				south.Anchored = true
+				south.Transparency = 1
+				south.CanCollide = true
+				south.Size = Vector3.new(2, 16, len)
+				south.CFrame = CFrame.new(leftX + 0.7, deckY + 8, mid)
+				south:SetAttribute("FenceSide", "left")
+				south.Parent = arena
+			end
+			if zHi > gapHi + 1 then
+				local len = zHi - gapHi
+				local mid = (gapHi + zHi) * 0.5
+				local north = Instance.new("Part")
+				north.Name = "LaneBarrier"
+				north.Anchored = true
+				north.Transparency = 1
+				north.CanCollide = true
+				north.Size = Vector3.new(2, 16, len)
+				north.CFrame = CFrame.new(leftX + 0.7, deckY + 8, mid)
+				north:SetAttribute("FenceSide", "left")
+				north.Parent = arena
+			end
+			break
+		end
+	end
 end
 
 return Dmz

@@ -1,4 +1,5 @@
 local EventFlags = require(script.Parent.EventFlags)
+local Context = require(script.Parent.Context)
 
 local EventReset = {}
 local Ev = EventFlags
@@ -36,9 +37,23 @@ function EventReset.resetChapter3Round8Events(setState: (string, any) -> ())
 	Ev.resetCh3Round8()
 end
 
+function EventReset.resetChapter3Round9Events(setState: (string, any) -> ())
+	Ev.resetCh3Round9()
+	Context.windSpeedScale = 1
+	setState("Ch3WindActive", false)
+end
+
+function EventReset.resetChapter3Round10Events(setState: (string, any) -> ())
+	Ev.resetCh3Round10()
+	setState("Ch3FenceBreached", false)
+end
+
 function EventReset.resetChapter3Events(setState: (string, any) -> ())
 	Ev.resetCh3()
+	Context.windSpeedScale = 1
 	setState("Ch3FogActive", false)
+	setState("Ch3WindActive", false)
+	setState("Ch3FenceBreached", false)
 end
 
 function EventReset.resetChapter2Round2Events()

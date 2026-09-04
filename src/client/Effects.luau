@@ -136,6 +136,69 @@ function Effects.start(remotes)
 			end)
 		end)
 	end
+
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local windEmitter: ParticleEmitter? = nil
+	local windPart: BasePart? = nil
+	local function stopWindFx()
+		if windPart then
+			windPart:Destroy()
+			windPart = nil
+			windEmitter = nil
+		end
+	end
+	local function startWindFx()
+		stopWindFx()
+		local lane = require(ReplicatedStorage.Shared.Config).activeLane()
+		local fxFolder = Workspace:FindFirstChild("Fx") or Workspace
+		local part = Instance.new("Part")
+		part.Name = "Ch3WindFx"
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.Transparency = 1
+		part.Size = Vector3.new(1, 1, 1)
+		part.CFrame = CFrame.new(0, lane.CenterY + 8, (lane.PlayerZ + lane.SpawnZ) * 0.5)
+		part.Parent = fxFolder
+		windPart = part
+		local attach = Instance.new("Attachment")
+		attach.Parent = part
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Name = "WindDust"
+		emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+		emitter.Color = ColorSequence.new(Color3.fromRGB(210, 220, 230))
+		emitter.Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1.2),
+			NumberSequenceKeypoint.new(1, 2.4),
+		})
+		emitter.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.55),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		emitter.Lifetime = NumberRange.new(0.7, 1.2)
+		emitter.Rate = 55
+		emitter.Speed = NumberRange.new(28, 42)
+		emitter.SpreadAngle = Vector2.new(18, 8)
+		-- 역풍: 좀비 쪽(+Z)에서 플레이어 쪽(-Z)으로
+		emitter.EmissionDirection = Enum.NormalId.Back
+		emitter.Parent = attach
+		windEmitter = emitter
+	end
+	task.spawn(function()
+		local state = ReplicatedStorage:WaitForChild("GameState", 30)
+		if not state then
+			return
+		end
+		local function syncWind()
+			if state:GetAttribute("Ch3WindActive") == true then
+				startWindFx()
+			else
+				stopWindFx()
+			end
+		end
+		syncWind()
+		state:GetAttributeChangedSignal("Ch3WindActive"):Connect(syncWind)
+	end)
 end
 
 return Effects

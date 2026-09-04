@@ -125,7 +125,21 @@ local EventFlags = {
 		R8SniperSpawned = false,
 		R8Mine25 = false,
 		R8PlusSpawned = false,
+		R8MolotovSpawned = false,
 		R8MixedWaveStarted = false,
+		R9MolotovSpawned = false,
+		R9FlashbangSpawned = false,
+		R9SniperSpawned = false,
+		R9WindWarned = false,
+		R9WindActive = false,
+		R9WindEndAt = 0,
+		R9MidBossSpawned = false,
+		R9Mine30 = false,
+		R9MinusSpawned = false,
+		R9SpikeSpawned = false,
+		R9MixedWaveStarted = false,
+		R10OutsideStarted = false,
+		R10FenceBreached = false,
 	},
 }
 
@@ -228,7 +242,29 @@ function EventFlags.resetCh3Round8()
 	ch3.R8SniperSpawned = false
 	ch3.R8Mine25 = false
 	ch3.R8PlusSpawned = false
+	ch3.R8MolotovSpawned = false
 	ch3.R8MixedWaveStarted = false
+end
+
+function EventFlags.resetCh3Round9()
+	local ch3 = EventFlags.Ch3
+	ch3.R9MolotovSpawned = false
+	ch3.R9FlashbangSpawned = false
+	ch3.R9SniperSpawned = false
+	ch3.R9WindWarned = false
+	ch3.R9WindActive = false
+	ch3.R9WindEndAt = 0
+	ch3.R9MidBossSpawned = false
+	ch3.R9Mine30 = false
+	ch3.R9MinusSpawned = false
+	ch3.R9SpikeSpawned = false
+	ch3.R9MixedWaveStarted = false
+end
+
+function EventFlags.resetCh3Round10()
+	local ch3 = EventFlags.Ch3
+	ch3.R10OutsideStarted = false
+	ch3.R10FenceBreached = false
 end
 
 function EventFlags.resetCh3()
@@ -240,6 +276,8 @@ function EventFlags.resetCh3()
 	EventFlags.resetCh3Round6()
 	EventFlags.resetCh3Round7()
 	EventFlags.resetCh3Round8()
+	EventFlags.resetCh3Round9()
+	EventFlags.resetCh3Round10()
 end
 
 return EventFlags

@@ -1435,8 +1435,14 @@ end
 
 function SupplyService.allyMuzzlePoints(now: number): { Vector3 }
 	local points = {}
+	local windScale = 1
+	local state = ReplicatedStorage:FindFirstChild("GameState")
+	if state and state:GetAttribute("Ch3WindActive") == true then
+		windScale = Config.Chapter3.Round9.WindSpeedScale
+	end
+	local allyInterval = Config.Supply.AllyFireInterval / math.max(0.05, windScale)
 	for _, ally in SupplyService.getAllies() do
-		if now - ally.lastFire < Config.Supply.AllyFireInterval then
+		if now - ally.lastFire < allyInterval then
 			continue
 		end
 		ally.lastFire = now

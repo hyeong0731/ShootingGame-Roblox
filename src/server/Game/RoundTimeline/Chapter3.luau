@@ -4,6 +4,8 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local NumberGate = require(script.Parent.Parent.Parent.NumberGate)
 local SupplyService = require(script.Parent.Parent.Parent.SupplyService)
 local SpikeTrap = require(script.Parent.Parent.Parent.SpikeTrap)
+local Dmz = require(script.Parent.Parent.Parent.Dmz)
+local ZombieService = require(script.Parent.Parent.Parent.ZombieService)
 local Context = require(script.Parent.Parent.Context)
 local StateSync = require(script.Parent.Parent.StateSync)
 local Spawning = require(script.Parent.Parent.Spawning)
@@ -349,6 +351,15 @@ function Chapter3.tick(now: number, wave: number)
 						Ev.Ch3.R8PlusSpawned = true
 						NumberGate.createPlus(r8.PlusHitCount, r8.PlusHitCount, true)
 					end
+					if t >= r8.MolotovAt and not Ev.Ch3.R8MolotovSpawned then
+						Ev.Ch3.R8MolotovSpawned = true
+						SupplyService.createMolotov(
+							true,
+							r8.MolotovHitCount,
+							r8.MolotovHitCount,
+							r8.MolotovGrantCount
+						)
+					end
 					if t >= r8.MixedWaveAt and not Ev.Ch3.R8MixedWaveStarted then
 						Ev.Ch3.R8MixedWaveStarted = true
 						Spawning.spawnChapter3TimedMix(
@@ -360,6 +371,103 @@ function Chapter3.tick(now: number, wave: number)
 							r8.ShieldHitCountMin,
 							r8.ShieldHitCountMax
 						)
+					end
+				end
+				local r9 = Config.Chapter3.Round9
+				if round == r9.Round then
+					if t >= r9.MolotovAt and not Ev.Ch3.R9MolotovSpawned then
+						Ev.Ch3.R9MolotovSpawned = true
+						SupplyService.createMolotov(
+							true,
+							r9.MolotovHitCount,
+							r9.MolotovHitCount,
+							r9.MolotovGrantCount
+						)
+					end
+					if t >= r9.FlashbangAt and not Ev.Ch3.R9FlashbangSpawned then
+						Ev.Ch3.R9FlashbangSpawned = true
+						SupplyService.createFlashbang(
+							true,
+							r9.FlashbangHitCount,
+							r9.FlashbangHitCount,
+							r9.FlashbangGrantCount
+						)
+					end
+					if t >= r9.SniperAt and not Ev.Ch3.R9SniperSpawned then
+						Ev.Ch3.R9SniperSpawned = true
+						SupplyService.createSniper(true, r9.SniperHitCount, r9.SniperHitCount)
+					end
+					if t >= r9.WindWarnAt and not Ev.Ch3.R9WindWarned then
+						Ev.Ch3.R9WindWarned = true
+						setState("Announce", r9.WindWarnText)
+						task.delay(r9.WindAt - r9.WindWarnAt, function()
+							if (ctx.stateFolder:GetAttribute("Announce") or "") == r9.WindWarnText then
+								setState("Announce", "")
+							end
+						end)
+					end
+					if t >= r9.WindAt and not Ev.Ch3.R9WindActive then
+						Ev.Ch3.R9WindActive = true
+						Ev.Ch3.R9WindEndAt = t + r9.WindDuration
+						ctx.windSpeedScale = r9.WindSpeedScale
+						setState("Ch3WindActive", true)
+					end
+					if Ev.Ch3.R9WindActive and t >= Ev.Ch3.R9WindEndAt then
+						Ev.Ch3.R9WindActive = false
+						ctx.windSpeedScale = 1
+						setState("Ch3WindActive", false)
+					end
+					if t >= r9.MidBossAt and not Ev.Ch3.R9MidBossSpawned then
+						Ev.Ch3.R9MidBossSpawned = true
+						Spawning.spawnChapter3MidBoss(r9.MidBossHitCountMin, r9.MidBossHitCountMax)
+					end
+					if t >= r9.MineAt and not Ev.Ch3.R9Mine30 then
+						Ev.Ch3.R9Mine30 = true
+						Spawning.spawnChapter3MineZombie()
+					end
+					if t >= r9.MinusAt and not Ev.Ch3.R9MinusSpawned then
+						Ev.Ch3.R9MinusSpawned = true
+						NumberGate.createMinus(
+							r9.MinusHitCount,
+							r9.MinusHitCount,
+							true,
+							r9.MinusWalkSpeedScale
+						)
+					end
+					if t >= r9.SpikeAt and not Ev.Ch3.R9SpikeSpawned then
+						Ev.Ch3.R9SpikeSpawned = true
+						SpikeTrap.create()
+					end
+					if t >= r9.MixedWaveAt and not Ev.Ch3.R9MixedWaveStarted then
+						Ev.Ch3.R9MixedWaveStarted = true
+						Spawning.spawnChapter3TimedMix(
+							r9.MixedWaveNormal,
+							r9.MixedWaveDog,
+							r9.MixedWaveBig,
+							r9.MixedWaveShield,
+							r9.MixedWaveDuration,
+							Config.Chapter3.Round8.ShieldHitCountMin,
+							Config.Chapter3.Round8.ShieldHitCountMax
+						)
+					end
+				end
+				local r10 = Config.Chapter3.Round10
+				if round == r10.Round then
+					if t >= r10.OutsideSpawnAt and not Ev.Ch3.R10OutsideStarted then
+						Ev.Ch3.R10OutsideStarted = true
+						Spawning.startChapter3FenceApproachWave()
+					end
+					if t >= r10.BreachAt and not Ev.Ch3.R10FenceBreached then
+						Ev.Ch3.R10FenceBreached = true
+						setState("Ch3FenceBreached", true)
+						setState("Announce", r10.BreachWarnText)
+						task.delay(2.2, function()
+							if (ctx.stateFolder:GetAttribute("Announce") or "") == r10.BreachWarnText then
+								setState("Announce", "")
+							end
+						end)
+						Dmz.breachLeftFence(r10.FencePileZ, r10.BreachGapHalf)
+						ZombieService.releaseFencePiles()
 					end
 				end
 			end

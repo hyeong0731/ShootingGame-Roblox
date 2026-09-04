@@ -50,6 +50,9 @@ function Orchestrator.start(remotes)
 	setState("GateLabelScale", Config.NumberGate.LabelScale)
 	setState("Announce", "")
 	setState("Ch3FogActive", false)
+	setState("Ch3WindActive", false)
+	setState("Ch3FenceBreached", false)
+	ctx.windSpeedScale = 1
 
 	ctx.nextIsBossAt = Config.Boss.EveryNKills
 

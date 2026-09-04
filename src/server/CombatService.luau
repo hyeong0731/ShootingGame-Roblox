@@ -234,7 +234,8 @@ local function explodeAt(position: Vector3, hits: number)
 	local cfg = Config.BombCrate
 	local bombHits = Config.numberedWeaponHits("bomb", currentWave())
 	local numberedHits = math.max(bombHits, math.max(1, math.floor(hits)))
-	ZombieService.damageInRadius(position, cfg.Radius, cfg.Damage, numberedHits)
+	local shieldHits = Config.bombShieldHits(currentWave())
+	ZombieService.damageInRadius(position, cfg.Radius, cfg.Damage, numberedHits, shieldHits)
 	SupplyService.damageInRadius(position, cfg.Radius, numberedHits)
 	NumberGate.damageInRadius(position, cfg.Radius, numberedHits)
 	if CombatService._remotes then

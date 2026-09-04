@@ -60,6 +60,11 @@ export type ZombieRecord = {
 	mineZigUntil: number?,
 	mineZigTargetX: number?,
 	mineExploded: boolean?,
+	fenceApproach: boolean?,
+	fencePhase: string?, -- approach | pile | enter
+	fenceTargetX: number?,
+	fenceTargetZ: number?,
+	fenceEnterX: number?,
 	deathT: number,
 	deathStart: CFrame,
 	deathSide: number,
@@ -1054,7 +1059,26 @@ local function setupMine(record: ZombieRecord)
 	record.walkSpeed = Config.MineZombie.WalkSpeed
 end
 
+local function setupFenceApproach(record: ZombieRecord, targetX: number, targetZ: number, enterX: number)
+	record.fenceApproach = true
+	record.fencePhase = "approach"
+	record.fenceTargetX = targetX
+	record.fenceTargetZ = targetZ
+	record.fenceEnterX = enterX
+	record.stopZ = targetZ
+	record.model:SetAttribute("FenceApproach", true)
+end
+
 local explodeMine: (ZombieRecord) -> ()
+
+function ZombieService.releaseFencePiles()
+	for _, record in ZombieService.getAlive() do
+		if record.fenceApproach and (record.fencePhase == "approach" or record.fencePhase == "pile") then
+			record.fencePhase = "enter"
+			record.stopZ = nil
+		end
+	end
+end
 
 function ZombieService.create(position: Vector3, stats: {
 	health: number,
@@ -1066,6 +1090,10 @@ function ZombieService.create(position: Vector3, stats: {
 	isShield: boolean?,
 	isThrower: boolean?,
 	isMine: boolean?,
+	fenceApproach: boolean?,
+	fenceTargetX: number?,
+	fenceTargetZ: number?,
+	fenceEnterX: number?,
 	stopZ: number?,
 	contactDamage: number,
 	scale: number,
@@ -1106,6 +1134,14 @@ function ZombieService.create(position: Vector3, stats: {
 		if stats.isMine == true then
 			setupMine(fromProto)
 		end
+		if stats.fenceApproach == true then
+			setupFenceApproach(
+				fromProto,
+				stats.fenceTargetX or fromProto.root.Position.X,
+				stats.fenceTargetZ or fromProto.root.Position.Z,
+				stats.fenceEnterX or 0
+			)
+		end
 		return fromProto
 	end
 
@@ -1131,6 +1167,14 @@ function ZombieService.create(position: Vector3, stats: {
 	end
 	if stats.isMine == true then
 		setupMine(fallback)
+	end
+	if stats.fenceApproach == true then
+		setupFenceApproach(
+			fallback,
+			stats.fenceTargetX or fallback.root.Position.X,
+			stats.fenceTargetZ or fallback.root.Position.Z,
+			stats.fenceEnterX or 0
+		)
 	end
 	return fallback
 end
@@ -1319,14 +1363,21 @@ function ZombieService.damageModel(model: Model, amount: number, hits: number?):
 	return false
 end
 
-function ZombieService.damageInRadius(position: Vector3, radius: number, amount: number, hits: number?): number
+function ZombieService.damageInRadius(
+	position: Vector3,
+	radius: number,
+	amount: number,
+	hits: number?,
+	shieldHits: number?
+): number
 	local hit = 0
 	local snapshot = ZombieService.getAlive()
 	for _, record in snapshot do
 		local offset = record.root.Position - position
 		local reach = radius + ((record.model:GetAttribute("HitRadius") :: number?) or 0) * 0.3
 		if offset.X * offset.X + offset.Z * offset.Z <= reach * reach then
-			if ZombieService.damageModel(record.model, amount, hits) then
+			local useHits = if record.hasShield == true and shieldHits ~= nil then shieldHits else hits
+			if ZombieService.damageModel(record.model, amount, useHits) then
 				hit += 1
 			end
 		end
@@ -1652,43 +1703,129 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 
 		local targetX = pos.X
 		local stopZ = record.stopZ or (focus.Z + zombieCfg.StopDistance)
-		if record.isMine then
-			stopZ = focus.Z + 2.2
-			local mineCfg = Config.MineZombie
-			if now >= (record.mineZigUntil or 0) then
-				record.mineZigUntil = now + mineCfg.ZigInterval
-				local minX, maxX = Config.zombieXBounds(pos.Z)
-				local jitter = (math.random() * 2 - 1) * mineCfg.ZigAmplitude
-				record.mineZigTargetX = math.clamp(focus.X + jitter, minX, maxX)
+		local moving = false
+		local nextZ = pos.Z
+		local fenceHandled = false
+		if record.fenceApproach then
+			local phase = record.fencePhase or "approach"
+			local tx = record.fenceTargetX or pos.X
+			local tz = record.fenceTargetZ or pos.Z
+			local enterX = record.fenceEnterX or 0
+			if phase == "approach" then
+				local dx = tx - pos.X
+				local dz = tz - pos.Z
+				local dist = math.sqrt(dx * dx + dz * dz)
+				if dist <= 1.4 then
+					record.fencePhase = "pile"
+					record.stopZ = tz
+					targetX = tx
+					nextZ = tz
+					moving = false
+				else
+					local step = record.walkSpeed * dt
+					targetX = pos.X + (dx / dist) * step
+					nextZ = pos.Z + (dz / dist) * step
+					moving = true
+				end
+				fenceHandled = true
+			elseif phase == "pile" then
+				-- 철조망에 쌓임: 살짝 흔들리며 대기
+				targetX = tx + math.sin(now * 3.2 + record.phase) * 0.35
+				nextZ = tz + math.cos(now * 2.4 + record.phase) * 0.2
+				moving = false
+				fenceHandled = true
+			elseif phase == "enter" then
+				-- 부서진 구멍으로 도로(왼쪽 라인) 진입
+				local wantX = enterX
+				if pos.X > 15.2 then
+					-- 아직 철조망 밖이면 구멍(쌓임 지점)으로 먼저
+					local gdx = tx - pos.X
+					local gdz = tz - pos.Z
+					local gdist = math.sqrt(gdx * gdx + gdz * gdz)
+					if gdist > 1.2 then
+						local step = record.walkSpeed * dt
+						targetX = pos.X + (gdx / gdist) * step
+						nextZ = pos.Z + (gdz / gdist) * step
+						moving = true
+					else
+						wantX = enterX
+						local dx = wantX - pos.X
+						local maxStep = record.walkSpeed * 1.1 * dt
+						targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
+						nextZ = pos.Z - record.walkSpeed * dt
+						moving = true
+					end
+				else
+					local dx = wantX - pos.X
+					local maxStep = record.walkSpeed * 1.05 * dt
+					if math.abs(dx) > 0.12 then
+						targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
+					else
+						targetX = wantX
+					end
+					stopZ = focus.Z + zombieCfg.StopDistance
+					moving = pos.Z > stopZ + 0.15
+					nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
+					if nextZ < stopZ then
+						nextZ = stopZ
+					end
+					if math.abs(pos.X - wantX) < 1.2 and pos.Z < tz - 2 then
+						record.fenceApproach = false
+						record.fencePhase = nil
+						record.model:SetAttribute("FenceApproach", false)
+					end
+				end
+				fenceHandled = true
 			end
-			targetX = record.mineZigTargetX or focus.X
 		end
-		local moving = pos.Z > stopZ + 0.15
-		local nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
-		if nextZ < stopZ then
-			nextZ = stopZ
+		if not fenceHandled then
+			if record.isMine then
+				stopZ = focus.Z + 2.2
+				local mineCfg = Config.MineZombie
+				if now >= (record.mineZigUntil or 0) then
+					record.mineZigUntil = now + mineCfg.ZigInterval
+					local minXb, maxXb = Config.zombieXBounds(pos.Z)
+					local jitter = (math.random() * 2 - 1) * mineCfg.ZigAmplitude
+					record.mineZigTargetX = math.clamp(focus.X + jitter, minXb, maxXb)
+				end
+				targetX = record.mineZigTargetX or focus.X
+			end
+			moving = pos.Z > stopZ + 0.15
+			nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
+			if nextZ < stopZ then
+				nextZ = stopZ
+			end
 		end
 
 		local minX, maxX = Config.zombieXBounds(nextZ)
-		if record.isMine then
-			local dx = (record.mineZigTargetX or focus.X) - pos.X
-			local maxStep = record.walkSpeed * 1.35 * dt
-			if math.abs(dx) > 0.05 then
-				targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
-			else
-				targetX = record.mineZigTargetX or focus.X
-			end
-		elseif pos.Z <= Config.chaseStartZ() then
-			local chaseSpeed = record.walkSpeed * zombieCfg.ChaseStrafeScale
-			if math.abs(focus.X - pos.X) > 6 then
-				chaseSpeed = record.walkSpeed * zombieCfg.ChaseStrafeFarScale
-			end
-			local dx = focus.X - pos.X
-			local maxStep = chaseSpeed * dt
-			if math.abs(dx) > 0.08 then
-				targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
-			else
-				targetX = focus.X
+		if record.fenceApproach and (record.fencePhase == "approach" or record.fencePhase == "pile") then
+			-- 철조망 밖 접근 중에는 메인 레인 클램프 무시
+			minX = math.min(minX, (record.fenceTargetX or pos.X) - 8)
+			maxX = math.max(maxX, (record.fenceTargetX or pos.X) + 8)
+		elseif record.fenceApproach and record.fencePhase == "enter" then
+			maxX = math.max(maxX, (record.fenceTargetX or 17) + 2)
+		end
+		if not fenceHandled or record.fencePhase == "enter" then
+			if record.isMine and not fenceHandled then
+				local dx = (record.mineZigTargetX or focus.X) - pos.X
+				local maxStep = record.walkSpeed * 1.35 * dt
+				if math.abs(dx) > 0.05 then
+					targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
+				else
+					targetX = record.mineZigTargetX or focus.X
+				end
+			elseif (not fenceHandled) and pos.Z <= Config.chaseStartZ() then
+				local chaseSpeed = record.walkSpeed * zombieCfg.ChaseStrafeScale
+				if math.abs(focus.X - pos.X) > 6 then
+					chaseSpeed = record.walkSpeed * zombieCfg.ChaseStrafeFarScale
+				end
+				local dx = focus.X - pos.X
+				local maxStep = chaseSpeed * dt
+				if math.abs(dx) > 0.08 then
+					targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
+				else
+					targetX = focus.X
+				end
 			end
 		end
 		targetX = math.clamp(targetX, minX, maxX)

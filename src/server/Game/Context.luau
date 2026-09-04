@@ -47,6 +47,7 @@ local Context = {
 	startPadDebounce = false,
 	lastMolotovAt = 0,
 	lastFlashbangAt = 0,
+	windSpeedScale = 1,
 }
 
 return Context

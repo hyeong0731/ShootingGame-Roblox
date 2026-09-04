@@ -205,6 +205,7 @@ function Combat.tryFire(now: number)
 		if not usingBomb and not usingSniper then
 			interval /= math.max(1, data.fireRateMult or 1)
 		end
+		interval /= math.max(0.05, ctx.windSpeedScale or 1)
 		if now - data.lastFire < interval then
 			continue
 		end
