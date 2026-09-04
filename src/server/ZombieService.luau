@@ -65,6 +65,7 @@ export type ZombieRecord = {
 	fenceTargetX: number?,
 	fenceTargetZ: number?,
 	fenceEnterX: number?,
+	fenceIngressX: number?, -- 도로 진입 후 이 X까지 횡단한 뒤 플레이어 추격
 	deathT: number,
 	deathStart: CFrame,
 	deathSide: number,
@@ -1065,19 +1066,48 @@ local function setupFenceApproach(record: ZombieRecord, targetX: number, targetZ
 	record.fenceTargetX = targetX
 	record.fenceTargetZ = targetZ
 	record.fenceEnterX = enterX
+	record.fenceIngressX = nil
 	record.stopZ = targetZ
 	record.model:SetAttribute("FenceApproach", true)
+	-- 도로 상한과 영구 분리 (추격 전환 후에도 왼쪽 스트림으로 유지)
+	record.model:SetAttribute("LeftStream", true)
+end
+
+local function rollFenceIngressX(): number
+	local r10 = Config.Chapter3.Round10
+	local lane = Config.activeLane()
+	-- 본도로 왼쪽 벽 ~ 오른쪽 벽
+	local leftWall = lane.Width / 2 - 3
+	local rightWall = -(lane.Width / 2 - 2.4)
+	local a = r10.PostBreachIngressXMin or leftWall
+	local b = r10.PostBreachIngressXMax or rightWall
+	-- 설정값이 레인보다 좁으면 레인 전체로 확장
+	local lo = math.min(a, b, rightWall)
+	local hi = math.max(a, b, leftWall)
+	return lo + math.random() * (hi - lo)
+end
+
+local function ensureFenceIngress(record: ZombieRecord)
+	if record.fenceIngressX == nil then
+		record.fenceIngressX = rollFenceIngressX()
+	end
 end
 
 local explodeMine: (ZombieRecord) -> ()
 
 function ZombieService.releaseFencePiles()
 	for _, record in ZombieService.getAlive() do
-		if record.fenceApproach and (record.fencePhase == "approach" or record.fencePhase == "pile") then
+		if record.fenceApproach then
 			record.fencePhase = "enter"
 			record.stopZ = nil
+			ensureFenceIngress(record)
 		end
 	end
+end
+
+local function isFenceBreached(): boolean
+	local state = game:GetService("ReplicatedStorage"):FindFirstChild("GameState")
+	return state ~= nil and state:GetAttribute("Ch3FenceBreached") == true
 end
 
 function ZombieService.create(position: Vector3, stats: {
@@ -1441,6 +1471,36 @@ function ZombieService.getAlive(): { ZombieRecord }
 	return list
 end
 
+-- 도로끝 스폰 상한: LeftStream·개무리 제외 (왼쪽과 완전 독립)
+function ZombieService.countForSpawnCap(): number
+	local n = 0
+	for _, record in ZombieService.getAlive() do
+		if record.model:GetAttribute("IgnoreSpawnCap") == true then
+			continue
+		end
+		if record.model:GetAttribute("LeftStream") == true then
+			continue
+		end
+		n += 1
+	end
+	return n
+end
+
+-- 왼쪽(철조망) 스트림 상한
+function ZombieService.countLeftStream(): number
+	local n = 0
+	for _, record in ZombieService.getAlive() do
+		if record.model:GetAttribute("LeftStream") == true then
+			n += 1
+		end
+	end
+	return n
+end
+
+function ZombieService.countFenceApproach(): number
+	return ZombieService.countLeftStream()
+end
+
 function ZombieService.nearest(fromPosition: Vector3): ZombieRecord?
 	local best: ZombieRecord? = nil
 	local bestDist = math.huge
@@ -1712,70 +1772,82 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 			local tz = record.fenceTargetZ or pos.Z
 			local enterX = record.fenceEnterX or 0
 			if phase == "approach" then
-				local dx = tx - pos.X
-				local dz = tz - pos.Z
-				local dist = math.sqrt(dx * dx + dz * dz)
-				if dist <= 1.4 then
-					record.fencePhase = "pile"
-					record.stopZ = tz
-					targetX = tx
-					nextZ = tz
-					moving = false
+				-- 이미 돌파됐으면 쌓지 말고 바로 난입
+				if isFenceBreached() then
+					record.fencePhase = "enter"
+					record.stopZ = nil
+					phase = "enter"
 				else
-					local step = record.walkSpeed * dt
-					targetX = pos.X + (dx / dist) * step
-					nextZ = pos.Z + (dz / dist) * step
-					moving = true
+					local dx = tx - pos.X
+					local dz = tz - pos.Z
+					local dist = math.sqrt(dx * dx + dz * dz)
+					if dist <= 1.4 then
+						record.fencePhase = "pile"
+						record.stopZ = tz
+						targetX = tx
+						nextZ = tz
+						moving = false
+						fenceHandled = true
+					else
+						local step = record.walkSpeed * dt
+						targetX = pos.X + (dx / dist) * step
+						nextZ = pos.Z + (dz / dist) * step
+						moving = true
+						fenceHandled = true
+					end
 				end
-				fenceHandled = true
-			elseif phase == "pile" then
-				-- 철조망에 쌓임: 살짝 흔들리며 대기
-				targetX = tx + math.sin(now * 3.2 + record.phase) * 0.35
-				nextZ = tz + math.cos(now * 2.4 + record.phase) * 0.2
-				moving = false
-				fenceHandled = true
-			elseif phase == "enter" then
-				-- 부서진 구멍으로 도로(왼쪽 라인) 진입
-				local wantX = enterX
-				if pos.X > 15.2 then
-					-- 아직 철조망 밖이면 구멍(쌓임 지점)으로 먼저
-					local gdx = tx - pos.X
+			end
+			if phase == "pile" then
+				if isFenceBreached() then
+					record.fencePhase = "enter"
+					record.stopZ = nil
+					phase = "enter"
+				else
+					-- 철조망에 쌓임: 살짝 흔들리며 대기
+					targetX = tx + math.sin(now * 3.2 + record.phase) * 0.35
+					nextZ = tz + math.cos(now * 2.4 + record.phase) * 0.2
+					moving = false
+					fenceHandled = true
+				end
+			end
+			if phase == "enter" then
+				-- 구멍 통과 → 도로에서 랜덤 깊이까지 횡단 → 그다음 플레이어 추격
+				ensureFenceIngress(record)
+				local ingressX = record.fenceIngressX or (record.fenceEnterX or 9.5)
+				if pos.X > 14.5 then
+					-- 철조망 밖/구멍: 구멍으로 모인 뒤 도로(ingress) 쪽으로
+					local gdx = (tx - 1.5) - pos.X
 					local gdz = tz - pos.Z
-					local gdist = math.sqrt(gdx * gdx + gdz * gdz)
-					if gdist > 1.2 then
+					if pos.X > 16.2 and math.abs(pos.Z - tz) > 3 then
+						local gdist = math.max(0.1, math.sqrt(gdx * gdx + gdz * gdz))
 						local step = record.walkSpeed * dt
 						targetX = pos.X + (gdx / gdist) * step
 						nextZ = pos.Z + (gdz / gdist) * step
-						moving = true
 					else
-						wantX = enterX
-						local dx = wantX - pos.X
-						local maxStep = record.walkSpeed * 1.1 * dt
+						local dx = ingressX - pos.X
+						local maxStep = record.walkSpeed * 1.25 * dt
 						targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
-						nextZ = pos.Z - record.walkSpeed * dt
-						moving = true
+						nextZ = pos.Z - record.walkSpeed * 1.1 * dt
 					end
+					moving = true
+					fenceHandled = true
+				elseif math.abs(pos.X - ingressX) > 1.15 then
+					-- 도로 안: 각자 정해진 X까지 횡단 (벽타기~중앙 섞임). 아직 추격 X 안 함
+					local dx = ingressX - pos.X
+					local maxStep = record.walkSpeed * 1.15 * dt
+					targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
+					nextZ = pos.Z - record.walkSpeed * 0.45 * dt
+					moving = true
+					fenceHandled = true
 				else
-					local dx = wantX - pos.X
-					local maxStep = record.walkSpeed * 1.05 * dt
-					if math.abs(dx) > 0.12 then
-						targetX = pos.X + math.clamp(dx, -maxStep, maxStep)
-					else
-						targetX = wantX
-					end
-					stopZ = focus.Z + zombieCfg.StopDistance
-					moving = pos.Z > stopZ + 0.15
-					nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
-					if nextZ < stopZ then
-						nextZ = stopZ
-					end
-					if math.abs(pos.X - wantX) < 1.2 and pos.Z < tz - 2 then
-						record.fenceApproach = false
-						record.fencePhase = nil
-						record.model:SetAttribute("FenceApproach", false)
-					end
+					-- 목표 깊이 도달 → fence 모드 해제 후 일반 추격
+					record.fenceApproach = false
+					record.fencePhase = nil
+					record.stopZ = nil
+					record.fenceIngressX = nil
+					record.model:SetAttribute("FenceApproach", false)
+					fenceHandled = false
 				end
-				fenceHandled = true
 			end
 		end
 		if not fenceHandled then
@@ -1799,11 +1871,23 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 
 		local minX, maxX = Config.zombieXBounds(nextZ)
 		if record.fenceApproach and (record.fencePhase == "approach" or record.fencePhase == "pile") then
-			-- 철조망 밖 접근 중에는 메인 레인 클램프 무시
-			minX = math.min(minX, (record.fenceTargetX or pos.X) - 8)
-			maxX = math.max(maxX, (record.fenceTargetX or pos.X) + 8)
+			-- 들판 → 철조망 대각선: 메인 레인 클램프 무시, 스폰 X까지 허용
+			local r10 = Config.Chapter3.Round10
+			minX = math.min(minX, (record.fenceTargetX or r10.FencePileX) - 4, r10.PostBreachEnterX - 2)
+			maxX = math.max(maxX, r10.OutsideSpawnXMax + 2, (record.fenceTargetX or r10.FencePileX) + 4)
 		elseif record.fenceApproach and record.fencePhase == "enter" then
-			maxX = math.max(maxX, (record.fenceTargetX or 17) + 2)
+			local r10 = Config.Chapter3.Round10
+			local lane = Config.activeLane()
+			local leftWall = lane.Width / 2 - 3
+			local rightWall = -(lane.Width / 2 - 2.4)
+			maxX = math.max(maxX, r10.OutsideSpawnXMax + 2, (record.fenceTargetX or 17) + 2, leftWall + 1)
+			minX = math.min(
+				minX,
+				rightWall - 1,
+				r10.PostBreachEnterX - 4,
+				r10.PostBreachIngressXMin or leftWall,
+				r10.PostBreachIngressXMax or rightWall
+			)
 		end
 		if not fenceHandled or record.fencePhase == "enter" then
 			if record.isMine and not fenceHandled then

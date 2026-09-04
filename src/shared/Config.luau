@@ -844,8 +844,8 @@ Config.Chapter3 = {
 		SpawnEaseAt = 35, -- 이후 스폰 간격 소폭 증가
 		ThrowerAt = 40, -- 투척 좀비 시작
 		Shotgun2At = 50, -- 2차 샷건
-		Shotgun2HitCountMin = 45,
-		Shotgun2HitCountMax = 55,
+		Shotgun2HitCountMin = 30,
+		Shotgun2HitCountMax = 35,
 	},
 	Round2 = {
 		Round = 2,
@@ -892,8 +892,8 @@ Config.Chapter3 = {
 		ThrowerAt = 20,
 		ThrowerSpawnChance = 0.20,
 		SniperAt = 20,
-		SniperHitCountMin = 30,
-		SniperHitCountMax = 40,
+		SniperHitCountMin = 20,
+		SniperHitCountMax = 30,
 		X2At = 35,
 		X2HitCountMin = 45,
 		X2HitCountMax = 55,
@@ -1035,6 +1035,9 @@ Config.Chapter3 = {
 	},
 	Round8 = {
 		Round = 8,
+		-- 라운드 전체 스폰 완화 (동시 너무 많음)
+		SpawnGapScale = 1.45,
+		MaxAliveCap = 20,
 		AllyAt = 0,
 		AllyHitCountMin = 85,
 		AllyHitCountMax = 95,
@@ -1060,10 +1063,10 @@ Config.Chapter3 = {
 		BombShieldHitDamage = 60, -- R8부터 폭탄→방패 (따로 말하기 전까지)
 		MixedWaveAt = 52,
 		MixedWaveDuration = 10,
-		MixedWaveNormal = 8,
-		MixedWaveDog = 12,
-		MixedWaveBig = 4,
-		MixedWaveShield = 8,
+		MixedWaveNormal = 6,
+		MixedWaveDog = 8,
+		MixedWaveBig = 3,
+		MixedWaveShield = 6,
 	},
 	Round9 = {
 		Round = 9,
@@ -1071,6 +1074,7 @@ Config.Chapter3 = {
 		ClearGraceUntil = 10,
 		ClearGraceGapScale = 2.5,
 		ClearGraceMaxAlive = 8,
+		MaxAliveCap = 15, -- 라운드 전체 동시 최대
 		MolotovAt = 0,
 		MolotovHitCount = 42,
 		MolotovGrantCount = 3,
@@ -1083,7 +1087,7 @@ Config.Chapter3 = {
 		WindWarnText = "강풍경보! 총알과 발걸음이 무거워집니다!",
 		WindAt = 23,
 		WindDuration = 20,
-		WindSpeedScale = 0.6, -- 약 40% 느림
+		WindSpeedScale = 0.65, -- 약 35% 느림
 		MidBossAt = 25,
 		MidBossHitCountMin = 340,
 		MidBossHitCountMax = 380,
@@ -1105,20 +1109,52 @@ Config.Chapter3 = {
 		ClearGraceUntil = 10,
 		ClearGraceGapScale = 2.5,
 		ClearGraceMaxAlive = 8,
-		-- 왼쪽 철조망 외곽 → 대각선 접근 → 쌓임 → 돌파
+		MaxAliveCap = 14, -- R10 도로끝 동시 상한 (왼쪽과 독립)
+		LateMaxAliveFrom = 10, -- 클리어 그레이스 이후 전부 14
+		LateMaxAliveCap = 14,
+		-- ÷2 시작 (속도는 Div2WalkSpeedScale로 조절)
+		Div2At = 0,
+		Div2HitCount = 77,
+		Div2WalkSpeedScale = 5,
+		ShotgunAt = 23,
+		ShotgunHitCount = 93,
+		PlusAt = 28,
+		PlusHitCountMin = 100,
+		PlusHitCountMax = 110,
+		MinePairAt = 30,
+		MinePairCount = 2,
+		ThrowerSpawnChance = 0.05, -- 전체 스폰의 5%
+		FlashbangAt = 42,
+		FlashbangHitCount = 88,
+		FlashbangGrantCount = 3,
+		SpikeAt = 50,
+		DogSwarmAt = 50,
+		DogSwarmCount = 10,
+		DogSwarmDuration = 7, -- 랜덤 딜레이 총 구간 (7초 내 전부)
+		-- 왼쪽 들판(도로에서 먼 쪽) → 대각선으로 철조망 접근 → 쌓임 → 돌파
 		OutsideSpawnAt = 10,
-		OutsideSpawnGap = 1.1,
-		OutsideSpawnUntil = 28, -- 돌파 직후에도 잠시 왼쪽 라인으로 계속
-		OutsideSpawnXMin = 19.5,
-		OutsideSpawnXMax = 26,
-		OutsideSpawnZPad = 6, -- SpawnZ + pad
+		OutsideSpawnGap = 1.1, -- 돌파 전 접근 페이스
+		-- 왼쪽·도로 완전 독립. 왼쪽 10 + 도로 14 = 최대 24 (R11~R15도 동일)
+		LeftMaxAlive = 10,
+		-- R10 50초~종료: 압박 완화 (왼쪽 5 + 도로 10)
+		EndEaseFrom = 50,
+		EndEaseRoadMaxAlive = 10,
+		EndEaseLeftMaxAlive = 5,
+		OutsideSpawnUntil = 60, -- (레거시) 실제 루프는 챕터3 Waves.Until(R15)까지 유지
+		OutsideSpawnXMin = 40,
+		OutsideSpawnXMax = 52,
+		OutsideSpawnZPad = 4,
+		OutsideSpawnZJitter = 10,
 		FencePileX = 17.35,
-		FencePileZ = 12638, -- 약 10초 이동 후 도착
-		ApproachWalkSpeed = 6.5,
+		FencePileZ = 12638,
+		ApproachWalkSpeed = 7.4,
 		BreachAt = 23,
 		BreachGapHalf = 8,
 		BreachWarnText = "철조망이 무너진다!",
-		PostBreachEnterX = 9.5,
+		PostBreachEnterX = 9.5, -- 구멍→도로 진입 목표(레거시)
+		-- 도로 진입 후 추격 전 횡단: 왼쪽 벽 ~ 오른쪽 벽 (rollFenceIngressX가 레인 폭 기준)
+		PostBreachIngressXMin = 13, -- 왼쪽 벽 근처
+		PostBreachIngressXMax = -13, -- 오른쪽 벽 근처
 	},
 }
 

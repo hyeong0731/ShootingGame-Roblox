@@ -221,24 +221,52 @@ function Spawning.currentStats()
 				maxAlive += inf.AllyMaxAliveBonus
 			end
 		end
+		local r8 = Config.Chapter3.Round8
+		if localRound == r8.Round then
+			gap *= r8.SpawnGapScale
+			maxAlive = math.min(maxAlive, r8.MaxAliveCap)
+			if SupplyService.hasRecruitedThisMatch() then
+				gap *= inf.AllySpawnGapScale
+				maxAlive += inf.AllyMaxAliveBonus
+			end
+		end
 		local r9 = Config.Chapter3.Round9
 		if localRound == r9.Round then
 			if localElapsed < r9.ClearGraceUntil then
 				gap *= r9.ClearGraceGapScale
 				maxAlive = math.min(maxAlive, r9.ClearGraceMaxAlive)
-			elseif SupplyService.hasRecruitedThisMatch() then
-				gap *= inf.AllySpawnGapScale
-				maxAlive += inf.AllyMaxAliveBonus
+			else
+				maxAlive = math.min(maxAlive, r9.MaxAliveCap)
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+					maxAlive += inf.AllyMaxAliveBonus
+				end
 			end
 		end
 		local r10 = Config.Chapter3.Round10
+		local fenceBreached = ctx.stateFolder ~= nil and ctx.stateFolder:GetAttribute("Ch3FenceBreached") == true
 		if localRound == r10.Round then
 			if localElapsed < r10.ClearGraceUntil then
 				gap *= r10.ClearGraceGapScale
 				maxAlive = math.min(maxAlive, r10.ClearGraceMaxAlive)
-			elseif SupplyService.hasRecruitedThisMatch() then
+			elseif localElapsed >= (r10.EndEaseFrom or 50) then
+				-- 50초~R11 직전: 도로끝 10
+				maxAlive = math.min(maxAlive, r10.EndEaseRoadMaxAlive or 10)
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+				end
+			else
+				-- 도로끝 14 (LeftStream은 countForSpawnCap에서 제외)
+				maxAlive = math.min(maxAlive, r10.LateMaxAliveCap)
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+				end
+			end
+		elseif fenceBreached and localRound > r10.Round then
+			-- R11~R15: 도로끝 14 + 왼쪽 10 유지
+			maxAlive = math.min(maxAlive, r10.LateMaxAliveCap)
+			if SupplyService.hasRecruitedThisMatch() then
 				gap *= inf.AllySpawnGapScale
-				maxAlive += inf.AllyMaxAliveBonus
 			end
 		end
 	end
@@ -451,6 +479,8 @@ function Spawning.spawnOne()
 			isThrower = math.random() < ch3Round3.ThrowerSpawnChance
 		elseif r5Horde then
 			isThrower = math.random() < ch3Round5.ThrowerSpawnChance
+		elseif round == Config.Chapter3.Round10.Round then
+			isThrower = math.random() < Config.Chapter3.Round10.ThrowerSpawnChance
 		end
 	end
 	local throwerStopZ = if isThrower
@@ -853,9 +883,15 @@ function Spawning.spawnChapter3DogSwarmEven(count: number, gap: number)
 	end)
 end
 
-function Spawning.spawnChapter3DogSwarm(count: number)
+function Spawning.spawnChapter3DogSwarm(count: number, duration: number?, opts: {
+	includeLeft: boolean?,
+	ignoreSpawnCap: boolean?,
+}?)
 	local r2 = Config.Chapter3.Round2
-	local spread = r2.DogSwarmDuration or 2
+	local r10 = Config.Chapter3.Round10
+	local spread = duration or r2.DogSwarmDuration or 2
+	local includeLeft = opts ~= nil and opts.includeLeft == true
+	local ignoreCap = opts ~= nil and opts.ignoreSpawnCap == true
 	local n = math.max(1, math.floor(count))
 	task.spawn(function()
 		local lane = Config.activeLane()
@@ -880,8 +916,18 @@ function Spawning.spawnChapter3DogSwarm(count: number)
 			if ctx.phase ~= "playing" then
 				return
 			end
-			local x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
-			x = math.clamp(x, minX, maxX)
+			local x: number
+			if includeLeft and math.random() < 0.45 then
+				x = r10.OutsideSpawnXMin + math.random() * (r10.OutsideSpawnXMax - r10.OutsideSpawnXMin)
+			else
+				x = slots[math.random(1, #slots)] + (math.random() * 2 - 1) * 4.5
+				if not includeLeft then
+					x = math.clamp(x, minX, maxX)
+				else
+					-- 도로 슬롯 + 살짝 왼쪽까지 허용
+					x = math.clamp(x, minX - 6, maxX)
+				end
+			end
 			local z = lane.SpawnZ + math.random() * 12
 			local elapsed = math.max(0, os.clock() - ctx.matchStart)
 			local y = lane.CenterY + 1.35
@@ -896,6 +942,9 @@ function Spawning.spawnChapter3DogSwarm(count: number)
 				scale = dogCfg.SizeScale,
 				hitCount = nil,
 			})
+			if ignoreCap then
+				zombie.model:SetAttribute("IgnoreSpawnCap", true)
+			end
 			ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 		end
 	end)
@@ -1287,15 +1336,42 @@ end
 
 function Spawning.spawnChapter3FenceApproachZombie()
 	local r10 = Config.Chapter3.Round10
+	local wave = (ctx.stateFolder:GetAttribute("Wave") :: number?) or 1
+	local localElapsed = Spawning.waveLocalElapsed(wave)
+	local localRound = Config.chapterRound(wave)
+	local breached = ctx.stateFolder ~= nil and ctx.stateFolder:GetAttribute("Ch3FenceBreached") == true
+	local leftCap = r10.LeftMaxAlive or 10
+	if localRound == r10.Round and localElapsed >= (r10.EndEaseFrom or 50) then
+		leftCap = r10.EndEaseLeftMaxAlive or 5
+	end
+	if breached then
+		if ZombieService.countLeftStream() >= leftCap then
+			return nil
+		end
+	else
+		-- 돌파 전에도 왼쪽은 왼쪽 상한만 (도로와 안 섞음)
+		if ZombieService.countLeftStream() >= leftCap then
+			return nil
+		end
+		if localElapsed < r10.ClearGraceUntil then
+			-- 클리어 그레이스: 전체(도로+왼쪽) 합산 완화만
+			if ZombieService.countForSpawnCap() + ZombieService.countLeftStream() >= r10.ClearGraceMaxAlive then
+				return nil
+			end
+		end
+	end
 	local lane = Config.activeLane()
 	local stats = Spawning.currentStats()
+	-- 들판 쪽(동그라미)에서 스폰 → 철조망으로 대각선 접근
 	local x = r10.OutsideSpawnXMin + math.random() * (r10.OutsideSpawnXMax - r10.OutsideSpawnXMin)
-	local z = lane.SpawnZ + (r10.OutsideSpawnZPad or 0)
+	local zJitter = r10.OutsideSpawnZJitter or 0
+	local z = lane.SpawnZ + (r10.OutsideSpawnZPad or 0) + (math.random() * 2 - 1) * zJitter
 	local pileX = r10.FencePileX + (math.random() * 2 - 1) * 0.8
 	local pileZ = r10.FencePileZ + (math.random() * 2 - 1) * 2.5
+	local walkSpeed = if breached then stats.speed else r10.ApproachWalkSpeed
 	local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4, z), {
 		health = stats.health,
-		walkSpeed = r10.ApproachWalkSpeed,
+		walkSpeed = walkSpeed,
 		isBoss = false,
 		isBig = false,
 		isDog = false,
@@ -1308,7 +1384,7 @@ function Spawning.spawnChapter3FenceApproachZombie()
 		scale = 1,
 		hitCount = nil,
 	})
-	if ctx.stateFolder and ctx.stateFolder:GetAttribute("Ch3FenceBreached") == true then
+	if breached then
 		zombie.fencePhase = "enter"
 		zombie.stopZ = nil
 	end
@@ -1319,13 +1395,23 @@ end
 function Spawning.startChapter3FenceApproachWave()
 	local r10 = Config.Chapter3.Round10
 	task.spawn(function()
-		local started = os.clock()
-		local duration = math.max(0.5, r10.OutsideSpawnUntil - r10.OutsideSpawnAt)
-		local gap = math.max(0.35, r10.OutsideSpawnGap)
-		while os.clock() - started < duration do
+		-- R10에서 시작 후 챕터3(R15) 종료까지 왼쪽 스트림 유지
+		while true do
 			if ctx.phase ~= "playing" then
 				return
 			end
+			if Config.chapter() ~= 3 then
+				return
+			end
+			local wave = (ctx.stateFolder:GetAttribute("Wave") :: number?) or 1
+			local ch3 = Config.Chapter3.Waves
+			if wave < ch3.From or wave > ch3.Until then
+				return
+			end
+			local breached = ctx.stateFolder ~= nil and ctx.stateFolder:GetAttribute("Ch3FenceBreached") == true
+			local gap = if breached
+				then math.max(0.25, Spawning.currentStats().gap)
+				else math.max(0.35, r10.OutsideSpawnGap)
 			Spawning.spawnChapter3FenceApproachZombie()
 			task.wait(gap)
 		end

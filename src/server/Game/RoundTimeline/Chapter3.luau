@@ -30,6 +30,20 @@ function Chapter3.tick(now: number, wave: number)
  					Ev.Ch3.R3FogActive = false
  					setState("Ch3FogActive", false)
  				end
+				-- 강풍 종료/라운드 이탈 시 연사·이동 반드시 원상복구
+				local r9wind = Config.Chapter3.Round9
+				local windStuck = Ev.Ch3.R9WindActive or (ctx.windSpeedScale or 1) < 0.99
+				if windStuck then
+					local endAt = if Ev.Ch3.R9WindEndAt > 0
+						then Ev.Ch3.R9WindEndAt
+						else r9wind.WindAt + r9wind.WindDuration
+					if round ~= r9wind.Round or t >= endAt then
+						Ev.Ch3.R9WindActive = false
+						Ev.Ch3.R9WindEndAt = 0
+						ctx.windSpeedScale = 1
+						setState("Ch3WindActive", false)
+					end
+				end
  				if round == r1.Round then
  					if t >= r1.ShotgunAt and not Ev.Ch3.R1ShotgunSpawned then
  						Ev.Ch3.R1ShotgunSpawned = true
@@ -453,6 +467,47 @@ function Chapter3.tick(now: number, wave: number)
 				end
 				local r10 = Config.Chapter3.Round10
 				if round == r10.Round then
+					if t >= r10.Div2At and not Ev.Ch3.R10Div2Spawned then
+						Ev.Ch3.R10Div2Spawned = true
+						NumberGate.createDiv2(
+							r10.Div2HitCount,
+							r10.Div2HitCount,
+							true,
+							r10.Div2WalkSpeedScale
+						)
+					end
+					if t >= r10.ShotgunAt and not Ev.Ch3.R10ShotgunSpawned then
+						Ev.Ch3.R10ShotgunSpawned = true
+						SupplyService.createShotgun(true, r10.ShotgunHitCount, r10.ShotgunHitCount)
+					end
+					if t >= r10.PlusAt and not Ev.Ch3.R10PlusSpawned then
+						Ev.Ch3.R10PlusSpawned = true
+						NumberGate.createPlus(r10.PlusHitCountMin, r10.PlusHitCountMax, true)
+					end
+					if t >= r10.MinePairAt and not Ev.Ch3.R10MinePairSpawned then
+						Ev.Ch3.R10MinePairSpawned = true
+						Spawning.spawnChapter3MineWave(r10.MinePairCount)
+					end
+					if t >= r10.FlashbangAt and not Ev.Ch3.R10FlashbangSpawned then
+						Ev.Ch3.R10FlashbangSpawned = true
+						SupplyService.createFlashbang(
+							true,
+							r10.FlashbangHitCount,
+							r10.FlashbangHitCount,
+							r10.FlashbangGrantCount
+						)
+					end
+					if t >= r10.SpikeAt and not Ev.Ch3.R10SpikeSpawned then
+						Ev.Ch3.R10SpikeSpawned = true
+						SpikeTrap.create()
+					end
+					if t >= r10.DogSwarmAt and not Ev.Ch3.R10DogSwarmSpawned then
+						Ev.Ch3.R10DogSwarmSpawned = true
+						Spawning.spawnChapter3DogSwarm(r10.DogSwarmCount, r10.DogSwarmDuration, {
+							includeLeft = true,
+							ignoreSpawnCap = true,
+						})
+					end
 					if t >= r10.OutsideSpawnAt and not Ev.Ch3.R10OutsideStarted then
 						Ev.Ch3.R10OutsideStarted = true
 						Spawning.startChapter3FenceApproachWave()

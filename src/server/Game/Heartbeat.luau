@@ -130,7 +130,7 @@ function Heartbeat.connect()
   						end
   						return true
   					end)())
-  			if not holdSpawns and #ZombieService.getAlive() < stats.maxAlive and now - ctx.lastSpawnAt >= stats.gap then
+  			if not holdSpawns and ZombieService.countForSpawnCap() < stats.maxAlive and now - ctx.lastSpawnAt >= stats.gap then
   				ctx.lastSpawnAt = now
   				spawnOne()
   			end

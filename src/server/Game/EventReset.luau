@@ -44,8 +44,8 @@ function EventReset.resetChapter3Round9Events(setState: (string, any) -> ())
 end
 
 function EventReset.resetChapter3Round10Events(setState: (string, any) -> ())
+	-- 철조망 돌파·왼쪽 스트림은 R10 이후 R15까지 유지 → 여기서 끄지 않음
 	Ev.resetCh3Round10()
-	setState("Ch3FenceBreached", false)
 end
 
 function EventReset.resetChapter3Events(setState: (string, any) -> ())

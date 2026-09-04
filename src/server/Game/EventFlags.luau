@@ -138,6 +138,13 @@ local EventFlags = {
 		R9MinusSpawned = false,
 		R9SpikeSpawned = false,
 		R9MixedWaveStarted = false,
+		R10Div2Spawned = false,
+		R10ShotgunSpawned = false,
+		R10PlusSpawned = false,
+		R10MinePairSpawned = false,
+		R10FlashbangSpawned = false,
+		R10SpikeSpawned = false,
+		R10DogSwarmSpawned = false,
 		R10OutsideStarted = false,
 		R10FenceBreached = false,
 	},
@@ -263,8 +270,14 @@ end
 
 function EventFlags.resetCh3Round10()
 	local ch3 = EventFlags.Ch3
-	ch3.R10OutsideStarted = false
-	ch3.R10FenceBreached = false
+	ch3.R10Div2Spawned = false
+	ch3.R10ShotgunSpawned = false
+	ch3.R10PlusSpawned = false
+	ch3.R10MinePairSpawned = false
+	ch3.R10FlashbangSpawned = false
+	ch3.R10SpikeSpawned = false
+	ch3.R10DogSwarmSpawned = false
+	-- R10OutsideStarted / R10FenceBreached 는 챕터3 종료까지 유지 (resetCh3에서만 해제)
 end
 
 function EventFlags.resetCh3()
@@ -278,6 +291,9 @@ function EventFlags.resetCh3()
 	EventFlags.resetCh3Round8()
 	EventFlags.resetCh3Round9()
 	EventFlags.resetCh3Round10()
+	local ch3 = EventFlags.Ch3
+	ch3.R10OutsideStarted = false
+	ch3.R10FenceBreached = false
 end
 
 return EventFlags
