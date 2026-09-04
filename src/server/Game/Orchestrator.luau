@@ -7,6 +7,7 @@ local CombatService = require(script.Parent.Parent.CombatService)
 local SupplyService = require(script.Parent.Parent.SupplyService)
 local NumberGate = require(script.Parent.Parent.NumberGate)
 local Gun = require(script.Parent.Parent.Gun)
+local BarricadeService = require(script.Parent.Parent.BarricadeService)
 local Context = require(script.Parent.Context)
 local StateSync = require(script.Parent.StateSync)
 local Lifecycle = require(script.Parent.Lifecycle)
@@ -46,6 +47,7 @@ function Orchestrator.start(remotes)
 	setState("ShotgunLeft", 0)
 	setState("MolotovLeft", 0)
 	setState("FlashbangLeft", 0)
+	setState("BarricadeLeft", 0)
 	setState("HitPower", 1)
 	setState("GateLabelScale", Config.NumberGate.LabelScale)
 	setState("Announce", "")
@@ -152,6 +154,12 @@ function Orchestrator.start(remotes)
 		if ctx.phase == "playing" then
 			local left = (ctx.stateFolder:GetAttribute("FlashbangLeft") :: number?) or 0
 			setState("FlashbangLeft", left + count)
+		end
+	end)
+	SupplyService.onBarricadePicked(function(count: number)
+		if ctx.phase == "playing" then
+			local left = (ctx.stateFolder:GetAttribute("BarricadeLeft") :: number?) or 0
+			setState("BarricadeLeft", left + count)
 		end
 	end)
 	SupplyService.onFireBoostPicked(function()
@@ -286,6 +294,28 @@ function Orchestrator.start(remotes)
 		ctx.lastFlashbangAt = now
 		setState("FlashbangLeft", left - 1)
 		CombatService.throwFlashbang(origins[1])
+	end)
+
+	remotes.UseBarricade.OnServerEvent:Connect(function(_player: Player)
+		if ctx.phase ~= "playing" or ctx.paused then
+			return
+		end
+		local left = (ctx.stateFolder:GetAttribute("BarricadeLeft") :: number?) or 0
+		if left <= 0 then
+			return
+		end
+		local now = os.clock()
+		if now - (ctx.lastBarricadeAt or 0) < 0.35 then
+			return
+		end
+		if BarricadeService.isAlive() then
+			return
+		end
+		if not BarricadeService.place() then
+			return
+		end
+		ctx.lastBarricadeAt = now
+		setState("BarricadeLeft", left - 1)
 	end)
 
 	if Config.Debug.Enabled then

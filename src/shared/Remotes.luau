@@ -40,6 +40,7 @@ function Remotes.serverInit()
 		MolotovThrowAnim = ensureRemote(folder, "MolotovThrowAnim"),
 		UseFlashbang = ensureRemote(folder, "UseFlashbang"),
 		FlashFx = ensureRemote(folder, "FlashFx"),
+		UseBarricade = ensureRemote(folder, "UseBarricade"),
 		TogglePause = ensureRemote(folder, "TogglePause"),
 	}
 end
@@ -75,6 +76,7 @@ function Remotes.clientWait(timeout: number?)
 		MolotovThrowAnim = waitRemote("MolotovThrowAnim"),
 		UseFlashbang = waitRemote("UseFlashbang"),
 		FlashFx = waitRemote("FlashFx"),
+		UseBarricade = waitRemote("UseBarricade"),
 		TogglePause = waitRemote("TogglePause"),
 	}
 end

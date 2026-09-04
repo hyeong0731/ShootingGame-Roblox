@@ -420,6 +420,27 @@ function NumberGate.createPlus(hitMin: number, hitMax: number, force: boolean?):
 	return NumberGate.create(kindById("plus"), hitMin, hitMax, force)
 end
 
+function NumberGate.createPlus2(hitMin: number, hitMax: number, force: boolean?): GateRecord?
+	local base = kindById("plus")
+	local kind: GateKind = {
+		Id = "plus",
+		Op = base.Op,
+		Value = 2,
+		Label = "+2",
+		HitCountMin = base.HitCountMin,
+		HitCountMax = base.HitCountMax,
+		Weight = base.Weight,
+		WalkSpeedScale = base.WalkSpeedScale,
+		PanelColor = base.PanelColor,
+		FrameColor = base.FrameColor,
+		GlowColor = base.GlowColor,
+		StrokeColor = base.StrokeColor,
+		BoltColor = base.BoltColor,
+		LightColor = base.LightColor,
+	}
+	return NumberGate.create(kind, hitMin, hitMax, force)
+end
+
 function NumberGate.createMinus(hitMin: number, hitMax: number, force: boolean?, walkSpeedScale: number?): GateRecord?
 	return NumberGate.create(kindById("minus"), hitMin, hitMax, force, walkSpeedScale)
 end

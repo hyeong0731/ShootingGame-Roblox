@@ -147,6 +147,23 @@ local EventFlags = {
 		R10DogSwarmSpawned = false,
 		R10OutsideStarted = false,
 		R10FenceBreached = false,
+		R11BarricadeSpawned = false,
+		R11BigSpawned = false,
+		R11SniperSpawned = false,
+		R11MineSpawned = false,
+		R11ShotgunSpawned = false,
+		R11MidBossSpawned = false,
+		R11ShieldLineSpawned = false,
+		R11ThrowerWaveSpawned = false,
+		R11DogWaveSpawned = false,
+		R12Plus2Spawned = false,
+		R12MineSpawned = false,
+		R12SpikeSpawned = false,
+		R12MolotovSpawned = false,
+		R12ShotgunSpawned = false,
+		R12Div2Spawned = false,
+		R12BarricadeSpawned = false,
+		R12FlashbangSpawned = false,
 	},
 }
 
@@ -294,6 +311,23 @@ function EventFlags.resetCh3()
 	local ch3 = EventFlags.Ch3
 	ch3.R10OutsideStarted = false
 	ch3.R10FenceBreached = false
+	ch3.R11BarricadeSpawned = false
+	ch3.R11BigSpawned = false
+	ch3.R11SniperSpawned = false
+	ch3.R11MineSpawned = false
+	ch3.R11ShotgunSpawned = false
+	ch3.R11MidBossSpawned = false
+	ch3.R11ShieldLineSpawned = false
+	ch3.R11ThrowerWaveSpawned = false
+	ch3.R11DogWaveSpawned = false
+	ch3.R12Plus2Spawned = false
+	ch3.R12MineSpawned = false
+	ch3.R12SpikeSpawned = false
+	ch3.R12MolotovSpawned = false
+	ch3.R12ShotgunSpawned = false
+	ch3.R12Div2Spawned = false
+	ch3.R12BarricadeSpawned = false
+	ch3.R12FlashbangSpawned = false
 end
 
 return EventFlags

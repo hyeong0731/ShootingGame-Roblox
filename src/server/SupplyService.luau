@@ -26,7 +26,7 @@ export type SupplyRecord = {
 	label: TextLabel,
 	hitsLeft: number,
 	alive: boolean,
-	kind: "ally" | "bomb" | "sniper" | "molotov" | "shotgun" | "fireboost" | "flashbang",
+	kind: "ally" | "bomb" | "sniper" | "molotov" | "shotgun" | "fireboost" | "flashbang" | "barricade",
 	grantCount: number?,
 	preferLeft: boolean?,
 }
@@ -70,6 +70,7 @@ local onShotgunPicked: (() -> ())? = nil
 local onMolotovPicked: ((number) -> ())? = nil
 local onFireBoostPicked: (() -> ())? = nil
 local onFlashbangPicked: ((number) -> ())? = nil
+local onBarricadePicked: ((number) -> ())? = nil
 local pickupGraceUntil = 0
 
 local function noteCratePicked()
@@ -426,6 +427,10 @@ end
 
 function SupplyService.onFlashbangPicked(callback: (number) -> ())
 	onFlashbangPicked = callback
+end
+
+function SupplyService.onBarricadePicked(callback: (number) -> ())
+	onBarricadePicked = callback
 end
 
 function SupplyService.onFireBoostPicked(callback: () -> ())
@@ -880,6 +885,92 @@ function SupplyService.createFlashbang(
 	return record
 end
 
+function SupplyService.createBarricade(
+	force: boolean?,
+	overrideMin: number?,
+	overrideMax: number?,
+	grantCount: number?
+): SupplyRecord?
+	if not force and #supplies >= Config.Supply.MaxAlive then
+		return nil
+	end
+
+	local r11 = Config.Chapter3.Round11
+	local minHits = math.max(1, math.floor(overrideMin or r11.BarricadeHitCount or 110))
+	local maxHits = math.max(minHits, math.floor(overrideMax or r11.BarricadeHitCount or 110))
+	local hits = math.random(minHits, maxHits)
+	local folder = ensureFolder("Supplies")
+	local lane = Config.activeLane()
+	local position = Vector3.new(Config.sidePathCenterX(), lane.CenterY + 1.6, lane.SpawnZ)
+
+	local model = Instance.new("Model")
+	model.Name = "BarricadeCrate"
+	model:SetAttribute("IsSupply", true)
+	model:SetAttribute("IsBarricadeCrate", true)
+	model:SetAttribute("HitsLeft", hits)
+
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(3.2, 2.4, 3.2)
+	root.Color = Color3.fromRGB(72, 70, 64)
+	root.Material = Enum.Material.Wood
+	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
+	root.Anchored = true
+	root.CanCollide = true
+	root.Parent = model
+
+	local lid = makePart(
+		model,
+		"Lid",
+		Vector3.new(3.4, 0.35, 3.4),
+		Color3.fromRGB(58, 56, 50),
+		root.CFrame * CFrame.new(0, 1.35, 0),
+		Enum.Material.Wood
+	)
+	weldConstraint(root, lid)
+	local post = makePart(
+		model,
+		"FenceIcon",
+		Vector3.new(0.35, 2.2, 0.35),
+		Color3.fromRGB(52, 50, 46),
+		root.CFrame * CFrame.new(0, 2.4, 0),
+		Enum.Material.Metal
+	)
+	weldConstraint(root, post)
+	local wire = makePart(
+		model,
+		"WireIcon",
+		Vector3.new(2.4, 0.08, 0.08),
+		Color3.fromRGB(38, 36, 34),
+		root.CFrame * CFrame.new(0, 2.7, 0),
+		Enum.Material.Metal
+	)
+	weldConstraint(root, wire)
+
+	model.PrimaryPart = root
+	model.Parent = folder
+	plantCrate(model, root)
+
+	local label = attachOverheadHits(
+		root,
+		hits,
+		Config.HitLabel.CrateFront,
+		Color3.fromRGB(200, 210, 230),
+		Config.hitLabelScale(1)
+	)
+	local record: SupplyRecord = {
+		model = model,
+		root = root,
+		label = label,
+		hitsLeft = hits,
+		alive = true,
+		kind = "barricade",
+		grantCount = math.max(1, math.floor(grantCount or r11.BarricadeGrantCount or 1)),
+	}
+	table.insert(supplies, record)
+	return record
+end
+
 function SupplyService.createSniper(force: boolean?, overrideMin: number?, overrideMax: number?): SupplyRecord?
 	if not force and not SupplyService.canSpawnSniper() then
 		return nil
@@ -1239,6 +1330,11 @@ function SupplyService.damageModel(model: Model, hits: number?): boolean
 					if onFlashbangPicked then
 						onFlashbangPicked(record.grantCount or 1)
 					end
+				elseif record.kind == "barricade" then
+					record.model:Destroy()
+					if onBarricadePicked then
+						onBarricadePicked(record.grantCount or 1)
+					end
 				elseif record.kind == "fireboost" then
 					record.model:Destroy()
 					if onFireBoostPicked then
@@ -1302,6 +1398,8 @@ function SupplyService.update(dt: number, playerPosition: Vector3?, strafe: numb
 			walkSpeed = Config.Molotov.WalkSpeed or walkSpeed
 		elseif record.kind == "flashbang" then
 			walkSpeed = Config.Flashbang.WalkSpeed or walkSpeed
+		elseif record.kind == "barricade" then
+			walkSpeed = Config.Supply.WalkSpeed
 		end
 		local nextZ = pos.Z - walkSpeed * dt
 		if nextZ < Config.crateDespawnZ() then

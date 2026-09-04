@@ -582,6 +582,75 @@ local function createFlashbangButton(parent: Instance): TextButton
 	return btn
 end
 
+local function createBarricadeButton(parent: Instance): TextButton
+	local size = Config.Hud.WeaponButtonSize
+	local btn = Instance.new("TextButton")
+	btn.Name = "BarricadeButton"
+	btn.AutoButtonColor = true
+	btn.Text = ""
+	btn.BackgroundColor3 = Color3.fromRGB(120, 118, 110)
+	btn.BorderSizePixel = 0
+	btn.Size = UDim2.fromOffset(size, size)
+	btn.Position = UDim2.new(0.02, 0, 0.22, (size + 12) * 3)
+	btn.ZIndex = 6
+	btn.Visible = false
+	btn.Parent = parent
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0.16, 0)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = math.max(3, math.floor(size / 22))
+	stroke.Color = Color3.fromRGB(0, 0, 0)
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = btn
+	addStuds(btn)
+
+	local post = Instance.new("Frame")
+	post.Name = "Post"
+	post.BackgroundColor3 = Color3.fromRGB(52, 50, 46)
+	post.BorderSizePixel = 0
+	post.Size = UDim2.fromScale(0.14, 0.5)
+	post.Position = UDim2.fromScale(0.5, 0.4)
+	post.AnchorPoint = Vector2.new(0.5, 0.5)
+	post.ZIndex = 7
+	post.Parent = btn
+	Instance.new("UICorner", post).CornerRadius = UDim.new(0.2, 0)
+
+	local wire = Instance.new("Frame")
+	wire.BackgroundColor3 = Color3.fromRGB(38, 36, 34)
+	wire.BorderSizePixel = 0
+	wire.Size = UDim2.fromScale(0.55, 0.08)
+	wire.Position = UDim2.fromScale(0.5, 0.38)
+	wire.AnchorPoint = Vector2.new(0.5, 0.5)
+	wire.ZIndex = 8
+	wire.Parent = btn
+
+	local caption = Instance.new("TextLabel")
+	caption.Name = "Caption"
+	caption.BackgroundTransparency = 1
+	caption.Size = UDim2.new(1, -6, 0.22, 0)
+	caption.Position = UDim2.new(0.5, 0, 0.72, 0)
+	caption.AnchorPoint = Vector2.new(0.5, 0)
+	caption.Font = Enum.Font.GothamBlack
+	caption.Text = "바리케이드"
+	caption.TextColor3 = Color3.fromRGB(255, 255, 255)
+	caption.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	caption.TextStrokeTransparency = 0
+	caption.TextScaled = true
+	caption.ZIndex = 8
+	caption.Parent = btn
+
+	local count = caption:Clone()
+	count.Name = "Count"
+	count.Position = UDim2.new(0.5, 0, 0.88, 0)
+	count.Size = UDim2.new(1, -6, 0.16, 0)
+	count.Text = "남은개수 : 0"
+	count.TextColor3 = Color3.fromRGB(220, 230, 255)
+	count.ZIndex = 8
+	count.Parent = btn
+
+	return btn
+end
+
 local function createPauseButton(parent: Instance): TextButton
 	local button = Instance.new("TextButton")
 	button.Name = "PauseButton"
@@ -676,6 +745,7 @@ end
 function Hud.start(remotes: {
 	UseMolotov: Instance,
 	UseFlashbang: Instance?,
+	UseBarricade: Instance?,
 	TogglePause: Instance,
 	DebugSetRound: Instance?,
 	DebugSetChapter: Instance?,
@@ -739,12 +809,16 @@ function Hud.start(remotes: {
 	hitBadge.Visible = false
 	local molotovButton = createMolotovButton(gui)
 	local flashbangButton = createFlashbangButton(gui)
+	local barricadeButton = createBarricadeButton(gui)
 	local pauseButton = createPauseButton(gui)
 	local remotesFolder = remotes and remotes.UseMolotov.Parent or ReplicatedStorage:WaitForChild("Remotes")
 	local useMolotov = if remotes then remotes.UseMolotov else remotesFolder:WaitForChild("UseMolotov")
 	local useFlashbang = if remotes and remotes.UseFlashbang
 		then remotes.UseFlashbang
 		else remotesFolder:WaitForChild("UseFlashbang", 5)
+	local useBarricade = if remotes and remotes.UseBarricade
+		then remotes.UseBarricade
+		else remotesFolder:WaitForChild("UseBarricade", 5)
 	local togglePause = if remotes then remotes.TogglePause else remotesFolder:WaitForChild("TogglePause")
 	molotovButton.MouseButton1Click:Connect(function()
 		if useMolotov:IsA("RemoteEvent") then
@@ -754,6 +828,11 @@ function Hud.start(remotes: {
 	if useFlashbang and useFlashbang:IsA("RemoteEvent") then
 		flashbangButton.MouseButton1Click:Connect(function()
 			useFlashbang:FireServer()
+		end)
+	end
+	if useBarricade and useBarricade:IsA("RemoteEvent") then
+		barricadeButton.MouseButton1Click:Connect(function()
+			useBarricade:FireServer()
 		end)
 	end
 	pauseButton.MouseButton1Click:Connect(function()
@@ -803,8 +882,8 @@ function Hud.start(remotes: {
 		debugPanel.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
 		debugPanel.BackgroundTransparency = 0.25
 		debugPanel.BorderSizePixel = 0
-		debugPanel.Size = UDim2.fromOffset(168, 292)
-		debugPanel.Position = UDim2.new(1, -12, 0.22, 0)
+		debugPanel.Size = UDim2.fromOffset(168, 348)
+		debugPanel.Position = UDim2.new(1, -12, 0.08, 0)
 		debugPanel.AnchorPoint = Vector2.new(1, 0)
 		debugPanel.ZIndex = 8
 		debugPanel.Parent = gui
@@ -910,7 +989,7 @@ function Hud.start(remotes: {
 		hitsPanel.BackgroundTransparency = 0.25
 		hitsPanel.BorderSizePixel = 0
 		hitsPanel.Size = UDim2.fromOffset(168, 80)
-		hitsPanel.Position = UDim2.new(1, -12, 0.22, 304)
+		hitsPanel.Position = UDim2.new(1, -12, 0.08, 360)
 		hitsPanel.AnchorPoint = Vector2.new(1, 0)
 		hitsPanel.ZIndex = 8
 		hitsPanel.Parent = gui
@@ -1052,6 +1131,12 @@ function Hud.start(remotes: {
 		local flashbangCount = flashbangButton:FindFirstChild("Count")
 		if flashbangCount and flashbangCount:IsA("TextLabel") then
 			flashbangCount.Text = `남은개수 : {flashbangLeft}`
+		end
+		local barricadeLeft = state:GetAttribute("BarricadeLeft") or 0
+		barricadeButton.Visible = currentPhase == "playing" and barricadeLeft > 0
+		local barricadeCount = barricadeButton:FindFirstChild("Count")
+		if barricadeCount and barricadeCount:IsA("TextLabel") then
+			barricadeCount.Text = `남은개수 : {barricadeLeft}`
 		end
 		ensureWorldBar(currentPhase)
 

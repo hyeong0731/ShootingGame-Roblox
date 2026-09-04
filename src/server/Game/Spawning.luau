@@ -263,10 +263,42 @@ function Spawning.currentStats()
 				end
 			end
 		elseif fenceBreached and localRound > r10.Round then
-			-- R11~R15: 도로끝 14 + 왼쪽 10 유지
-			maxAlive = math.min(maxAlive, r10.LateMaxAliveCap)
-			if SupplyService.hasRecruitedThisMatch() then
-				gap *= inf.AllySpawnGapScale
+			local r11 = Config.Chapter3.Round11
+			local r12 = Config.Chapter3.Round12
+			if localRound == r11.Round then
+				if localElapsed < r11.ClearGraceUntil then
+					gap *= r11.ClearGraceGapScale
+					maxAlive = math.min(maxAlive, r11.ClearGraceMaxAlive)
+				elseif localElapsed >= (r11.MidEaseFrom or 30)
+					and localElapsed < (r11.MidEaseUntil or 45)
+				then
+					maxAlive = math.min(maxAlive, r11.MidEaseRoadMaxAlive or 10)
+					if SupplyService.hasRecruitedThisMatch() then
+						gap *= inf.AllySpawnGapScale
+					end
+				else
+					-- 10~30초 · 45초~ : 도로 12
+					maxAlive = math.min(maxAlive, r11.RoadMaxAlive or 12)
+					if SupplyService.hasRecruitedThisMatch() then
+						gap *= inf.AllySpawnGapScale
+					end
+				end
+			elseif localRound == r12.Round then
+				if localElapsed < r12.ClearGraceUntil then
+					gap *= r12.ClearGraceGapScale
+					maxAlive = math.min(maxAlive, r12.ClearGraceRoadMaxAlive or 6)
+				else
+					maxAlive = math.min(maxAlive, r12.RoadMaxAlive or 10)
+					if SupplyService.hasRecruitedThisMatch() then
+						gap *= inf.AllySpawnGapScale
+					end
+				end
+			else
+				-- R13~R15: R12 기본 도로 상한 유지
+				maxAlive = math.min(maxAlive, r12.RoadMaxAlive or 10)
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+				end
 			end
 		end
 	end
@@ -1027,7 +1059,11 @@ function Spawning.spawnChapter2ZombieSwarm()
 	end
 end
 
-function Spawning.spawnChapter3MidBoss(hitMin: number?, hitMax: number?)
+function Spawning.spawnChapter3MidBoss(hitMin: number?, hitMax: number?, appearance: {
+	scale: number?,
+	walkSpeed: number?,
+	contactDamage: number?,
+}?)
 	local r5 = Config.Chapter3.Round5
 	local lane = Config.activeLane()
 	local slots = Config.activeInfinite().LaneSlots
@@ -1039,9 +1075,11 @@ function Spawning.spawnChapter3MidBoss(hitMin: number?, hitMax: number?)
 	end
 	local hits = math.random(minH, maxH)
 	local zombie = Spawning.spawnMegaBossAt(x, hits, false, {
-		scale = r5.MidBossSizeScale,
-		walkSpeed = r5.MidBossWalkSpeed,
-		contactDamage = r5.MidBossContactDamage,
+		scale = if appearance and appearance.scale then appearance.scale else r5.MidBossSizeScale,
+		walkSpeed = if appearance and appearance.walkSpeed then appearance.walkSpeed else r5.MidBossWalkSpeed,
+		contactDamage = if appearance and appearance.contactDamage
+			then appearance.contactDamage
+			else r5.MidBossContactDamage,
 	})
 	if zombie then
 		zombie.model:SetAttribute("IsMidBoss", true)
@@ -1156,6 +1194,35 @@ function Spawning.spawnChapter3ShieldPack(count: number, gap: number, hitMin: nu
 			ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 		end
 	end)
+end
+
+-- 방패 좀비 일렬 (동시 스폰, 레인 균등 배치)
+function Spawning.spawnChapter3ShieldLine(count: number, hitMin: number, hitMax: number)
+	local n = math.max(1, math.floor(count))
+	local lane = Config.activeLane()
+	local slots = Config.activeInfinite().LaneSlots
+	local stats = Spawning.currentStats()
+	local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+	for i = 1, n do
+		local t = if n == 1 then 0.5 else (i - 1) / (n - 1)
+		local index = 1 + math.floor(t * (#slots - 1) + 0.5)
+		local x = math.clamp(slots[index], minX, maxX)
+		local lo = math.min(hitMin, hitMax)
+		local hi = math.max(hitMin, hitMax)
+		local hits = math.random(lo, hi)
+		local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4, lane.SpawnZ), {
+			health = stats.health,
+			walkSpeed = stats.speed,
+			isBoss = false,
+			isBig = false,
+			isDog = false,
+			isShield = true,
+			contactDamage = Config.activeZombie().ContactDamage,
+			scale = 1,
+			hitCount = hits,
+		})
+		ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+	end
 end
 
 function Spawning.spawnChapter3ThrowerAndDogWave(throwerCount: number, dogCount: number, gap: number)
@@ -1343,6 +1410,28 @@ function Spawning.spawnChapter3FenceApproachZombie()
 	local leftCap = r10.LeftMaxAlive or 10
 	if localRound == r10.Round and localElapsed >= (r10.EndEaseFrom or 50) then
 		leftCap = r10.EndEaseLeftMaxAlive or 5
+	elseif localRound == Config.Chapter3.Round11.Round then
+		local r11 = Config.Chapter3.Round11
+		if localElapsed >= (r11.LeftPauseFrom or 45) then
+			return nil -- 45초~R12: 왼쪽 스폰 정지
+		elseif localElapsed < r11.ClearGraceUntil then
+			leftCap = r11.ClearGraceLeftMaxAlive or 4
+		elseif localElapsed >= (r11.MidEaseFrom or 30)
+			and localElapsed < (r11.MidEaseUntil or 45)
+		then
+			leftCap = r11.MidEaseLeftMaxAlive or 7
+		else
+			leftCap = r11.LeftMaxAlive or 8
+		end
+	elseif localRound == Config.Chapter3.Round12.Round then
+		local r12 = Config.Chapter3.Round12
+		if localElapsed < r12.ClearGraceUntil then
+			leftCap = r12.ClearGraceLeftMaxAlive or 6
+		else
+			leftCap = r12.LeftMaxAlive or 10
+		end
+	elseif localRound > Config.Chapter3.Round12.Round then
+		leftCap = Config.Chapter3.Round12.LeftMaxAlive or 10
 	end
 	if breached then
 		if ZombieService.countLeftStream() >= leftCap then

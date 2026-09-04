@@ -525,6 +525,117 @@ function Chapter3.tick(now: number, wave: number)
 						ZombieService.releaseFencePiles()
 					end
 				end
+				local r11 = Config.Chapter3.Round11
+				if round == r11.Round then
+					if t >= r11.BarricadeAt and not Ev.Ch3.R11BarricadeSpawned then
+						Ev.Ch3.R11BarricadeSpawned = true
+						SupplyService.createBarricade(
+							true,
+							r11.BarricadeHitCount,
+							r11.BarricadeHitCount,
+							r11.BarricadeGrantCount
+						)
+					end
+					if t >= r11.BigAt and not Ev.Ch3.R11BigSpawned then
+						Ev.Ch3.R11BigSpawned = true
+						Spawning.spawnChapter3BigZombieSwarm(r11.BigCount, r11.BigGap, {
+							BigZombieSizeScale = r11.BigZombieSizeScale,
+							BigZombieHealthMult = r11.BigZombieHealthMult,
+							BigZombieSpeedScale = r11.BigZombieSpeedScale,
+						})
+					end
+					if t >= r11.SniperAt and not Ev.Ch3.R11SniperSpawned then
+						Ev.Ch3.R11SniperSpawned = true
+						SupplyService.createSniper(true, r11.SniperHitCountMin, r11.SniperHitCountMax)
+					end
+					if t >= r11.MineAt and not Ev.Ch3.R11MineSpawned then
+						Ev.Ch3.R11MineSpawned = true
+						Spawning.spawnChapter3MineWave(1)
+					end
+					if t >= r11.ShotgunAt and not Ev.Ch3.R11ShotgunSpawned then
+						Ev.Ch3.R11ShotgunSpawned = true
+						SupplyService.createShotgun(true, r11.ShotgunHitCountMin, r11.ShotgunHitCountMax)
+					end
+					if t >= r11.MidBossAt and not Ev.Ch3.R11MidBossSpawned then
+						Ev.Ch3.R11MidBossSpawned = true
+						Spawning.spawnChapter3MidBoss(r11.MidBossHitCountMin, r11.MidBossHitCountMax, {
+							scale = r11.MidBossSizeScale,
+							walkSpeed = r11.MidBossWalkSpeed,
+							contactDamage = r11.MidBossContactDamage,
+						})
+					end
+					if t >= r11.ShieldLineAt and not Ev.Ch3.R11ShieldLineSpawned then
+						Ev.Ch3.R11ShieldLineSpawned = true
+						Spawning.spawnChapter3ShieldLine(
+							r11.ShieldLineCount,
+							r11.ShieldLineHitCountMin,
+							r11.ShieldLineHitCountMax
+						)
+					end
+					if t >= r11.ThrowerWaveAt and not Ev.Ch3.R11ThrowerWaveSpawned then
+						Ev.Ch3.R11ThrowerWaveSpawned = true
+						Spawning.spawnChapter3ThrowerWave(r11.ThrowerWaveCount, r11.ThrowerWaveGap)
+					end
+					if t >= r11.DogWaveAt and not Ev.Ch3.R11DogWaveSpawned then
+						Ev.Ch3.R11DogWaveSpawned = true
+						Spawning.spawnChapter3DogSwarmEven(r11.DogWaveCount, r11.DogWaveGap)
+					end
+				end
+				local r12 = Config.Chapter3.Round12
+				if round == r12.Round then
+					if t >= r12.Plus2At and not Ev.Ch3.R12Plus2Spawned then
+						Ev.Ch3.R12Plus2Spawned = true
+						NumberGate.createPlus2(r12.Plus2HitCount, r12.Plus2HitCount, true)
+					end
+					if t >= r12.MineAt and not Ev.Ch3.R12MineSpawned then
+						Ev.Ch3.R12MineSpawned = true
+						Spawning.spawnChapter3MineWave(1)
+					end
+					if t >= r12.SpikeAt and not Ev.Ch3.R12SpikeSpawned then
+						Ev.Ch3.R12SpikeSpawned = true
+						SpikeTrap.create()
+					end
+					if t >= r12.MolotovAt and not Ev.Ch3.R12MolotovSpawned then
+						Ev.Ch3.R12MolotovSpawned = true
+						SupplyService.createMolotov(
+							true,
+							r12.MolotovHitCountMin,
+							r12.MolotovHitCountMax,
+							r12.MolotovGrantCount
+						)
+					end
+					if t >= r12.ShotgunAt and not Ev.Ch3.R12ShotgunSpawned then
+						Ev.Ch3.R12ShotgunSpawned = true
+						SupplyService.createShotgun(true, r12.ShotgunHitCountMin, r12.ShotgunHitCountMax)
+					end
+					if t >= r12.Div2At and not Ev.Ch3.R12Div2Spawned then
+						Ev.Ch3.R12Div2Spawned = true
+						NumberGate.createDiv2(
+							r12.Div2HitCount,
+							r12.Div2HitCount,
+							true,
+							r12.Div2WalkSpeedScale
+						)
+					end
+					if t >= r12.BarricadeAt and not Ev.Ch3.R12BarricadeSpawned then
+						Ev.Ch3.R12BarricadeSpawned = true
+						SupplyService.createBarricade(
+							true,
+							r12.BarricadeHitCount,
+							r12.BarricadeHitCount,
+							r12.BarricadeGrantCount
+						)
+					end
+					if t >= r12.FlashbangAt and not Ev.Ch3.R12FlashbangSpawned then
+						Ev.Ch3.R12FlashbangSpawned = true
+						SupplyService.createFlashbang(
+							true,
+							r12.FlashbangHitCount,
+							r12.FlashbangHitCount,
+							r12.FlashbangGrantCount
+						)
+					end
+				end
 			end
 end
 

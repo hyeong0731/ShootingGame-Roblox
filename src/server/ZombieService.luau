@@ -2,6 +2,7 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local BarricadeService = require(script.Parent.BarricadeService)
 
 export type ZombieMotors = {
 	neck: Motor6D?,
@@ -1866,6 +1867,30 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 			nextZ = if moving then pos.Z - record.walkSpeed * dt else stopZ
 			if nextZ < stopZ then
 				nextZ = stopZ
+			end
+		end
+
+		-- 바리케이드 공통 클램프 (왼쪽 난입·도로 공용)
+		do
+			local barZ = BarricadeService.getBlockZ()
+			if barZ and (not record.isThrower) then
+				local holdZ = barZ + 1.35
+				if nextZ < holdZ and pos.Z >= holdZ - 1 then
+					nextZ = holdZ
+					moving = false
+					local flatOk = true
+					local bxMin, bxMax = BarricadeService.getXBounds()
+					if bxMin and bxMax then
+						flatOk = pos.X >= bxMin - 1.5 and pos.X <= bxMax + 1.5
+					end
+					local cooldown = Config.Barricade.AttackCooldown or zombieCfg.ContactCooldown
+					if flatOk and pos.Z <= holdZ + 2.5 and now - record.lastContact >= cooldown then
+						record.lastContact = now
+						record.attackUntil = now + zombieCfg.AttackDuration
+						local isMid = record.model:GetAttribute("IsMidBoss") == true
+						BarricadeService.hitByZombie(isMid, record.contactDamage)
+					end
+				end
 			end
 		end
 

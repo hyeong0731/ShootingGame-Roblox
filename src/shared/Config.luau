@@ -405,7 +405,7 @@ Config.HitLabel = {
 -- 개발용 (끝나면 Enabled = false)
 Config.Debug = {
 	Enabled = true,
-	RoundButtons = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 },
+	RoundButtons = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
 }
 
 -- ============================================================
@@ -1156,6 +1156,96 @@ Config.Chapter3 = {
 		PostBreachIngressXMin = 13, -- 왼쪽 벽 근처
 		PostBreachIngressXMax = -13, -- 오른쪽 벽 근처
 	},
+	Round11 = {
+		Round = 11,
+		-- 0~10초: R10 잔여 정리
+		ClearGraceUntil = 10,
+		ClearGraceGapScale = 2.5,
+		ClearGraceMaxAlive = 8, -- 도로끝
+		ClearGraceLeftMaxAlive = 4, -- 왼쪽
+		-- 10초~R11 기본
+		RoadMaxAlive = 12,
+		LeftMaxAlive = 8,
+		-- 30~45초 완화
+		MidEaseFrom = 30,
+		MidEaseUntil = 45,
+		MidEaseRoadMaxAlive = 10,
+		MidEaseLeftMaxAlive = 7,
+		-- 45초~R12: 왼쪽 스폰 정지
+		LeftPauseFrom = 45,
+		BarricadeAt = 7,
+		BarricadeHitCount = 110,
+		BarricadeGrantCount = 1,
+		BigAt = 10,
+		BigCount = 3,
+		BigGap = 1,
+		BigZombieSizeScale = 1.75,
+		BigZombieHealthMult = 5,
+		BigZombieSpeedScale = 0.58,
+		SniperAt = 15,
+		SniperHitCountMin = 89,
+		SniperHitCountMax = 100,
+		MineAt = 20,
+		ShotgunAt = 27,
+		ShotgunHitCountMin = 80,
+		ShotgunHitCountMax = 100,
+		MidBossAt = 30,
+		MidBossHitCountMin = 750,
+		MidBossHitCountMax = 820,
+		MidBossSizeScale = 2.6,
+		MidBossWalkSpeed = 4.2,
+		MidBossContactDamage = 18,
+		ShieldLineAt = 45,
+		ShieldLineCount = 6,
+		ShieldLineHitCountMin = 90,
+		ShieldLineHitCountMax = 110,
+		ThrowerWaveAt = 48,
+		ThrowerWaveCount = 7,
+		ThrowerWaveGap = 1,
+		DogWaveAt = 55,
+		DogWaveCount = 5,
+		DogWaveGap = 1,
+	},
+	Round12 = {
+		Round = 12,
+		ClearGraceUntil = 10,
+		ClearGraceGapScale = 2.5,
+		ClearGraceRoadMaxAlive = 6,
+		ClearGraceLeftMaxAlive = 6,
+		RoadMaxAlive = 10,
+		LeftMaxAlive = 10,
+		Plus2At = 12,
+		Plus2HitCount = 94,
+		MineAt = 13,
+		SpikeAt = 15,
+		MolotovAt = 20,
+		MolotovHitCountMin = 105,
+		MolotovHitCountMax = 110,
+		MolotovGrantCount = 3,
+		ShotgunAt = 26,
+		ShotgunHitCountMin = 70,
+		ShotgunHitCountMax = 90,
+		Div2At = 34,
+		Div2HitCount = 70,
+		Div2WalkSpeedScale = 5,
+		BarricadeAt = 40,
+		BarricadeHitCount = 101,
+		BarricadeGrantCount = 1,
+		FlashbangAt = 50,
+		FlashbangHitCount = 97,
+		FlashbangGrantCount = 3,
+	},
+}
+
+-- 바리케이드 (챕터3 R11). 화염병 착탄점 바로 앞에 도로 가로막. HP = 플레이어체력 × 배수
+Config.Barricade = {
+	HpPlayerMult = 3, -- 통제 변수: 플레이어 MaxHealth × 이 값
+	ZOffsetFromMolotov = 10, -- 화염병 midZ에서 플레이어 쪽으로 (작을수록 폭발에 가깝)
+	Thickness = 1.2,
+	Height = 4.6,
+	NormalHitScale = 1, -- 일반 좀비 contactDamage × 이 값
+	MidBossHpFraction = 1 / 3, -- 중간보스 1타 = 최대HP의 이 비율
+	AttackCooldown = 0.95,
 }
 
 Config._chapter = 1
