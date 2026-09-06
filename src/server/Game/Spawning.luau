@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local ZombieService = require(script.Parent.Parent.ZombieService)
 local SupplyService = require(script.Parent.Parent.SupplyService)
+local SpikeTrap = require(script.Parent.Parent.SpikeTrap)
 local Context = require(script.Parent.Context)
 
 local ctx = Context
@@ -247,16 +248,17 @@ function Spawning.currentStats()
 		local fenceBreached = ctx.stateFolder ~= nil and ctx.stateFolder:GetAttribute("Ch3FenceBreached") == true
 		if localRound == r10.Round then
 			if localElapsed < r10.ClearGraceUntil then
+				-- ClearGraceMaxAlive: 도로+왼쪽 합산 상한 (16)
 				gap *= r10.ClearGraceGapScale
 				maxAlive = math.min(maxAlive, r10.ClearGraceMaxAlive)
 			elseif localElapsed >= (r10.EndEaseFrom or 50) then
-				-- 50초~R11 직전: 도로끝 10
-				maxAlive = math.min(maxAlive, r10.EndEaseRoadMaxAlive or 10)
+				-- 50초~R11 직전: 도로끝 15
+				maxAlive = math.min(maxAlive, r10.EndEaseRoadMaxAlive or 15)
 				if SupplyService.hasRecruitedThisMatch() then
 					gap *= inf.AllySpawnGapScale
 				end
 			else
-				-- 도로끝 14 (LeftStream은 countForSpawnCap에서 제외)
+				-- 그레이스 후~엔드이즈: 도로 LateMaxAliveCap (LeftStream은 countForSpawnCap에서 제외)
 				maxAlive = math.min(maxAlive, r10.LateMaxAliveCap)
 				if SupplyService.hasRecruitedThisMatch() then
 					gap *= inf.AllySpawnGapScale
@@ -266,36 +268,56 @@ function Spawning.currentStats()
 			local r11 = Config.Chapter3.Round11
 			local r12 = Config.Chapter3.Round12
 			if localRound == r11.Round then
-				if localElapsed < r11.ClearGraceUntil then
+				-- ClearGraceUntil=0이면 grace 분기 미진입
+				if (r11.ClearGraceUntil or 0) > 0 and localElapsed < r11.ClearGraceUntil then
 					gap *= r11.ClearGraceGapScale
 					maxAlive = math.min(maxAlive, r11.ClearGraceMaxAlive)
 				elseif localElapsed >= (r11.MidEaseFrom or 30)
 					and localElapsed < (r11.MidEaseUntil or 45)
 				then
-					maxAlive = math.min(maxAlive, r11.MidEaseRoadMaxAlive or 10)
+					maxAlive = math.min(maxAlive, r11.MidEaseRoadMaxAlive or 15)
 					if SupplyService.hasRecruitedThisMatch() then
 						gap *= inf.AllySpawnGapScale
 					end
 				else
-					-- 10~30초 · 45초~ : 도로 12
-					maxAlive = math.min(maxAlive, r11.RoadMaxAlive or 12)
+					-- 기본: 도로 17
+					maxAlive = math.min(maxAlive, r11.RoadMaxAlive or 17)
 					if SupplyService.hasRecruitedThisMatch() then
 						gap *= inf.AllySpawnGapScale
 					end
 				end
 			elseif localRound == r12.Round then
-				if localElapsed < r12.ClearGraceUntil then
+				-- ClearGraceUntil=0이면 grace 분기 미진입 (ClearGraceRoadMaxAlive 미사용)
+				if (r12.ClearGraceUntil or 0) > 0 and localElapsed < r12.ClearGraceUntil then
 					gap *= r12.ClearGraceGapScale
-					maxAlive = math.min(maxAlive, r12.ClearGraceRoadMaxAlive or 6)
+					maxAlive = math.min(maxAlive, r12.ClearGraceMaxAlive or r12.RoadMaxAlive or 16)
 				else
-					maxAlive = math.min(maxAlive, r12.RoadMaxAlive or 10)
+					maxAlive = math.min(maxAlive, r12.RoadMaxAlive or 16)
 					if SupplyService.hasRecruitedThisMatch() then
 						gap *= inf.AllySpawnGapScale
 					end
 				end
+			elseif localRound == Config.Chapter3.Round13.Round then
+				local r13 = Config.Chapter3.Round13
+				maxAlive = math.min(maxAlive, r13.RoadMaxAlive or 15)
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+				end
+			elseif localRound == Config.Chapter3.Round14.Round then
+				local r14 = Config.Chapter3.Round14
+				maxAlive = math.min(maxAlive, r14.RoadMaxAlive or 17)
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+				end
+			elseif localRound == Config.Chapter3.Round15.Round then
+				local r15 = Config.Chapter3.Round15
+				maxAlive = math.min(maxAlive, r15.RoadMaxAlive or 6)
+				if SupplyService.hasRecruitedThisMatch() then
+					gap *= inf.AllySpawnGapScale
+				end
 			else
-				-- R13~R15: R12 기본 도로 상한 유지
-				maxAlive = math.min(maxAlive, r12.RoadMaxAlive or 10)
+				local r15 = Config.Chapter3.Round15
+				maxAlive = math.min(maxAlive, r15.RoadMaxAlive or 6)
 				if SupplyService.hasRecruitedThisMatch() then
 					gap *= inf.AllySpawnGapScale
 				end
@@ -385,6 +407,13 @@ function Spawning.spawnOne()
 	local ch3Round6Early = Config.Chapter3.Round6
 	local ch3Round7 = Config.Chapter3.Round7
 	local ch3Round8 = Config.Chapter3.Round8
+	local ch3Round13 = Config.Chapter3.Round13
+	local ch3Round14 = Config.Chapter3.Round14
+	local ch3Round15 = Config.Chapter3.Round15
+	local r13Mix = Config.chapter() == 3
+		and round == ch3Round13.Round
+		and elapsedLocal >= ch3Round13.MixFromAt
+	local r15Mix = Config.chapter() == 3 and round == ch3Round15.Round
 	local ch3ShieldOpen = false
 	if Config.chapter() == 3 then
 		if round == ch3Round1.Round then
@@ -393,11 +422,15 @@ function Spawning.spawnOne()
 			ch3ShieldOpen = elapsedLocal >= ch3Round3.HordeStartAt and elapsedLocal < ch3Round3.HordeEndAt
 		elseif round == ch3Round5.Round then
 			ch3ShieldOpen = r5Horde
+		elseif round == ch3Round13.Round then
+			ch3ShieldOpen = elapsedLocal >= ch3Round13.MixFromAt
+		elseif round == ch3Round15.Round then
+			ch3ShieldOpen = true
 		elseif round > ch3Round1.Round then
 			ch3ShieldOpen = true
 		end
 	end
-	if ch3ShieldOpen then
+	if ch3ShieldOpen and not r13Mix and not r15Mix then
 		if round == ch3Round5.Round then
 			shieldChance = ch3Round5.ShieldSpawnChance
 		elseif round == ch3Round3.Round then
@@ -417,10 +450,40 @@ function Spawning.spawnOne()
 			shieldChance = ch3Round1.ShieldSpawnChance
 		end
 	end
-	local isShield = (not isBoss)
-		and (not isDog)
-		and (ch3ShieldOpen or (Config.chapter() == 2 and elapsed >= shieldUnlockAt))
-		and math.random() < shieldChance
+	local isShield = false
+	local isBig = false
+	local r15ThrowerRoll = false
+	if r15Mix and (not isBoss) and (not isDog) then
+		-- 투척 10% / 방패 15% / 큰 5% / 일반 70%
+		local roll = math.random()
+		local throwP = ch3Round15.ThrowSpawnChance or 0.10
+		local shieldP = ch3Round15.ShieldSpawnChance or 0.15
+		local bigP = ch3Round15.BigSpawnChance or 0.05
+		if roll < throwP then
+			r15ThrowerRoll = true
+		elseif roll < throwP + shieldP then
+			isShield = true
+		elseif roll < throwP + shieldP + bigP then
+			isBoss = true
+			isBig = true
+		end
+	elseif r13Mix and (not isBoss) and (not isDog) then
+		-- 방패 25% / 큰 15% / 일반 60% (배타 롤)
+		local roll = math.random()
+		local shieldP = ch3Round13.ShieldSpawnChance or 0.25
+		local bigP = ch3Round13.BigSpawnChance or 0.15
+		if roll < shieldP then
+			isShield = true
+		elseif roll < shieldP + bigP then
+			isBoss = true
+			isBig = true
+		end
+	else
+		isShield = (not isBoss)
+			and (not isDog)
+			and (ch3ShieldOpen or (Config.chapter() == 2 and elapsed >= shieldUnlockAt))
+			and math.random() < shieldChance
+	end
 	local shieldHitMin = shieldCfg.HitCountMin
 	local shieldHitMax = shieldCfg.HitCountMax
 	if Config.chapter() == 2 and round >= r9.Round then
@@ -446,11 +509,16 @@ function Spawning.spawnOne()
 		shieldHitMax = r3.ShieldHitCountMax
 	end
 	if Config.chapter() == 3 then
+		local ch3Round10 = Config.Chapter3.Round10
 		if round == ch3Round5.Round then
 			shieldHitMin = ch3Round5.ShieldHitCountMin
 			shieldHitMax = ch3Round5.ShieldHitCountMax
+		elseif round >= ch3Round10.Round then
+			-- R10~: 100~115
+			shieldHitMin = ch3Round10.ShieldHitCountMin
+			shieldHitMax = ch3Round10.ShieldHitCountMax
 		elseif round >= ch3Round8.Round then
-			-- R8부터 지속 (별도 언급 전까지)
+			-- R8~R9
 			shieldHitMin = ch3Round8.ShieldHitCountMin
 			shieldHitMax = ch3Round8.ShieldHitCountMax
 		elseif round >= ch3Round6Early.Round then
@@ -464,7 +532,6 @@ function Spawning.spawnOne()
 	end
 	local shieldHits = if isShield then math.random(shieldHitMin, shieldHitMax) else nil
 
-	local isBig = false
 	local ch3Round6 = ch3Round6Early
 	local r6BigOpen = Config.chapter() == 3
 		and round == ch3Round6.Round
@@ -475,8 +542,10 @@ function Spawning.spawnOne()
 	local r8BigOpen = Config.chapter() == 3
 		and round == ch3Round8.Round
 		and elapsedLocal >= ch3Round8.BigFromAt
-	local ch3BigOpen = r5Horde or r6BigOpen or r7BigOpen or r8BigOpen
-	if (not isBoss) and (not isDog) and (not isShield) then
+	local r13BigOpen = r13Mix
+	local r15BigOpen = r15Mix and isBig
+	local ch3BigOpen = r5Horde or r6BigOpen or r7BigOpen or r8BigOpen or r13BigOpen or r15BigOpen
+	if (not r13Mix) and (not r15Mix) and (not isBoss) and (not isDog) and (not isShield) then
 		local wantBig = false
 		if r5Horde then
 			wantBig = math.random() < ch3Round5.BigSpawnChance
@@ -502,7 +571,9 @@ function Spawning.spawnOne()
 	local throwerCfg = Config.ThrowerZombie
 	local isThrower = false
 	if Config.chapter() == 3 and (not isBoss) and (not isDog) and (not isShield) then
-		if round == ch3Round1.Round and elapsedLocal >= ch3Round1.ThrowerAt then
+		if r15ThrowerRoll then
+			isThrower = true
+		elseif round == ch3Round1.Round and elapsedLocal >= ch3Round1.ThrowerAt then
 			isThrower = math.random() < throwerCfg.SpawnChance
 		elseif round == ch3Round3.Round
 			and elapsedLocal >= ch3Round3.ThrowerAt
@@ -513,13 +584,21 @@ function Spawning.spawnOne()
 			isThrower = math.random() < ch3Round5.ThrowerSpawnChance
 		elseif round == Config.Chapter3.Round10.Round then
 			isThrower = math.random() < Config.Chapter3.Round10.ThrowerSpawnChance
+		elseif round == ch3Round14.Round and elapsedLocal >= ch3Round14.ThrowerFromAt then
+			isThrower = math.random() < (ch3Round14.ThrowerSpawnChance or 0.15)
 		end
 	end
 	local throwerStopZ = if isThrower
 		then lane.PlayerZ + (lane.SpawnZ - lane.PlayerZ) * throwerCfg.StopRatio
 		else nil
 
-	local ch3BigScale = if ch3BigOpen then ch3Round5.BigZombieSizeScale else nil
+	local ch3BigScale = if r15BigOpen
+		then ch3Round15.BigZombieSizeScale
+		elseif r13BigOpen
+		then ch3Round13.BigZombieSizeScale
+		elseif ch3BigOpen
+		then ch3Round5.BigZombieSizeScale
+		else nil
 	local scale = if ch3BigScale and isBig
 		then ch3BigScale
 		elseif isBoss
@@ -532,7 +611,15 @@ function Spawning.spawnOne()
 	local health: number
 	local walkSpeed: number
 	local contactDamage: number
-	if isBig and ch3BigOpen then
+	if isBig and r15BigOpen then
+		health = stats.health * ch3Round15.BigZombieHealthMult
+		walkSpeed = stats.speed * ch3Round15.BigZombieSpeedScale
+		contactDamage = Config.Boss.ContactDamage
+	elseif isBig and r13BigOpen then
+		health = stats.health * ch3Round13.BigZombieHealthMult
+		walkSpeed = stats.speed * ch3Round13.BigZombieSpeedScale
+		contactDamage = Config.Boss.ContactDamage
+	elseif isBig and ch3BigOpen then
 		health = stats.health * ch3Round5.BigZombieHealthMult
 		walkSpeed = stats.speed * ch3Round5.BigZombieSpeedScale
 		contactDamage = Config.Boss.ContactDamage
@@ -1086,6 +1173,35 @@ function Spawning.spawnChapter3MidBoss(hitMin: number?, hitMax: number?, appeara
 	end
 end
 
+function Spawning.spawnChapter3FinalBoss(hitMin: number?, hitMax: number?, appearance: {
+	scale: number?,
+	walkSpeed: number?,
+	contactDamage: number?,
+}?)
+	local r15 = Config.Chapter3.Round15
+	local lane = Config.activeLane()
+	local slots = Config.activeInfinite().LaneSlots
+	local x = slots[math.ceil(#slots / 2)] -- 도로 중앙
+	local minH = math.max(1, math.floor(hitMin or r15.BossHitCountMin))
+	local maxH = math.max(minH, math.floor(hitMax or r15.BossHitCountMax))
+	local hits = math.random(minH, maxH)
+	local scale = if appearance and appearance.scale then appearance.scale else r15.BossSizeScale
+	local walkSpeed = if appearance and appearance.walkSpeed then appearance.walkSpeed else r15.BossWalkSpeed
+	local contactDamage = if appearance and appearance.contactDamage
+		then appearance.contactDamage
+		else r15.BossContactDamage
+	local zombie = Spawning.spawnMegaBossAt(x, hits, false, {
+		scale = scale,
+		walkSpeed = walkSpeed,
+		contactDamage = contactDamage,
+	})
+	if zombie then
+		zombie.model:SetAttribute("IsFinalBoss", true)
+		zombie.model:SetAttribute("IsMidBoss", true) -- 바리케이드 중간보스 타격 규칙 공유
+	end
+	return zombie
+end
+
 function Spawning.spawnChapter3ThrowerWave(count: number, gap: number)
 	local n = math.max(1, math.floor(count))
 	task.spawn(function()
@@ -1153,11 +1269,77 @@ function Spawning.spawnChapter3MineZombie()
 	return zombie
 end
 
+-- 왼쪽 스트림에서 지뢰병 1마리 (철조망 돌파 후 진입 경로)
+function Spawning.spawnChapter3MineZombieFromLeft()
+	local r10 = Config.Chapter3.Round10
+	local mineCfg = Config.MineZombie
+	local lane = Config.activeLane()
+	local x = r10.OutsideSpawnXMin + math.random() * (r10.OutsideSpawnXMax - r10.OutsideSpawnXMin)
+	local zJitter = r10.OutsideSpawnZJitter or 0
+	local z = lane.SpawnZ + (r10.OutsideSpawnZPad or 0) + (math.random() * 2 - 1) * zJitter
+	local pileX = r10.FencePileX + (math.random() * 2 - 1) * 0.8
+	local pileZ = r10.FencePileZ + (math.random() * 2 - 1) * 2.5
+	local scale = mineCfg.SizeScale
+	local health = Config.Chapter3.UnitDamage * mineCfg.HealthShots
+	local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4 * scale, z), {
+		health = health,
+		walkSpeed = mineCfg.WalkSpeed,
+		isBoss = false,
+		isBig = false,
+		isDog = false,
+		isShield = false,
+		isThrower = false,
+		isMine = true,
+		fenceApproach = true,
+		fenceTargetX = pileX,
+		fenceTargetZ = pileZ,
+		fenceEnterX = r10.PostBreachEnterX,
+		contactDamage = 0,
+		scale = scale,
+		hitCount = nil,
+	})
+	local breached = ctx.stateFolder ~= nil and ctx.stateFolder:GetAttribute("Ch3FenceBreached") == true
+	if breached then
+		zombie.fencePhase = "enter"
+		zombie.stopZ = nil
+	end
+	ZombieService.setAttackTarget(zombie, { kind = "player", ally = nil })
+	return zombie
+end
+
 function Spawning.spawnChapter3MineWave(count: number)
 	local n = math.max(1, math.floor(count))
 	for _ = 1, n do
 		Spawning.spawnChapter3MineZombie()
 	end
+end
+
+-- 좌→우→좌 S자 회피용 압정 연속 스폰
+function Spawning.spawnChapter3SpikeSCurve(count: number?, gap: number?)
+	local n = math.max(1, math.floor(count or 3))
+	local waitGap = math.max(0.4, gap or 2.2)
+	task.spawn(function()
+		local lane = Config.activeLane()
+		local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+		local half = Config.SpikeTrap.Size * 0.5
+		local lo = minX + half * 0.35
+		local hi = maxX - half * 0.35
+		-- 좌 / 우 / 좌 로 S자 무빙을 유도
+		local xs = { lo, hi, lo + (hi - lo) * 0.22 }
+		for i = 1, n do
+			if ctx.phase ~= "playing" then
+				return
+			end
+			if i > 1 then
+				task.wait(waitGap)
+			end
+			if ctx.phase ~= "playing" then
+				return
+			end
+			local sx = xs[((i - 1) % #xs) + 1]
+			SpikeTrap.create(sx)
+		end
+	end)
 end
 
 function Spawning.spawnChapter3ShieldPack(count: number, gap: number, hitMin: number, hitMax: number)
@@ -1407,31 +1589,37 @@ function Spawning.spawnChapter3FenceApproachZombie()
 	local localElapsed = Spawning.waveLocalElapsed(wave)
 	local localRound = Config.chapterRound(wave)
 	local breached = ctx.stateFolder ~= nil and ctx.stateFolder:GetAttribute("Ch3FenceBreached") == true
-	local leftCap = r10.LeftMaxAlive or 10
+	local leftCap = r10.LeftMaxAlive or 15
 	if localRound == r10.Round and localElapsed >= (r10.EndEaseFrom or 50) then
-		leftCap = r10.EndEaseLeftMaxAlive or 5
+		leftCap = r10.EndEaseLeftMaxAlive or 15
 	elseif localRound == Config.Chapter3.Round11.Round then
 		local r11 = Config.Chapter3.Round11
 		if localElapsed >= (r11.LeftPauseFrom or 45) then
 			return nil -- 45초~R12: 왼쪽 스폰 정지
-		elseif localElapsed < r11.ClearGraceUntil then
-			leftCap = r11.ClearGraceLeftMaxAlive or 4
+		elseif (r11.ClearGraceUntil or 0) > 0 and localElapsed < r11.ClearGraceUntil then
+			leftCap = r11.ClearGraceLeftMaxAlive or r11.LeftMaxAlive or 13
 		elseif localElapsed >= (r11.MidEaseFrom or 30)
 			and localElapsed < (r11.MidEaseUntil or 45)
 		then
-			leftCap = r11.MidEaseLeftMaxAlive or 7
+			leftCap = r11.MidEaseLeftMaxAlive or 11
 		else
-			leftCap = r11.LeftMaxAlive or 8
+			leftCap = r11.LeftMaxAlive or 13
 		end
 	elseif localRound == Config.Chapter3.Round12.Round then
 		local r12 = Config.Chapter3.Round12
-		if localElapsed < r12.ClearGraceUntil then
-			leftCap = r12.ClearGraceLeftMaxAlive or 6
+		if (r12.ClearGraceUntil or 0) > 0 and localElapsed < r12.ClearGraceUntil then
+			leftCap = r12.ClearGraceLeftMaxAlive or r12.LeftMaxAlive or 14
 		else
-			leftCap = r12.LeftMaxAlive or 10
+			leftCap = r12.LeftMaxAlive or 14
 		end
-	elseif localRound > Config.Chapter3.Round12.Round then
-		leftCap = Config.Chapter3.Round12.LeftMaxAlive or 10
+	elseif localRound == Config.Chapter3.Round13.Round then
+		leftCap = Config.Chapter3.Round13.LeftMaxAlive or 15
+	elseif localRound == Config.Chapter3.Round14.Round then
+		leftCap = Config.Chapter3.Round14.LeftMaxAlive or 18
+	elseif localRound == Config.Chapter3.Round15.Round then
+		leftCap = Config.Chapter3.Round15.LeftMaxAlive or 6
+	elseif localRound > Config.Chapter3.Round15.Round then
+		leftCap = Config.Chapter3.Round15.LeftMaxAlive or 6
 	end
 	if breached then
 		if ZombieService.countLeftStream() >= leftCap then
@@ -1458,26 +1646,99 @@ function Spawning.spawnChapter3FenceApproachZombie()
 	local pileX = r10.FencePileX + (math.random() * 2 - 1) * 0.8
 	local pileZ = r10.FencePileZ + (math.random() * 2 - 1) * 2.5
 	local walkSpeed = if breached then stats.speed else r10.ApproachWalkSpeed
-	local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4, z), {
-		health = stats.health,
+
+	local isShield = false
+	local isBig = false
+	local isBoss = false
+	local isThrower = false
+	local scale = 1
+	local health = stats.health
+	local contactDamage = Config.activeZombie().ContactDamage
+	local hitCount: number? = nil
+	local r13 = Config.Chapter3.Round13
+	local r15 = Config.Chapter3.Round15
+	local stopZ: number? = nil
+	if breached and localRound == r15.Round then
+		local roll = math.random()
+		local throwP = r15.ThrowSpawnChance or 0.10
+		local shieldP = r15.ShieldSpawnChance or 0.15
+		local bigP = r15.BigSpawnChance or 0.05
+		if roll < throwP then
+			isThrower = true
+			local throwerCfg = Config.ThrowerZombie
+			scale = throwerCfg.SizeScale
+			health = throwerCfg.Health
+			walkSpeed = throwerCfg.WalkSpeed
+			contactDamage = 0
+			stopZ = lane.PlayerZ + (lane.SpawnZ - lane.PlayerZ) * throwerCfg.StopRatio
+		elseif roll < throwP + shieldP then
+			isShield = true
+			local lo = Config.Chapter3.Round10.ShieldHitCountMin
+			local hi = Config.Chapter3.Round10.ShieldHitCountMax
+			hitCount = math.random(lo, hi)
+		elseif roll < throwP + shieldP + bigP then
+			isBoss = true
+			isBig = true
+			scale = r15.BigZombieSizeScale
+			health = stats.health * r15.BigZombieHealthMult
+			walkSpeed = stats.speed * r15.BigZombieSpeedScale
+			contactDamage = Config.Boss.ContactDamage
+		end
+	elseif breached and localRound == r13.Round and localElapsed >= r13.MixFromAt then
+		local roll = math.random()
+		local shieldP = r13.ShieldSpawnChance or 0.25
+		local bigP = r13.BigSpawnChance or 0.15
+		if roll < shieldP then
+			isShield = true
+			-- R10+ 방패 히트, 그 전은 R8
+			local lo: number
+			local hi: number
+			if localRound >= Config.Chapter3.Round10.Round then
+				lo = Config.Chapter3.Round10.ShieldHitCountMin
+				hi = Config.Chapter3.Round10.ShieldHitCountMax
+			else
+				lo = Config.Chapter3.Round8.ShieldHitCountMin
+				hi = Config.Chapter3.Round8.ShieldHitCountMax
+			end
+			hitCount = math.random(lo, hi)
+		elseif roll < shieldP + bigP then
+			isBoss = true
+			isBig = true
+			scale = r13.BigZombieSizeScale
+			health = stats.health * r13.BigZombieHealthMult
+			walkSpeed = stats.speed * r13.BigZombieSpeedScale
+			contactDamage = Config.Boss.ContactDamage
+		end
+	end
+
+	local zombie = ZombieService.create(Vector3.new(x, lane.CenterY + 2.4 * scale, z), {
+		health = health,
 		walkSpeed = walkSpeed,
-		isBoss = false,
-		isBig = false,
+		isBoss = isBoss,
+		isBig = isBig,
 		isDog = false,
-		isShield = false,
+		isShield = isShield,
+		isThrower = isThrower,
+		stopZ = stopZ,
 		fenceApproach = true,
 		fenceTargetX = pileX,
 		fenceTargetZ = pileZ,
 		fenceEnterX = r10.PostBreachEnterX,
-		contactDamage = Config.activeZombie().ContactDamage,
-		scale = 1,
-		hitCount = nil,
+		contactDamage = contactDamage,
+		scale = scale,
+		hitCount = hitCount,
 	})
 	if breached then
 		zombie.fencePhase = "enter"
-		zombie.stopZ = nil
+		if not isThrower then
+			zombie.stopZ = nil
+		end
 	end
-	ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+	if isThrower then
+		ZombieService.setAttackTarget(zombie, { kind = "player", ally = nil })
+	else
+		ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+	end
 	return zombie
 end
 

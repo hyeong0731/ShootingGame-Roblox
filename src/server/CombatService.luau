@@ -261,7 +261,7 @@ end
 function CombatService.throwMolotov(origin: Vector3)
 	local cfg = Config.Molotov
 	local lane = Config.activeLane()
-	local midZ = (lane.SpawnZ + lane.PlayerZ) / 2
+	local midZ = (lane.SpawnZ + lane.PlayerZ) / 2 + (cfg.ExtraRange or 0)
 	local targetPosition = Vector3.new(origin.X, lane.CenterY + lane.Thickness * 0.5, midZ)
 	local throwDist = math.max(2, midZ - origin.Z)
 	local part = spawnThrownMolotov(origin)
@@ -306,7 +306,28 @@ end
 local function explodeFlashbangAt(position: Vector3)
 	local bombCfg = Config.BombCrate
 	local stunDur = Config.Flashbang.StunDuration
-	ZombieService.stunInRadius(position, bombCfg.Radius, stunDur)
+	local FinalBossR15 = require(script.Parent.Game.FinalBossR15)
+	local hit = 0
+	local radius = bombCfg.Radius
+	for _, record in ZombieService.getAlive() do
+		local offset = record.root.Position - position
+		local reach = radius + ((record.model:GetAttribute("HitRadius") :: number?) or 0) * 0.3
+		if offset.X * offset.X + offset.Z * offset.Z <= reach * reach then
+			local dur = stunDur
+			if record.model:GetAttribute("IsFinalBoss") == true then
+				dur = FinalBossR15.flashStunForBoss(record)
+			end
+			local untilTime = os.clock() + math.max(0.1, dur)
+			record.stunUntil = math.max(record.stunUntil or 0, untilTime)
+			record.attackUntil = 0
+			record.throwReleased = true
+			if record.handRock then
+				record.handRock.Transparency = 1
+			end
+			record.model:SetAttribute("Stunned", true)
+			hit += 1
+		end
+	end
 	if CombatService._remotes then
 		if CombatService._remotes.FlashFx then
 			CombatService._remotes.FlashFx:FireAllClients(position, bombCfg.Radius)
@@ -351,20 +372,23 @@ local function explodeFlashbangAt(position: Vector3)
 			flash:Destroy()
 		end
 	end)
+	return hit
 end
 
 function CombatService.throwFlashbang(origin: Vector3)
 	local bombCfg = Config.BombCrate
+	local flashCfg = Config.Flashbang
+	local throwDist = flashCfg.ThrowDistance or bombCfg.ThrowDistance
 	local part = spawnThrownFlashbang(origin)
 	local direction = Vector3.new(0, 0, 1)
-	local speed = bombCfg.ThrowDistance / math.max(0.05, bombCfg.FlightTime)
+	local speed = throwDist / math.max(0.05, bombCfg.FlightTime)
 	table.insert(flashbangs, {
 		part = part,
 		direction = direction,
 		speed = speed,
 		born = os.clock(),
 		startZ = origin.Z,
-		targetZ = origin.Z + bombCfg.ThrowDistance,
+		targetZ = origin.Z + throwDist,
 	})
 end
 
@@ -914,7 +938,7 @@ function CombatService.update(dt: number)
 		local hit = Workspace:Spherecast(flash.part.Position, 1.1, travel, bombParams)
 		local nearPos = bombProximityHit(flash.part.Position, nextPos + flash.direction * 2)
 		local traveled = nextPos.Z - flash.startZ
-		local reachedEnd = nextPos.Z >= flash.targetZ or traveled >= Config.BombCrate.ThrowDistance
+		local reachedEnd = nextPos.Z >= flash.targetZ or traveled >= (flash.targetZ - flash.startZ)
 		if hit or nearPos or reachedEnd then
 			local pos = if hit then hit.Position elseif nearPos then nearPos else nextPos
 			flash.part:Destroy()

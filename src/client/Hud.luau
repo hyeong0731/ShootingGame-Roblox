@@ -658,14 +658,15 @@ local function createPauseButton(parent: Instance): TextButton
 	button.BackgroundColor3 = Color3.fromRGB(32, 38, 54)
 	button.BackgroundTransparency = 0.12
 	button.BorderSizePixel = 0
-	button.Size = UDim2.fromOffset(86, 34)
-	button.Position = UDim2.new(1, -16, 0.16, 0)
+	button.Size = UDim2.fromOffset(96, 36)
+	-- DEV 패널 위에 고정 (패널이 가리지 않게)
+	button.Position = UDim2.new(1, -12, 0, 6)
 	button.AnchorPoint = Vector2.new(1, 0)
 	button.Font = Enum.Font.GothamBold
 	button.Text = "Ⅱ  일시정지"
 	button.TextColor3 = Color3.fromRGB(255, 255, 255)
 	button.TextScaled = true
-	button.ZIndex = 8
+	button.ZIndex = 20
 	button.Visible = false
 	button.Parent = parent
 	Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
@@ -747,6 +748,8 @@ function Hud.start(remotes: {
 	UseFlashbang: Instance?,
 	UseBarricade: Instance?,
 	TogglePause: Instance,
+	ReviveAccept: Instance?,
+	ReviveDecline: Instance?,
 	DebugSetRound: Instance?,
 	DebugSetChapter: Instance?,
 	DebugHitPower: Instance?,
@@ -793,6 +796,23 @@ function Hud.start(remotes: {
 	bombOutline.Thickness = 5
 	bombOutline.Color = Color3.fromRGB(0, 0, 0)
 	bombOutline.Parent = bombTime
+
+	local windTime = textLabel(gui, "WindTime", {
+		Size = UDim2.new(0.42, 0, 0.055, 0),
+		Position = UDim2.new(0.98, 0, 0.14, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		Align = Enum.TextXAlignment.Right,
+	})
+	windTime.Font = Enum.Font.GothamBlack
+	windTime.Text = ""
+	windTime.TextColor3 = Color3.fromRGB(160, 210, 255)
+	windTime.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	windTime.TextStrokeTransparency = 0
+	windTime.Visible = false
+	local windOutline = Instance.new("UIStroke")
+	windOutline.Thickness = 4
+	windOutline.Color = Color3.fromRGB(0, 0, 0)
+	windOutline.Parent = windTime
 
 	local timer = textLabel(gui, "Timer", {
 		Size = UDim2.new(0.16, 0, 0.055, 0),
@@ -841,6 +861,72 @@ function Hud.start(remotes: {
 		end
 	end)
 
+	local reviveAccept = if remotes and remotes.ReviveAccept
+		then remotes.ReviveAccept
+		else remotesFolder:WaitForChild("ReviveAccept", 5)
+	local reviveDecline = if remotes and remotes.ReviveDecline
+		then remotes.ReviveDecline
+		else remotesFolder:WaitForChild("ReviveDecline", 5)
+
+	local revivePanel = Instance.new("Frame")
+	revivePanel.Name = "RevivePanel"
+	revivePanel.BackgroundColor3 = Color3.fromRGB(12, 14, 22)
+	revivePanel.BackgroundTransparency = 0.18
+	revivePanel.BorderSizePixel = 0
+	revivePanel.Size = UDim2.fromOffset(360, 168)
+	revivePanel.Position = UDim2.new(0.5, 0, 0.48, 0)
+	revivePanel.AnchorPoint = Vector2.new(0.5, 0.5)
+	revivePanel.ZIndex = 40
+	revivePanel.Visible = false
+	revivePanel.Parent = gui
+	Instance.new("UICorner", revivePanel).CornerRadius = UDim.new(0, 12)
+	local reviveStroke = Instance.new("UIStroke")
+	reviveStroke.Thickness = 2
+	reviveStroke.Color = Color3.fromRGB(255, 190, 70)
+	reviveStroke.Parent = revivePanel
+
+	local reviveTitle = Instance.new("TextLabel")
+	reviveTitle.BackgroundTransparency = 1
+	reviveTitle.Size = UDim2.new(1, -24, 0, 56)
+	reviveTitle.Position = UDim2.fromOffset(12, 16)
+	reviveTitle.Font = Enum.Font.GothamBlack
+	reviveTitle.Text = "다시 부활하시겠습니까?"
+	reviveTitle.TextColor3 = Color3.fromRGB(255, 240, 200)
+	reviveTitle.TextScaled = true
+	reviveTitle.ZIndex = 41
+	reviveTitle.Parent = revivePanel
+
+	local function makeReviveBtn(name: string, text: string, color: Color3, xScale: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.AutoButtonColor = true
+		btn.BackgroundColor3 = color
+		btn.BorderSizePixel = 0
+		btn.Size = UDim2.fromOffset(140, 44)
+		btn.Position = UDim2.new(xScale, 0, 1, -24)
+		btn.AnchorPoint = Vector2.new(0.5, 1)
+		btn.Font = Enum.Font.GothamBold
+		btn.Text = text
+		btn.TextColor3 = Color3.new(1, 1, 1)
+		btn.TextScaled = true
+		btn.ZIndex = 41
+		btn.Parent = revivePanel
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+		return btn
+	end
+	local acceptBtn = makeReviveBtn("Accept", "부활", Color3.fromRGB(42, 140, 72), 0.28)
+	local declineBtn = makeReviveBtn("Decline", "로비로", Color3.fromRGB(140, 48, 48), 0.72)
+	if reviveAccept and reviveAccept:IsA("RemoteEvent") then
+		acceptBtn.MouseButton1Click:Connect(function()
+			reviveAccept:FireServer()
+		end)
+	end
+	if reviveDecline and reviveDecline:IsA("RemoteEvent") then
+		declineBtn.MouseButton1Click:Connect(function()
+			reviveDecline:FireServer()
+		end)
+	end
+
 	local banner = textLabel(gui, "Banner", {
 		Size = UDim2.new(0.82, 0, 0.12, 0),
 		Position = UDim2.new(0.5, 0, 0.42, 0),
@@ -883,7 +969,7 @@ function Hud.start(remotes: {
 		debugPanel.BackgroundTransparency = 0.25
 		debugPanel.BorderSizePixel = 0
 		debugPanel.Size = UDim2.fromOffset(168, 348)
-		debugPanel.Position = UDim2.new(1, -12, 0.08, 0)
+		debugPanel.Position = UDim2.new(1, -12, 0, 48)
 		debugPanel.AnchorPoint = Vector2.new(1, 0)
 		debugPanel.ZIndex = 8
 		debugPanel.Parent = gui
@@ -989,7 +1075,7 @@ function Hud.start(remotes: {
 		hitsPanel.BackgroundTransparency = 0.25
 		hitsPanel.BorderSizePixel = 0
 		hitsPanel.Size = UDim2.fromOffset(168, 80)
-		hitsPanel.Position = UDim2.new(1, -12, 0.08, 360)
+		hitsPanel.Position = UDim2.new(1, -12, 0, 404)
 		hitsPanel.AnchorPoint = Vector2.new(1, 0)
 		hitsPanel.ZIndex = 8
 		hitsPanel.Parent = gui
@@ -1112,14 +1198,18 @@ function Hud.start(remotes: {
 		end
 		local isLobby = currentPhase == "lobby"
 		local isClear = currentPhase == "chapterClear"
+		local isRevive = currentPhase == "reviveChoice"
 		local isPaused = state:GetAttribute("Paused") == true
 		kills.Visible = not isLobby
 		timer.Visible = not isLobby
 		waveLabel.Visible = not isLobby
-		weaponBtn.Visible = not isLobby and not isClear
+		weaponBtn.Visible = not isLobby and not isClear and not isRevive
 		hitBadge.Visible = not isLobby
 		pauseButton.Visible = currentPhase == "playing"
 		pauseButton.Text = if isPaused then "▶  계속" else "Ⅱ  일시정지"
+		revivePanel.Visible = isRevive
+		banner.Visible = not isRevive
+		hint.Visible = not isRevive
 		local molotovLeft = state:GetAttribute("MolotovLeft") or 0
 		molotovButton.Visible = currentPhase == "playing" and molotovLeft > 0
 		local molotovCount = molotovButton:FindFirstChild("Count")
@@ -1171,9 +1261,22 @@ function Hud.start(remotes: {
 		bombTime.Visible = false
 		bombTime.Text = ""
 
+		local windLeft = state:GetAttribute("Ch3WindLeft")
+		local windActive = state:GetAttribute("Ch3WindActive") == true
+		if windActive and typeof(windLeft) == "number" and windLeft > 0 then
+			windTime.Visible = true
+			windTime.Text = `역풍 {math.ceil(windLeft)}초`
+		else
+			windTime.Visible = false
+			windTime.Text = ""
+		end
+
 		if currentPhase == "lobby" then
 			banner.Text = ""
 			hint.Text = "초록 발판에 올라가면 게임이 시작됩니다"
+		elseif currentPhase == "reviveChoice" then
+			banner.Text = ""
+			hint.Text = ""
 		elseif currentPhase == "chapterClear" then
 			banner.Text = `{chapter}챕터 클리어`
 			hint.Text = "도로를 따라 걸어가 파란 발판을 밟으세요"

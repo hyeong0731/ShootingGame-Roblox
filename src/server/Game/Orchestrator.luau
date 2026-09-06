@@ -217,6 +217,13 @@ function Orchestrator.start(remotes)
 		setState("Paused", ctx.paused)
 	end)
 
+	remotes.ReviveAccept.OnServerEvent:Connect(function(player: Player)
+		Lifecycle.acceptRevive(player)
+	end)
+	remotes.ReviveDecline.OnServerEvent:Connect(function(_player: Player)
+		Lifecycle.declineRevive()
+	end)
+
 	remotes.UseMolotov.OnServerEvent:Connect(function(_player: Player)
 		if ctx.phase ~= "playing" or ctx.paused then
 			return
@@ -344,10 +351,19 @@ function Orchestrator.start(remotes)
 		end)
 	end
 
-	Players.RespawnTime = 2
-	Players.PlayerAdded:Connect(Lifecycle.setupPlayer)
+	Players.CharacterAutoLoads = false
+	Players.RespawnTime = 9999
+	Players.PlayerAdded:Connect(function(player)
+		Lifecycle.setupPlayer(player)
+		if not player.Character then
+			player:LoadCharacter()
+		end
+	end)
 	for _, player in Players:GetPlayers() do
 		Lifecycle.setupPlayer(player)
+		if not player.Character then
+			player:LoadCharacter()
+		end
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		ctx.playerData[player] = nil

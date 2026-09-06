@@ -50,11 +50,10 @@ local function roadXBounds(): (number, number)
 	return xMin, xMax
 end
 
-local function molotovFrontZ(): number
+local function placeZ(): number
 	local lane = Config.activeLane()
-	local midZ = (lane.SpawnZ + lane.PlayerZ) / 2
-	local offset = Config.Barricade.ZOffsetFromMolotov or 10
-	return midZ - offset
+	local offset = Config.Barricade.PlaceZFromPlayer or 5
+	return lane.PlayerZ + offset
 end
 
 local function refreshBar(state: BarricadeState)
@@ -171,7 +170,7 @@ function BarricadeService.place(): boolean
 	local lane = Config.activeLane()
 	local cfg = Config.Barricade
 	local xMin, xMax = roadXBounds()
-	local z = molotovFrontZ()
+	local z = placeZ()
 	local y = lane.CenterY
 	local maxHp = math.max(1, math.floor(playerMaxHealth() * (cfg.HpPlayerMult or 3)))
 
@@ -255,6 +254,10 @@ function BarricadeService.hitByZombie(isMidBoss: boolean?, contactDamage: number
 		amount = math.max(1, (contactDamage or 7) * (cfg.NormalHitScale or 1))
 	end
 	return BarricadeService.damage(amount)
+end
+
+function BarricadeService.destroyInstant()
+	destroyActive()
 end
 
 function BarricadeService.clear()

@@ -110,7 +110,7 @@ function Debug.spawnChapterPad()
 	label.BackgroundTransparency = 1
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.Font = Enum.Font.GothamBold
-	label.Text = "다음 장소"
+	label.Text = if Config.chapter() >= 3 then "로비로" else "다음 장소"
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.TextStrokeTransparency = 0.3
 	label.TextScaled = true
@@ -132,6 +132,8 @@ function Debug.spawnChapterPad()
 			Api.startChapter2()
 		elseif Config.chapter() == 2 then
 			Api.startChapter3()
+		else
+			Api.returnToLobby()
 		end
 		task.delay(1.5, function()
 			ctx.chapterPadDebounce = false

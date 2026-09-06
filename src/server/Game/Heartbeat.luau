@@ -18,6 +18,7 @@ local EventFlags = require(script.Parent.EventFlags)
 local Chapter1 = require(script.Parent.RoundTimeline.Chapter1)
 local Chapter2 = require(script.Parent.RoundTimeline.Chapter2)
 local Chapter3 = require(script.Parent.RoundTimeline.Chapter3)
+local FinalBossR15 = require(script.Parent.FinalBossR15)
 
 local ctx = Context
 local setState = StateSync.setState
@@ -48,6 +49,10 @@ function Heartbeat.connect()
   			shiftPausedTimers(dt)
   			return
   		end
+		if ctx.phase == "reviveChoice" then
+			shiftPausedTimers(dt)
+			return
+		end
 
   		if ctx.phase == "playing" then
   			local elapsed = math.floor(now - ctx.matchStart)
@@ -69,6 +74,23 @@ function Heartbeat.connect()
   					and #ZombieService.getAlive() == 0)
   			then
   				beginChapterClear()
+  			elseif Config.chapter() == 3
+  				and Config.chapterRound(wave) == Config.Chapter3.Round15.Round
+  				and Ev.Ch3.R15BossSpawned
+  				and not Ev.Ch3.R15Cleared
+  			then
+  				local bossAlive = false
+  				for _, record in ZombieService.getAlive() do
+  					if record.model:GetAttribute("IsFinalBoss") == true then
+  						bossAlive = true
+  						break
+  					end
+  				end
+  				if not bossAlive then
+  					Ev.Ch3.R15Cleared = true
+  					ZombieService.clear()
+  					beginChapterClear()
+  				end
   			end
   		end
 
@@ -190,6 +212,7 @@ function Heartbeat.connect()
   				end
   			end
 
+  			FinalBossR15.tick(dt)
   			ZombieService.update(dt, playerPos)
   			SupplyService.update(dt, playerPos, leaderStrafe)
   			NumberGate.update(dt, playerPos)

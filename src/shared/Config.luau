@@ -92,7 +92,7 @@ Config.Infinite = {
 	SpawnGapMin = 0.42, -- 최소 스폰 간격
 	LaneSlots = { -12, -6, 0, 6, 12 }, -- 나오는 X 위치
 	HealthPerKill = 0.3, -- 킬당 체력 증가
-	SpeedPerSecond = 0.022, -- 시간당 속도 증가
+	SpeedPerSecond = 0.017, -- 시간당 속도 증가
 	AllySpawnGapScale = 0.62, -- 지원군 뽑은 뒤 스폰 간격 배수 (낮을수록 빽빽)
 	AllyMaxAliveBonus = 3, -- 지원군 뽑은 뒤 추가 마리 수
 }
@@ -178,6 +178,7 @@ Config.Molotov = {
 	HitDamage = 60, -- 착탄 시 숫자 타수
 	Radius = 11,
 	ThrowDistance = 72,
+	ExtraRange = 8, -- midZ에서 스폰 쪽으로 추가 사거리 (조금만 더 멀리)
 	FlightTime = 0.8,
 	GroundDuration = 7, -- 바닥 화염 지속
 	GroundRadius = 12,
@@ -224,14 +225,15 @@ Config.MineZombie = {
 	PlayerHpPercent = 20, -- 폭발 범위 내 플레이어 최대체력 %
 }
 
--- 섬광탄: 폭탄과 같은 사거리·범위, 데미지 없이 기절
+-- 섬광탄: 폭탄과 비슷한 범위, 데미지 없이 기절
 Config.Flashbang = {
 	Count = 3,
 	CrateHitCountMin = 40,
 	CrateHitCountMax = 55,
 	WalkSpeed = 10,
 	StunDuration = 5,
-	-- Radius / ThrowDistance / FlightTime 은 BombCrate와 동일하게 사용
+	ThrowDistance = 105, -- 폭탄(90)보다 조금 더 멀리
+	-- Radius / FlightTime 은 BombCrate와 동일
 }
 
 -- 압정 발판 (챕터3). 총알로 못 깨고 플레이어만 데미지
@@ -476,7 +478,7 @@ Config.Chapter2 = {
 		SpawnGapMin = 0.2,
 		LaneSlots = { -10, -5, 0, 5, 10 },
 		HealthPerKill = 0.17, -- 킬당 체력 증가
-		SpeedPerSecond = 0.022,
+		SpeedPerSecond = 0.017,
 		AllySpawnGapScale = 0.62,
 		AllyMaxAliveBonus = 4,
 	},
@@ -791,7 +793,7 @@ Config.Chapter3 = {
 		SpawnGapMin = 0.1,
 		LaneSlots = { -12, -8, -4, 0, 4, 8, 12 },
 		HealthPerKill = 0, -- 따로 말하기 전까지 HP 증가 끔
-		SpeedPerSecond = 0.022,
+		SpeedPerSecond = 0.017,
 		AllySpawnGapScale = 0.62,
 		AllyMaxAliveBonus = 4,
 	},
@@ -895,8 +897,8 @@ Config.Chapter3 = {
 		SniperHitCountMin = 20,
 		SniperHitCountMax = 30,
 		X2At = 35,
-		X2HitCountMin = 45,
-		X2HitCountMax = 55,
+		X2HitCountMin = 75,
+		X2HitCountMax = 85,
 		X2RetryAt = 57, -- 35초 x2 못 먹었을 때만
 		SpikeAt = 43,
 		SpikeRightDelay = 2.8, -- 왼쪽 압정 뒤 오른쪽 끝
@@ -918,8 +920,7 @@ Config.Chapter3 = {
 		BigZombieSizeScale = 1.75,
 		BigZombieHealthMult = 5,
 		BigZombieSpeedScale = 0.58,
-		MolotovAt = 23,
-		MolotovGrantCount = 3,
+		-- MolotovAt 제거
 		PlusAt = 33,
 		PlusHitCountMin = 55,
 		PlusHitCountMax = 65,
@@ -965,17 +966,14 @@ Config.Chapter3 = {
 		SpikeAt = 50,
 		SniperAt = 9,
 		SniperHitCount = 66,
-		-- 투척 웨이브 이후~라운드 종료: 스폰 완화 (보스 집중)
 		BossFocusGapScale = 1.85,
 		BossFocusMaxAlive = 12,
 	},
 	Round6 = {
 		Round = 6,
-		-- 시작 10초: R5 잔여 정리용 스폰 대폭 완화
 		ClearGraceUntil = 10,
 		ClearGraceGapScale = 2.6,
 		ClearGraceMaxAlive = 8,
-		-- 30초~라운드 종료: 스폰 소폭 완화
 		LateEaseFrom = 30,
 		LateEaseGapScale = 1.45,
 		LateEaseMaxAlive = 22,
@@ -1005,14 +1003,13 @@ Config.Chapter3 = {
 	},
 	Round7 = {
 		Round = 7,
-		-- 라운드 전체 스폰 완화
 		SpawnGapScale = 1.4,
 		MaxAliveCap = 22,
 		BombAt = 0,
 		BombHitCount = 72,
 		ShieldBoostAt = 5,
 		ShieldBoostUntil = 15,
-		ShieldBoostChance = 0.35, -- 5~15초: 스폰의 35% 방패 (이후 R1 비율로 복귀)
+		ShieldBoostChance = 0.35,
 		SpikeAt = 5,
 		MineAt = { 10, 33 },
 		MinusAt = 12,
@@ -1023,44 +1020,44 @@ Config.Chapter3 = {
 		ThrowerWaveAt = 25,
 		ThrowerWaveCount = 5,
 		ThrowerWaveGap = 1,
-		MolotovAt = 30,
-		MolotovHitCount = 42,
-		MolotovGrantCount = 3,
+		-- MolotovAt 제거
 		MidBossAt = 40,
-		MidBossHitCountMin = 550,
-		MidBossHitCountMax = 600,
+		MidBossHitCountMin = 750,
+		MidBossHitCountMax = 800,
 		MidBoss2At = 55,
-		MidBoss2HitCountMin = 500,
-		MidBoss2HitCountMax = 550,
+		MidBoss2HitCountMin = 680,
+		MidBoss2HitCountMax = 820,
 	},
 	Round8 = {
 		Round = 8,
-		-- 라운드 전체 스폰 완화 (동시 너무 많음)
 		SpawnGapScale = 1.45,
 		MaxAliveCap = 20,
 		AllyAt = 0,
-		AllyHitCountMin = 85,
-		AllyHitCountMax = 95,
-		ShieldSpawnChance = 0.25, -- 시작~40초
-		ShieldSpawnChanceLate = 0.15, -- 40초~
+		AllyHitCountMin = 100,
+		AllyHitCountMax = 110,
+		ShieldSpawnChance = 0.30,
+		ShieldSpawnChanceLate = 0.30,
 		ShieldShiftAt = 40,
-		ShieldHitCountMin = 82, -- R8부터 지속 (따로 말하기 전까지)
+		ShieldHitCountMin = 82,
 		ShieldHitCountMax = 92,
 		X2At = 13,
-		X2HitCount = 75,
-		X2RetryAt = 40, -- 13초 x2 못 먹었을 때만
+		X2HitCountMin = 90,
+		X2HitCountMax = 100,
+		X2RetryAt = 40,
 		SniperAt = 22,
 		SniperHitCount = 91,
-		SniperShieldHitDamage = 60, -- R8부터 스나이퍼→방패 (따로 말하기 전까지)
+		SniperShieldHitDamage = 60,
 		MineAt = 25,
 		BigFromAt = 40,
 		BigSpawnChance = 0.25,
 		PlusAt = 42,
-		PlusHitCount = 68,
+		PlusHitCountMin = 100,
+		PlusHitCountMax = 110,
 		MolotovAt = 34,
-		MolotovHitCount = 51,
+		MolotovHitCountMin = 110,
+		MolotovHitCountMax = 120,
 		MolotovGrantCount = 3,
-		BombShieldHitDamage = 60, -- R8부터 폭탄→방패 (따로 말하기 전까지)
+		BombShieldHitDamage = 60,
 		MixedWaveAt = 52,
 		MixedWaveDuration = 10,
 		MixedWaveNormal = 6,
@@ -1070,27 +1067,26 @@ Config.Chapter3 = {
 	},
 	Round9 = {
 		Round = 9,
-		-- 시작 10초: R8 잔여 정리용 스폰 완화
 		ClearGraceUntil = 10,
 		ClearGraceGapScale = 2.5,
 		ClearGraceMaxAlive = 8,
-		MaxAliveCap = 15, -- 라운드 전체 동시 최대
-		MolotovAt = 0,
-		MolotovHitCount = 42,
-		MolotovGrantCount = 3,
+		MaxAliveCap = 24,
+		-- MolotovAt 제거
 		FlashbangAt = 10,
-		FlashbangHitCount = 58,
+		FlashbangHitCountMin = 120,
+		FlashbangHitCountMax = 130,
 		FlashbangGrantCount = 3,
 		SniperAt = 17,
-		SniperHitCount = 70,
+		SniperHitCount = 98,
 		WindWarnAt = 20,
 		WindWarnText = "강풍경보! 총알과 발걸음이 무거워집니다!",
 		WindAt = 23,
 		WindDuration = 20,
-		WindSpeedScale = 0.65, -- 약 35% 느림
+		WindSpeedScale = 0.5,
+		WindFireIntervalScale = 1.35,
 		MidBossAt = 25,
-		MidBossHitCountMin = 340,
-		MidBossHitCountMax = 380,
+		MidBossHitCountMin = 660,
+		MidBossHitCountMax = 800,
 		MineAt = 30,
 		MinusAt = 33,
 		MinusHitCount = 52,
@@ -1105,42 +1101,40 @@ Config.Chapter3 = {
 	},
 	Round10 = {
 		Round = 10,
-		-- 시작 10초: R9 혼합웨이브 잔여 정리
 		ClearGraceUntil = 10,
 		ClearGraceGapScale = 2.5,
-		ClearGraceMaxAlive = 8,
-		MaxAliveCap = 14, -- R10 도로끝 동시 상한 (왼쪽과 독립)
-		LateMaxAliveFrom = 10, -- 클리어 그레이스 이후 전부 14
-		LateMaxAliveCap = 14,
-		-- ÷2 시작 (속도는 Div2WalkSpeedScale로 조절)
+		ClearGraceMaxAlive = 16,
+		MaxAliveCap = 15,
+		LateMaxAliveFrom = 10,
+		LateMaxAliveCap = 15,
 		Div2At = 0,
 		Div2HitCount = 77,
 		Div2WalkSpeedScale = 5,
 		ShotgunAt = 23,
 		ShotgunHitCount = 93,
 		PlusAt = 28,
-		PlusHitCountMin = 100,
-		PlusHitCountMax = 110,
+		PlusHitCountMin = 140,
+		PlusHitCountMax = 160,
 		MinePairAt = 30,
 		MinePairCount = 2,
-		ThrowerSpawnChance = 0.05, -- 전체 스폰의 5%
+		ThrowerSpawnChance = 0.05,
 		FlashbangAt = 42,
-		FlashbangHitCount = 88,
+		FlashbangHitCountMin = 100,
+		FlashbangHitCountMax = 120,
 		FlashbangGrantCount = 3,
 		SpikeAt = 50,
 		DogSwarmAt = 50,
 		DogSwarmCount = 10,
-		DogSwarmDuration = 7, -- 랜덤 딜레이 총 구간 (7초 내 전부)
-		-- 왼쪽 들판(도로에서 먼 쪽) → 대각선으로 철조망 접근 → 쌓임 → 돌파
+		DogSwarmDuration = 7,
+		ShieldHitCountMin = 100,
+		ShieldHitCountMax = 115,
 		OutsideSpawnAt = 10,
-		OutsideSpawnGap = 1.1, -- 돌파 전 접근 페이스
-		-- 왼쪽·도로 완전 독립. 왼쪽 10 + 도로 14 = 최대 24 (R11~R15도 동일)
-		LeftMaxAlive = 10,
-		-- R10 50초~종료: 압박 완화 (왼쪽 5 + 도로 10)
+		OutsideSpawnGap = 1.1,
+		LeftMaxAlive = 15,
 		EndEaseFrom = 50,
-		EndEaseRoadMaxAlive = 10,
-		EndEaseLeftMaxAlive = 5,
-		OutsideSpawnUntil = 60, -- (레거시) 실제 루프는 챕터3 Waves.Until(R15)까지 유지
+		EndEaseRoadMaxAlive = 15,
+		EndEaseLeftMaxAlive = 15,
+		OutsideSpawnUntil = 60,
 		OutsideSpawnXMin = 40,
 		OutsideSpawnXMax = 52,
 		OutsideSpawnZPad = 4,
@@ -1151,30 +1145,23 @@ Config.Chapter3 = {
 		BreachAt = 23,
 		BreachGapHalf = 8,
 		BreachWarnText = "철조망이 무너진다!",
-		PostBreachEnterX = 9.5, -- 구멍→도로 진입 목표(레거시)
-		-- 도로 진입 후 추격 전 횡단: 왼쪽 벽 ~ 오른쪽 벽 (rollFenceIngressX가 레인 폭 기준)
-		PostBreachIngressXMin = 13, -- 왼쪽 벽 근처
-		PostBreachIngressXMax = -13, -- 오른쪽 벽 근처
+		PostBreachEnterX = 9.5,
+		PostBreachIngressXMin = 13,
+		PostBreachIngressXMax = -13,
 	},
 	Round11 = {
 		Round = 11,
-		-- 0~10초: R10 잔여 정리
-		ClearGraceUntil = 10,
-		ClearGraceGapScale = 2.5,
-		ClearGraceMaxAlive = 8, -- 도로끝
-		ClearGraceLeftMaxAlive = 4, -- 왼쪽
-		-- 10초~R11 기본
-		RoadMaxAlive = 12,
-		LeftMaxAlive = 8,
-		-- 30~45초 완화
+		ClearGraceUntil = 0,
+		RoadMaxAlive = 17,
+		LeftMaxAlive = 13,
 		MidEaseFrom = 30,
 		MidEaseUntil = 45,
-		MidEaseRoadMaxAlive = 10,
-		MidEaseLeftMaxAlive = 7,
-		-- 45초~R12: 왼쪽 스폰 정지
+		MidEaseRoadMaxAlive = 15,
+		MidEaseLeftMaxAlive = 11,
 		LeftPauseFrom = 45,
 		BarricadeAt = 7,
-		BarricadeHitCount = 110,
+		BarricadeHitCountMin = 200,
+		BarricadeHitCountMax = 210,
 		BarricadeGrantCount = 1,
 		BigAt = 10,
 		BigCount = 3,
@@ -1183,22 +1170,22 @@ Config.Chapter3 = {
 		BigZombieHealthMult = 5,
 		BigZombieSpeedScale = 0.58,
 		SniperAt = 15,
-		SniperHitCountMin = 89,
-		SniperHitCountMax = 100,
+		SniperHitCountMin = 160,
+		SniperHitCountMax = 180,
 		MineAt = 20,
 		ShotgunAt = 27,
-		ShotgunHitCountMin = 80,
-		ShotgunHitCountMax = 100,
+		ShotgunHitCountMin = 140,
+		ShotgunHitCountMax = 160,
 		MidBossAt = 30,
-		MidBossHitCountMin = 750,
-		MidBossHitCountMax = 820,
+		MidBossHitCountMin = 1000,
+		MidBossHitCountMax = 1100,
 		MidBossSizeScale = 2.6,
 		MidBossWalkSpeed = 4.2,
 		MidBossContactDamage = 18,
 		ShieldLineAt = 45,
 		ShieldLineCount = 6,
-		ShieldLineHitCountMin = 90,
-		ShieldLineHitCountMax = 110,
+		ShieldLineHitCountMin = 130,
+		ShieldLineHitCountMax = 140,
 		ThrowerWaveAt = 48,
 		ThrowerWaveCount = 7,
 		ThrowerWaveGap = 1,
@@ -1208,14 +1195,11 @@ Config.Chapter3 = {
 	},
 	Round12 = {
 		Round = 12,
-		ClearGraceUntil = 10,
-		ClearGraceGapScale = 2.5,
-		ClearGraceRoadMaxAlive = 6,
-		ClearGraceLeftMaxAlive = 6,
-		RoadMaxAlive = 10,
-		LeftMaxAlive = 10,
+		ClearGraceUntil = 0,
+		RoadMaxAlive = 16,
+		LeftMaxAlive = 14,
 		Plus2At = 12,
-		Plus2HitCount = 94,
+		Plus2HitCount = 160,
 		MineAt = 13,
 		SpikeAt = 15,
 		MolotovAt = 20,
@@ -1223,24 +1207,114 @@ Config.Chapter3 = {
 		MolotovHitCountMax = 110,
 		MolotovGrantCount = 3,
 		ShotgunAt = 26,
-		ShotgunHitCountMin = 70,
-		ShotgunHitCountMax = 90,
+		ShotgunHitCountMin = 110,
+		ShotgunHitCountMax = 130,
 		Div2At = 34,
 		Div2HitCount = 70,
 		Div2WalkSpeedScale = 5,
 		BarricadeAt = 40,
-		BarricadeHitCount = 101,
+		BarricadeHitCountMin = 190,
+		BarricadeHitCountMax = 230,
 		BarricadeGrantCount = 1,
 		FlashbangAt = 50,
-		FlashbangHitCount = 97,
+		FlashbangHitCount = 144,
 		FlashbangGrantCount = 3,
+	},
+	Round13 = {
+		Round = 13,
+		RoadMaxAlive = 15,
+		LeftMaxAlive = 15,
+		SniperAt = 10,
+		SniperHitCountMin = 170,
+		SniperHitCountMax = 200,
+		MixFromAt = 25,
+		ShieldSpawnChance = 0.40,
+		BigSpawnChance = 0.10,
+		BigZombieSizeScale = 1.75,
+		BigZombieHealthMult = 5,
+		BigZombieSpeedScale = 0.58,
+		DogSwarmAt = 50,
+		DogSwarmCount = 15,
+		DogSwarmDuration = 9,
+	},
+	Round14 = {
+		Round = 14,
+		RoadMaxAlive = 17,
+		LeftMaxAlive = 18,
+		PlusAt = 0,
+		PlusHitCountMin = 180,
+		PlusHitCountMax = 200,
+		BarricadeAt = 10,
+		BarricadeHitCountMin = 220,
+		BarricadeHitCountMax = 230,
+		BarricadeGrantCount = 1,
+		MineAt = 25,
+		MidBossAt = 30,
+		MidBossHitCountMin = 1200,
+		MidBossHitCountMax = 1400,
+		MidBossSizeScale = 2.4,
+		MidBossWalkSpeed = 4.4,
+		MidBossContactDamage = 16,
+		ThrowerFromAt = 40,
+		ThrowerSpawnChance = 0.20,
+		BigAt = 40,
+		BigCount = 3,
+		BigGap = 1,
+		BigZombieSizeScale = 1.75,
+		BigZombieHealthMult = 5,
+		BigZombieSpeedScale = 0.58,
+		SpikeAt = 45,
+		SpikeCount = 3,
+		SpikeGap = 2.2,
+	},
+	Round15 = {
+		Round = 15,
+		RoadMaxAlive = 6,
+		LeftMaxAlive = 6,
+		-- 상시 혼합: 투척 10% / 방패 15% / 큰 5% / 일반 70%
+		ThrowSpawnChance = 0.10,
+		ShieldSpawnChance = 0.15,
+		BigSpawnChance = 0.05,
+		BigZombieSizeScale = 1.75,
+		BigZombieHealthMult = 5,
+		BigZombieSpeedScale = 0.58,
+		WarnAt = 0,
+		WarnText = "경고: 통제구역의 주인이 깨어났습니다. 전력을 다해 막으십시오!",
+		BossAt = 3,
+		BossHitCountMin = 3200,
+		BossHitCountMax = 3500,
+		BossSizeScale = 4.2, -- 맵 진정한 크기 (Ch2 최종보스급)
+		BossWalkSpeed = 1.8, -- 매우 느림
+		BossContactDamage = 24,
+		BossFlashStun = 3, -- 섬광탄 일반 기절
+		BossBarricadeStun = 5, -- 돌진 시 바리케이드 충돌 기절
+		BossVomitFlashStun = 5, -- 토사물 채널 중 섬광탄 기절
+		-- 진행도 0=스폰, 1=플레이어. 철조망 구멍(FencePileZ≈0.33) 참고
+		ChargeWarnProgress = 0.45, -- 맵 절반 조금 안 되게
+		ChargeWarnText = "돌진을 준비합니다! 바리케이드로 막으세요!",
+		ChargeDelay = 3,
+		ChargeSpeed = 52,
+		ChargeEndProgress = 1.04, -- 바리케이드 지나 살짝 플레이어 쪽
+		VomitProgress = 1.10, -- 돌진 끝 이후 더 가까이
+		VomitWarnText = "토사물을 모으고 있습니다! 섬광탄으로 기절시키세요!",
+		VomitChannel = 7,
+		VomitHpPercent = 60,
+		MineAt = 30,
+		SpikeAt = 20,
+		ShotgunAt = 20,
+		ShotgunHitCountMin = 150,
+		ShotgunHitCountMax = 170,
+		-- R15: 스나이퍼·폭탄 → 상자/최종보스 타수
+		SniperHitDamage = 100,
+		BombHitDamage = 100,
 	},
 }
 
--- 바리케이드 (챕터3 R11). 화염병 착탄점 바로 앞에 도로 가로막. HP = 플레이어체력 × 배수
+
+-- 바리케이드 (챕터3 R11). 플레이어 발치(빨간 라인)에 도로 가로막. HP = 플레이어체력 × 배수
 Config.Barricade = {
 	HpPlayerMult = 3, -- 통제 변수: 플레이어 MaxHealth × 이 값
-	ZOffsetFromMolotov = 10, -- 화염병 midZ에서 플레이어 쪽으로 (작을수록 폭발에 가깝)
+	PlaceZFromPlayer = 5, -- PlayerZ + 이 값 (스폰 방향, 발치 바로 앞)
 	Thickness = 1.2,
 	Height = 4.6,
 	NormalHitScale = 1, -- 일반 좀비 contactDamage × 이 값
@@ -1386,7 +1460,15 @@ end
 
 function Config.numberedWeaponHits(kind: string, wave: number?): number
 	local r9 = Config.Chapter2.Round9
+	local r15 = Config.Chapter3.Round15
 	local w = wave or 1
+	if Config.chapter() >= 3 and Config.chapterRound(w) >= r15.Round then
+		if kind == "sniper" then
+			return r15.SniperHitDamage
+		elseif kind == "bomb" then
+			return r15.BombHitDamage
+		end
+	end
 	local late = Config.chapter() == 2 and Config.chapterRound(w) >= r9.Round
 	if kind == "sniper" then
 		return if late then r9.SniperHitDamage else Config.SniperCrate.HitDamage
@@ -1400,6 +1482,9 @@ end
 
 function Config.sniperShieldHits(wave: number?): number
 	local w = wave or 1
+	if Config.chapter() >= 3 and Config.chapterRound(w) >= Config.Chapter3.Round15.Round then
+		return Config.Chapter3.Round15.SniperHitDamage
+	end
 	if Config.chapter() >= 3 and Config.chapterRound(w) >= Config.Chapter3.Round8.Round then
 		return Config.Chapter3.Round8.SniperShieldHitDamage
 	end
@@ -1408,6 +1493,9 @@ end
 
 function Config.bombShieldHits(wave: number?): number
 	local w = wave or 1
+	if Config.chapter() >= 3 and Config.chapterRound(w) >= Config.Chapter3.Round15.Round then
+		return Config.Chapter3.Round15.BombHitDamage
+	end
 	if Config.chapter() >= 3 and Config.chapterRound(w) >= Config.Chapter3.Round8.Round then
 		return Config.Chapter3.Round8.BombShieldHitDamage
 	end

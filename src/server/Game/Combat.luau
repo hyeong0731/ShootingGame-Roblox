@@ -35,6 +35,17 @@ function Combat.applySpikeDamage(dt: number)
 			humanoid:TakeDamage(humanoid.MaxHealth * perSecond * dt)
 		end
 	end
+	for _, ally in SupplyService.getAllies() do
+		if not ally.alive or not ally.model.Parent then
+			continue
+		end
+		if ally.humanoid.Health <= 0 then
+			continue
+		end
+		if SpikeTrap.isInside(ally.root.Position) then
+			SupplyService.damageAlly(ally, ally.humanoid.MaxHealth * perSecond * dt)
+		end
+	end
 end
 
 -- 투척 좀비: 플레이어의 예측 위치 + 약간의 오차로 돌을 던진다.
@@ -173,8 +184,11 @@ end
 
 function Combat.grantFireBoost()
 	local mult = Config.Chapter3.FireBoostCrate.FireRateMultiplier
+	-- 연사 배율만 변경 (필드 좀비/스폰과 무관)
 	for _, data in ctx.playerData do
-		data.fireRateMult = mult
+		if typeof(data) == "table" then
+			data.fireRateMult = math.clamp(mult, 1, 3)
+		end
 	end
 end
 
@@ -205,7 +219,11 @@ function Combat.tryFire(now: number)
 		if not usingBomb and not usingSniper then
 			interval /= math.max(1, data.fireRateMult or 1)
 		end
-		interval /= math.max(0.05, ctx.windSpeedScale or 1)
+		-- 역풍: 이동과 분리 — 연사만 WindFireIntervalScale로 느리게
+		if (ctx.windSpeedScale or 1) < 0.99 then
+			local fireScale = Config.Chapter3.Round9.WindFireIntervalScale or 1.35
+			interval *= math.max(1, fireScale)
+		end
 		if now - data.lastFire < interval then
 			continue
 		end

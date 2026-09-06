@@ -896,8 +896,8 @@ function SupplyService.createBarricade(
 	end
 
 	local r11 = Config.Chapter3.Round11
-	local minHits = math.max(1, math.floor(overrideMin or r11.BarricadeHitCount or 110))
-	local maxHits = math.max(minHits, math.floor(overrideMax or r11.BarricadeHitCount or 110))
+	local minHits = math.max(1, math.floor(overrideMin or r11.BarricadeHitCountMin or r11.BarricadeHitCount or 110))
+	local maxHits = math.max(minHits, math.floor(overrideMax or r11.BarricadeHitCountMax or r11.BarricadeHitCount or 110))
 	local hits = math.random(minHits, maxHits)
 	local folder = ensureFolder("Supplies")
 	local lane = Config.activeLane()
@@ -1058,7 +1058,8 @@ function SupplyService.createFireBoost(force: boolean?, overrideMin: number?, ov
 	root.Material = Enum.Material.Wood
 	root.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
 	root.Anchored = true
-	root.CanCollide = true
+	root.CanCollide = false -- 물리 밀림으로 필드 좀비가 튕기지 않게
+	root.CanQuery = true
 	root.Parent = model
 
 	local lid = makePart(
@@ -1071,10 +1072,21 @@ function SupplyService.createFireBoost(force: boolean?, overrideMin: number?, ov
 	)
 	weldConstraint(root, lid)
 	buildCrateFireBoost(model, root)
+	-- 장식 파츠가 레인 쪽으로 맞으면 총알/판정이 꼬일 수 있어 쿼리 비활성
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and d ~= root then
+			d.CanQuery = false
+			d.CanCollide = false
+		end
+	end
 
 	model.PrimaryPart = root
 	model.Parent = folder
-	plantCrate(model, root)
+	-- ScaleTo 대신 위치만 맞춤 (스케일 시 히트박스 팽창·물리 글리치 방지)
+	local groundY = lane.CenterY + lane.Thickness * 0.5
+	local bboxCf, bboxSize = model:GetBoundingBox()
+	local bottomY = bboxCf.Position.Y - bboxSize.Y * 0.5
+	root.CFrame = root.CFrame + Vector3.new(0, groundY - bottomY, 0)
 
 	local hitScale = Config.hitLabelScale(liveConfig().Supply.HitLabelScale)
 	local label = attachOverheadHits(

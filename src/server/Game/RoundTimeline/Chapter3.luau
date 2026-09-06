@@ -42,6 +42,7 @@ function Chapter3.tick(now: number, wave: number)
 						Ev.Ch3.R9WindEndAt = 0
 						ctx.windSpeedScale = 1
 						setState("Ch3WindActive", false)
+						setState("Ch3WindLeft", 0)
 					end
 				end
  				if round == r1.Round then
@@ -169,10 +170,6 @@ function Chapter3.tick(now: number, wave: number)
  					if t >= r4.BigZombieAt and not Ev.Ch3.R4BigSwarmStarted then
  						Ev.Ch3.R4BigSwarmStarted = true
  						Spawning.spawnChapter3BigZombieSwarm(r4.BigZombieCount, r4.BigZombieGap, r4)
- 					end
- 					if t >= r4.MolotovAt and not Ev.Ch3.R4MolotovSpawned then
- 						Ev.Ch3.R4MolotovSpawned = true
- 						SupplyService.createMolotov(true, nil, nil, r4.MolotovGrantCount)
  					end
  					if t >= r4.PlusAt and not Ev.Ch3.R4PlusSpawned then
  						Ev.Ch3.R4PlusSpawned = true
@@ -317,15 +314,6 @@ function Chapter3.tick(now: number, wave: number)
 						Ev.Ch3.R7ThrowerWaveStarted = true
 						Spawning.spawnChapter3ThrowerWave(r7.ThrowerWaveCount, r7.ThrowerWaveGap)
 					end
-					if t >= r7.MolotovAt and not Ev.Ch3.R7MolotovSpawned then
-						Ev.Ch3.R7MolotovSpawned = true
-						SupplyService.createMolotov(
-							true,
-							r7.MolotovHitCount,
-							r7.MolotovHitCount,
-							r7.MolotovGrantCount
-						)
-					end
 					if t >= r7.MineAt[2] and not Ev.Ch3.R7Mine33 then
 						Ev.Ch3.R7Mine33 = true
 						Spawning.spawnChapter3MineZombie()
@@ -347,7 +335,7 @@ function Chapter3.tick(now: number, wave: number)
 					end
 					if t >= r8.X2At and not Ev.Ch3.R8X2Spawned then
 						Ev.Ch3.R8X2Spawned = true
-						NumberGate.createX2(r8.X2HitCount, r8.X2HitCount, true)
+						NumberGate.createX2(r8.X2HitCountMin, r8.X2HitCountMax, true)
 					end
 					if t >= r8.SniperAt and not Ev.Ch3.R8SniperSpawned then
 						Ev.Ch3.R8SniperSpawned = true
@@ -359,18 +347,18 @@ function Chapter3.tick(now: number, wave: number)
 					end
 					if t >= r8.X2RetryAt and not Ev.Ch3.R8X2RetrySpawned and not Ev.Ch3.R8X2Collected then
 						Ev.Ch3.R8X2RetrySpawned = true
-						NumberGate.createX2(r8.X2HitCount, r8.X2HitCount, true)
+						NumberGate.createX2(r8.X2HitCountMin, r8.X2HitCountMax, true)
 					end
 					if t >= r8.PlusAt and not Ev.Ch3.R8PlusSpawned then
 						Ev.Ch3.R8PlusSpawned = true
-						NumberGate.createPlus(r8.PlusHitCount, r8.PlusHitCount, true)
+						NumberGate.createPlus(r8.PlusHitCountMin, r8.PlusHitCountMax, true)
 					end
 					if t >= r8.MolotovAt and not Ev.Ch3.R8MolotovSpawned then
 						Ev.Ch3.R8MolotovSpawned = true
 						SupplyService.createMolotov(
 							true,
-							r8.MolotovHitCount,
-							r8.MolotovHitCount,
+							r8.MolotovHitCountMin,
+							r8.MolotovHitCountMax,
 							r8.MolotovGrantCount
 						)
 					end
@@ -389,21 +377,12 @@ function Chapter3.tick(now: number, wave: number)
 				end
 				local r9 = Config.Chapter3.Round9
 				if round == r9.Round then
-					if t >= r9.MolotovAt and not Ev.Ch3.R9MolotovSpawned then
-						Ev.Ch3.R9MolotovSpawned = true
-						SupplyService.createMolotov(
-							true,
-							r9.MolotovHitCount,
-							r9.MolotovHitCount,
-							r9.MolotovGrantCount
-						)
-					end
 					if t >= r9.FlashbangAt and not Ev.Ch3.R9FlashbangSpawned then
 						Ev.Ch3.R9FlashbangSpawned = true
 						SupplyService.createFlashbang(
 							true,
-							r9.FlashbangHitCount,
-							r9.FlashbangHitCount,
+							r9.FlashbangHitCountMin,
+							r9.FlashbangHitCountMax,
 							r9.FlashbangGrantCount
 						)
 					end
@@ -425,11 +404,18 @@ function Chapter3.tick(now: number, wave: number)
 						Ev.Ch3.R9WindEndAt = t + r9.WindDuration
 						ctx.windSpeedScale = r9.WindSpeedScale
 						setState("Ch3WindActive", true)
+						setState("Ch3WindLeft", r9.WindDuration)
 					end
-					if Ev.Ch3.R9WindActive and t >= Ev.Ch3.R9WindEndAt then
-						Ev.Ch3.R9WindActive = false
-						ctx.windSpeedScale = 1
-						setState("Ch3WindActive", false)
+					if Ev.Ch3.R9WindActive then
+						local remaining = Ev.Ch3.R9WindEndAt - t
+						if t >= Ev.Ch3.R9WindEndAt then
+							Ev.Ch3.R9WindActive = false
+							ctx.windSpeedScale = 1
+							setState("Ch3WindActive", false)
+							setState("Ch3WindLeft", 0)
+						else
+							setState("Ch3WindLeft", math.ceil(remaining))
+						end
 					end
 					if t >= r9.MidBossAt and not Ev.Ch3.R9MidBossSpawned then
 						Ev.Ch3.R9MidBossSpawned = true
@@ -492,8 +478,8 @@ function Chapter3.tick(now: number, wave: number)
 						Ev.Ch3.R10FlashbangSpawned = true
 						SupplyService.createFlashbang(
 							true,
-							r10.FlashbangHitCount,
-							r10.FlashbangHitCount,
+							r10.FlashbangHitCountMin,
+							r10.FlashbangHitCountMax,
 							r10.FlashbangGrantCount
 						)
 					end
@@ -531,8 +517,8 @@ function Chapter3.tick(now: number, wave: number)
 						Ev.Ch3.R11BarricadeSpawned = true
 						SupplyService.createBarricade(
 							true,
-							r11.BarricadeHitCount,
-							r11.BarricadeHitCount,
+							r11.BarricadeHitCountMin,
+							r11.BarricadeHitCountMax,
 							r11.BarricadeGrantCount
 						)
 					end
@@ -621,8 +607,8 @@ function Chapter3.tick(now: number, wave: number)
 						Ev.Ch3.R12BarricadeSpawned = true
 						SupplyService.createBarricade(
 							true,
-							r12.BarricadeHitCount,
-							r12.BarricadeHitCount,
+							r12.BarricadeHitCountMin,
+							r12.BarricadeHitCountMax,
 							r12.BarricadeGrantCount
 						)
 					end
@@ -634,6 +620,99 @@ function Chapter3.tick(now: number, wave: number)
 							r12.FlashbangHitCount,
 							r12.FlashbangGrantCount
 						)
+					end
+				end
+				local r13 = Config.Chapter3.Round13
+				if round == r13.Round then
+					if t >= r13.SniperAt and not Ev.Ch3.R13SniperSpawned then
+						Ev.Ch3.R13SniperSpawned = true
+						SupplyService.createSniper(true, r13.SniperHitCountMin, r13.SniperHitCountMax)
+					end
+					if t >= r13.DogSwarmAt and not Ev.Ch3.R13DogSwarmSpawned then
+						Ev.Ch3.R13DogSwarmSpawned = true
+						Spawning.spawnChapter3DogSwarm(r13.DogSwarmCount, r13.DogSwarmDuration, {
+							includeLeft = true,
+							ignoreSpawnCap = true,
+						})
+					end
+				end
+				local r14 = Config.Chapter3.Round14
+				if round == r14.Round then
+					if t >= r14.PlusAt and not Ev.Ch3.R14PlusSpawned then
+						Ev.Ch3.R14PlusSpawned = true
+						NumberGate.createPlus(r14.PlusHitCountMin, r14.PlusHitCountMax, true)
+					end
+					if t >= r14.BarricadeAt and not Ev.Ch3.R14BarricadeSpawned then
+						Ev.Ch3.R14BarricadeSpawned = true
+						SupplyService.createBarricade(
+							true,
+							r14.BarricadeHitCountMin,
+							r14.BarricadeHitCountMax,
+							r14.BarricadeGrantCount
+						)
+					end
+					if t >= r14.MineAt and not Ev.Ch3.R14MineSpawned then
+						Ev.Ch3.R14MineSpawned = true
+						Spawning.spawnChapter3MineZombie()
+						Spawning.spawnChapter3MineZombieFromLeft()
+					end
+					if t >= r14.MidBossAt and not Ev.Ch3.R14MidBossSpawned then
+						Ev.Ch3.R14MidBossSpawned = true
+						Spawning.spawnChapter3MidBoss(r14.MidBossHitCountMin, r14.MidBossHitCountMax, {
+							scale = r14.MidBossSizeScale,
+							walkSpeed = r14.MidBossWalkSpeed,
+							contactDamage = r14.MidBossContactDamage,
+						})
+					end
+					if t >= r14.BigAt and not Ev.Ch3.R14BigSpawned then
+						Ev.Ch3.R14BigSpawned = true
+						Spawning.spawnChapter3BigZombieSwarm(r14.BigCount, r14.BigGap, {
+							BigZombieSizeScale = r14.BigZombieSizeScale,
+							BigZombieHealthMult = r14.BigZombieHealthMult,
+							BigZombieSpeedScale = r14.BigZombieSpeedScale,
+						})
+					end
+					if t >= r14.SpikeAt and not Ev.Ch3.R14SpikeSpawned then
+						Ev.Ch3.R14SpikeSpawned = true
+						Spawning.spawnChapter3SpikeSCurve(r14.SpikeCount, r14.SpikeGap)
+					end
+				end
+				local r15 = Config.Chapter3.Round15
+				if round == r15.Round then
+					if t >= r15.WarnAt and not Ev.Ch3.R15WarnShown then
+						Ev.Ch3.R15WarnShown = true
+						setState("Announce", r15.WarnText)
+						task.delay(3.2, function()
+							if (ctx.stateFolder:GetAttribute("Announce") or "") == r15.WarnText then
+								setState("Announce", "")
+							end
+						end)
+					end
+					if t >= r15.BossAt and not Ev.Ch3.R15BossSpawned then
+						Ev.Ch3.R15BossSpawned = true
+						local FinalBossR15 = require(script.Parent.Parent.FinalBossR15)
+						FinalBossR15.reset()
+						Spawning.spawnChapter3FinalBoss(r15.BossHitCountMin, r15.BossHitCountMax, {
+							scale = r15.BossSizeScale,
+							walkSpeed = r15.BossWalkSpeed,
+							contactDamage = r15.BossContactDamage,
+						})
+					end
+					if t >= r15.SpikeAt and not Ev.Ch3.R15SpikeSpawned then
+						Ev.Ch3.R15SpikeSpawned = true
+						local lane = Config.activeLane()
+						local minX, maxX = Config.zombieXBounds(lane.SpawnZ)
+						local half = Config.SpikeTrap.Size * 0.5
+						-- 도로 왼쪽 끝 (+X)
+						SpikeTrap.create(maxX - half * 0.35)
+					end
+					if t >= r15.ShotgunAt and not Ev.Ch3.R15ShotgunSpawned then
+						Ev.Ch3.R15ShotgunSpawned = true
+						SupplyService.createShotgun(true, r15.ShotgunHitCountMin, r15.ShotgunHitCountMax)
+					end
+					if t >= r15.MineAt and not Ev.Ch3.R15MineSpawned then
+						Ev.Ch3.R15MineSpawned = true
+						Spawning.spawnChapter3MineZombie()
 					end
 				end
 			end

@@ -164,6 +164,22 @@ local EventFlags = {
 		R12Div2Spawned = false,
 		R12BarricadeSpawned = false,
 		R12FlashbangSpawned = false,
+		R13SniperSpawned = false,
+		R13ShotgunSpawned = false,
+		R13DogSwarmSpawned = false,
+		R14PlusSpawned = false,
+		R14BarricadeSpawned = false,
+		R14SecondPlusSpawned = false,
+		R14MineSpawned = false,
+		R14BigSpawned = false,
+		R14MidBossSpawned = false,
+		R14SpikeSpawned = false,
+		R15WarnShown = false,
+		R15BossSpawned = false,
+		R15SpikeSpawned = false,
+		R15ShotgunSpawned = false,
+		R15MineSpawned = false,
+		R15Cleared = false,
 	},
 }
 
@@ -328,6 +344,22 @@ function EventFlags.resetCh3()
 	ch3.R12Div2Spawned = false
 	ch3.R12BarricadeSpawned = false
 	ch3.R12FlashbangSpawned = false
+	ch3.R13SniperSpawned = false
+	ch3.R13ShotgunSpawned = false
+	ch3.R13DogSwarmSpawned = false
+	ch3.R14PlusSpawned = false
+	ch3.R14BarricadeSpawned = false
+	ch3.R14SecondPlusSpawned = false
+	ch3.R14MineSpawned = false
+	ch3.R14BigSpawned = false
+	ch3.R14MidBossSpawned = false
+	ch3.R14SpikeSpawned = false
+	ch3.R15WarnShown = false
+	ch3.R15BossSpawned = false
+	ch3.R15SpikeSpawned = false
+	ch3.R15ShotgunSpawned = false
+	ch3.R15MineSpawned = false
+	ch3.R15Cleared = false
 end
 
 return EventFlags

@@ -1,5 +1,6 @@
 local EventFlags = require(script.Parent.EventFlags)
 local Context = require(script.Parent.Context)
+local FinalBossR15 = require(script.Parent.FinalBossR15)
 
 local EventReset = {}
 local Ev = EventFlags
@@ -54,6 +55,7 @@ function EventReset.resetChapter3Events(setState: (string, any) -> ())
 	setState("Ch3FogActive", false)
 	setState("Ch3WindActive", false)
 	setState("Ch3FenceBreached", false)
+	FinalBossR15.reset()
 end
 
 function EventReset.resetChapter2Round2Events()

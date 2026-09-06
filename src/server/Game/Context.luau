@@ -49,6 +49,7 @@ local Context = {
 	lastFlashbangAt = 0,
 	lastBarricadeAt = 0,
 	windSpeedScale = 1,
+	reviving = false,
 }
 
 return Context

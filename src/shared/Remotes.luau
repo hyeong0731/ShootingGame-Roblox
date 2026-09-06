@@ -42,6 +42,8 @@ function Remotes.serverInit()
 		FlashFx = ensureRemote(folder, "FlashFx"),
 		UseBarricade = ensureRemote(folder, "UseBarricade"),
 		TogglePause = ensureRemote(folder, "TogglePause"),
+		ReviveAccept = ensureRemote(folder, "ReviveAccept"),
+		ReviveDecline = ensureRemote(folder, "ReviveDecline"),
 	}
 end
 
@@ -78,6 +80,8 @@ function Remotes.clientWait(timeout: number?)
 		FlashFx = waitRemote("FlashFx"),
 		UseBarricade = waitRemote("UseBarricade"),
 		TogglePause = waitRemote("TogglePause"),
+		ReviveAccept = waitRemote("ReviveAccept"),
+		ReviveDecline = waitRemote("ReviveDecline"),
 	}
 end
 

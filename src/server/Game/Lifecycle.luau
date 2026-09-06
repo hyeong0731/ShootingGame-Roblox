@@ -109,20 +109,28 @@ end
 Api.startChapter3 = function()
 	startChapter(3)
 end
+Api.returnToLobby = function()
+	Lifecycle.returnToLobby()
+end
 
 function Lifecycle.beginChapterClear()
-	if ctx.chapterClearArmed or ctx.phase ~= "playing" or Config.chapter() >= 3 then
+	if ctx.chapterClearArmed or ctx.phase ~= "playing" then
 		return
 	end
 	ctx.chapterClearArmed = true
 	ctx.phase = "chapterClear"
 	setState("Phase", "chapterClear")
-	setState("Announce", `{Config.chapter()}챕터 클리어`)
+	if Config.chapter() >= 3 then
+		setState("Announce", "통제구역 확보! 챕터3 클리어")
+	else
+		setState("Announce", `{Config.chapter()}챕터 클리어`)
+	end
 	CombatService.clear()
 	SpikeTrap.clear()
 	BarricadeService.clear()
 	NumberGate.clear()
 	SupplyService.clearCrates()
+	ZombieService.clear()
 	spawnChapterPad()
 	for _, data in ctx.playerData do
 		if data.character then
@@ -266,8 +274,14 @@ function Lifecycle.returnToLobby()
 	end
 
 	for _, player in Players:GetPlayers() do
-		if player.Character then
-			teleportToLobby(player.Character)
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if not character or not humanoid or humanoid.Health <= 0 then
+			player:LoadCharacter()
+			character = player.Character or player.CharacterAdded:Wait()
+		end
+		if character then
+			teleportToLobby(character)
 		end
 	end
 end
@@ -307,8 +321,13 @@ function Lifecycle.startMatch()
 	ctx.bombRoundArmed = false
 
 	for _, player in Players:GetPlayers() do
-		if player.Character then
-			teleportToLane(player.Character)
+		local character = player.Character
+		if not character then
+			player:LoadCharacter()
+			character = player.Character or player.CharacterAdded:Wait()
+		end
+		if character then
+			teleportToLane(character)
 		end
 	end
 
@@ -316,18 +335,63 @@ function Lifecycle.startMatch()
 end
 
 function Lifecycle.onPlayerDied(_player: Player)
-	if ctx.phase == "gameOver" or ctx.phase == "lobby" then
+	if ctx.reviving then
+		return
+	end
+	if ctx.phase == "gameOver" or ctx.phase == "lobby" or ctx.phase == "reviveChoice" then
+		return
+	end
+	-- 개발용: 필드 유지한 채 부활 선택
+	ctx.phase = "reviveChoice"
+	ctx.paused = true
+	setState("Phase", "reviveChoice")
+	setState("Paused", true)
+	setState("Announce", "다시 부활하시겠습니까?")
+end
+
+function Lifecycle.acceptRevive(player: Player)
+	if ctx.phase ~= "reviveChoice" then
+		return
+	end
+	ctx.reviving = true
+	ctx.paused = false
+	ctx.phase = "playing"
+	setState("Phase", "playing")
+	setState("Paused", false)
+	setState("Announce", "")
+	player:LoadCharacter()
+	task.spawn(function()
+		local character = player.Character
+		if not character then
+			character = player.CharacterAdded:Wait()
+		end
+		task.wait(0.05)
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.MaxHealth = Config.Player.Health
+			humanoid.Health = Config.Player.Health
+		end
+		teleportToLane(character)
+		ctx.reviving = false
+	end)
+end
+
+function Lifecycle.declineRevive()
+	if ctx.phase ~= "reviveChoice" then
 		return
 	end
 	ctx.phase = "gameOver"
+	ctx.paused = false
 	setState("Phase", "gameOver")
+	setState("Paused", false)
+	setState("Announce", "")
 	CombatService.clear()
 	SpikeTrap.clear()
 	BarricadeService.clear()
 	ZombieService.clear()
 	SupplyService.clear()
-
-	task.delay(2.2, function()
+	NumberGate.clear()
+	task.delay(1.4, function()
 		if ctx.phase == "gameOver" then
 			Lifecycle.returnToLobby()
 		end

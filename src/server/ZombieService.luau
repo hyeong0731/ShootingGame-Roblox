@@ -1749,9 +1749,10 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		local pos = record.root.Position
 		local focus = resolveTargetPosition(record, playerPosition)
 		local stunned = now < (record.stunUntil or 0)
-		if stunned then
-			record.model:SetAttribute("Stunned", true)
-			-- 기절: 제자리 고정, 공격·투척·이동 없음
+		local channeling = record.model:GetAttribute("BossChanneling") == true
+		if stunned or channeling then
+			record.model:SetAttribute("Stunned", stunned)
+			-- 기절/토사물 채널: 제자리 고정
 			local lookAt = Vector3.new(focus.X, pos.Y, focus.Z)
 			local base = if (lookAt - pos).Magnitude > 0.05
 				then CFrame.lookAt(pos, lookAt)
@@ -1873,7 +1874,8 @@ function ZombieService.update(dt: number, playerPosition: Vector3?)
 		-- 바리케이드 공통 클램프 (왼쪽 난입·도로 공용)
 		do
 			local barZ = BarricadeService.getBlockZ()
-			if barZ and (not record.isThrower) then
+			local bossCharging = record.model:GetAttribute("BossCharging") == true
+			if barZ and (not record.isThrower) and not bossCharging then
 				local holdZ = barZ + 1.35
 				if nextZ < holdZ and pos.Z >= holdZ - 1 then
 					nextZ = holdZ
