@@ -32,69 +32,92 @@ Config.Zombie = {
 	ClothesColor = Color3.fromRGB(62, 48, 40),
 }
 
--- 좀비 개 (4라운드부터)
+-- 좀비 개 (챕터1 R4부터, 비율은 라운드별 오버라이드)
 Config.ZombieDog = {
-	UnlockWave = 4, -- 등장 라운드
-	SpawnChance = 0.32, -- 개로 나올 확률 (0~1)
+	UnlockWave = 4,
+	SpawnChance = 0.15, -- R4 기본 (R6+는 Chapter1 라운드 설정)
 	Health = 28,
 	WalkSpeed = 9.4,
 	ContactDamage = 6,
 	HitRadius = 4.2,
-	SizeScale = 0.85, -- 크기
+	SizeScale = 0.85,
 	BodyColor = Color3.fromRGB(58, 72, 48),
-	SpeedPerSecond = 0.028, -- 시간 지나며 빨라지는 양
+	SpeedPerSecond = 0.028,
 }
 
--- 일반 보스 (킬 수마다)
+-- 일반 보스 (킬 수마다) — 챕터1 타임라인 설계에서는 사실상 끔
 Config.Boss = {
-	EveryNKills = 25, -- 몇 킬마다 등장
-	HealthMultiplier = 8, -- 체력 배수
-	SizeMultiplier = 2.4, -- 크기 배수
-	SpeedMultiplier = 0.45, -- 속도 배수
+	EveryNKills = 9999,
+	HealthMultiplier = 8,
+	SizeMultiplier = 2.4,
+	SpeedMultiplier = 0.45,
 	ContactDamage = 14,
 }
 
--- 5라운드 메가보스
+-- 5라운드 메가보스 (타임라인에서 스폰, Round는 Gates 비활성용)
 Config.MegaBoss = {
-	Round = 5, -- 등장 라운드
-	HitCount = 150, -- 타수
-	SizeScale = 2.9, -- 크기
+	Round = 9999,
+	HitCountMin = 350,
+	HitCountMax = 400,
+	HitCount = 375,
+	SizeScale = 2.9,
 	WalkSpeed = 3.2,
 	ContactDamage = 18,
 }
 
--- 8라운드부터 메가보스 무리 (시작하자마자)
+-- 8라운드 엘리트 (타임라인에서 시차 스폰)
 Config.EliteBosses = {
-	UnlockRound = 8, -- 등장 라운드
-	Count = 3, -- 시작 시 나오는 수
-	HitCountMin = 120, -- 보스 타수 최소 (무작위)
-	HitCountMax = 200, -- 보스 타수 최대 (무작위)
+	UnlockRound = 9999,
+	Count = 3,
+	HitCountMin = 330,
+	HitCountMax = 360,
 }
 
 -- 10라운드 최종보스
 Config.FinalBoss = {
 	Round = 10,
-	HitCountMin = 7200,
-	HitCountMax = 8200,
+	HitCountMin = 2000,
+	HitCountMax = 2000,
 	SizeScale = 4.0,
-	WalkSpeed = 2.4,
+	WalkSpeed = 1.6, -- 느리게
 	ContactDamage = 24,
 	IntroText = "약한 총알은 통하지 않습니다. 준비되셨나요?",
-	IntroDuration = 5, -- 멘트 표시 시간(초)
-	MaxAlive = 7, -- 보스 포함 동시 최대 (일반 좀비/개는 조금)
-	SpawnGap = 2.8, -- 일반 좀비 스폰 간격
+	IntroDuration = 5,
+	MaxAlive = 5, -- 스폰율 완화 (보스 집중)
+	SpawnGap = 3.5,
 }
 
--- 스폰 (기본)
+-- 분열 좀비 (챕터1 R6~). 처치 시 일반 2마리로 분열
+Config.SplitZombie = {
+	UnlockRound = 6,
+	SizeScale = 2.15,
+	WalkSpeed = 5.2,
+	ContactDamage = 10,
+	HitCountMin = 50,
+	HitCountMax = 65,
+	BodyColor = Color3.fromRGB(120, 55, 160), -- 보라빛으로 구분
+	ClothesColor = Color3.fromRGB(70, 35, 95),
+	RiderColor = Color3.fromRGB(95, 140, 70),
+}
+
+-- 통나무 (압정발판과 동일 판정, 비주얼만 통나무)
+Config.LogTrap = {
+	Length = 14, -- 도로 가로로 긴 통나무
+	Radius = 2.2,
+	SpeedScale = 1.8, -- 압정과 동일 배율
+	DamagePercentPerSecond = 15,
+}
+
+-- 스폰 (기본) — 챕터1 동시 상한
 Config.Infinite = {
-	MaxAlive = 10, -- 동시에 나올 수 있는 수
-	SpawnGapStart = 1.15, -- 처음 스폰 간격(초)
-	SpawnGapMin = 0.42, -- 최소 스폰 간격
-	LaneSlots = { -12, -6, 0, 6, 12 }, -- 나오는 X 위치
-	HealthPerKill = 0.3, -- 킬당 체력 증가
-	SpeedPerSecond = 0.017, -- 시간당 속도 증가
-	AllySpawnGapScale = 0.62, -- 지원군 뽑은 뒤 스폰 간격 배수 (낮을수록 빽빽)
-	AllyMaxAliveBonus = 3, -- 지원군 뽑은 뒤 추가 마리 수
+	MaxAlive = 10, -- 동시에 나올 수 있는 수 (챕터1 기본)
+	SpawnGapStart = 1.15,
+	SpawnGapMin = 0.42,
+	LaneSlots = { -12, -6, 0, 6, 12 },
+	HealthPerKill = 0.3,
+	SpeedPerSecond = 0.017,
+	AllySpawnGapScale = 0.62,
+	AllyMaxAliveBonus = 3,
 }
 
 -- 7~9라운드는 스폰율·개 비율 그대로
@@ -105,19 +128,19 @@ Config.Pressure = {
 	DogSpawnChance = 0.32, -- 개 확률 (ZombieDog와 동일)
 }
 
--- 보급상자 (지원군)
+-- 보급상자 (지원군) — 챕터1 자동 스폰 끔 (타임라인에서만)
 Config.Supply = {
-	UnlockRound = 2, -- 등장 라운드
-	FirstSpawnDelay = 2, -- 라운드 진입 후 첫 등장(초)
-	SpawnInterval = 40, -- 등장 간격(초)
-	HitCountMin = 9, -- 타수 최소
-	HitCountMax = 25, -- 타수 최대
+	UnlockRound = 9999,
+	FirstSpawnDelay = 2,
+	SpawnInterval = 40,
+	HitCountMin = 9,
+	HitCountMax = 25,
 	WalkSpeed = 7,
-	SizeScale = 1.5, -- 상자 크기
-	MaxAlive = 1, -- 동시에 1개
-	MaxAllies = 6, -- 지원군 최대
-	AllyFireInterval = 0.12, -- 지원군 연사 간격
-	DespawnZ = -12, -- 이 위치 지나면 삭제
+	SizeScale = 1.5,
+	MaxAlive = 1,
+	MaxAllies = 6,
+	AllyFireInterval = 0.12,
+	DespawnZ = -12,
 	MaxRecruitsPerMatch = 1, -- 한 판에 뽑는 횟수
 	AllyHealth = 100, -- 지원군 체력
 	AllyRegenDelay = 5, -- 피격 후 이 시간(초) 지나야 회복
@@ -126,12 +149,12 @@ Config.Supply = {
 	PickupGraceSeconds = 0.5, -- 상자 획득 직후 다른 상자 타수 무적 시간
 }
 
--- 폭탄상자 (4라운드부터)
+-- 폭탄상자 — 챕터1 자동 스폰 끔 (타임라인에서만)
 Config.BombCrate = {
-	UnlockRound = 4, -- 등장 라운드
-	FirstSpawnDelay = 6, -- 게이트 없는 라운드(4) 첫 등장(초)
-	AfterGateDelay = 3, -- 게이트 나온 뒤 폭탄 등장까지(초)
-	SpawnInterval = 32, -- 등장 간격(초)
+	UnlockRound = 9999,
+	FirstSpawnDelay = 6,
+	AfterGateDelay = 3,
+	SpawnInterval = 32,
 	HitCountMin = 30, -- 상자 타수 최소
 	HitCountMax = 50, -- 상자 타수 최대
 	MaxAlive = 1,
@@ -269,12 +292,12 @@ Config.ThrowerZombie = {
 	AccentColor = Color3.fromRGB(210, 150, 70),
 }
 
--- 타수 게이트 (5라운드 x2, 6라운드 +1, 8라운드부터 x2/+1/-1 랜덤)
+-- 타수 게이트 — 챕터1 자동/랜덤 끔 (타임라인에서만)
 Config.NumberGate = {
-	UnlockRound = 5, -- 첫 x2 등장
-	PlusRound = 6, -- 첫 +1 등장
-	ExtraX2Delay = 10, -- 6라운드 시작 후 추가 x2
-	PlayRound = 8, -- x2 / +1 / -1 랜덤 시작
+	UnlockRound = 9999,
+	PlusRound = 9999,
+	ExtraX2Delay = 10,
+	PlayRound = 9999,
 	WalkSpeed = 8,
 	Width = 11, -- 가로
 	Height = 7.2, -- 세로
@@ -381,11 +404,9 @@ Config.Player = {
 Config.Combat = {
 	FireInterval = 0.1, -- 연사 간격
 	MaxShotsPerVolley = 1,
-	UnitDamage = 14, -- 한 발 데미지 (1~4라운드)
+	UnitDamage = 12, -- 챕터1 기본총: 일반 좀비(36) 항상 3방
 	DamageByRound = {
-		{ Round = 5, Damage = 18 }, -- 5~6라운드
-		{ Round = 7, Damage = 20 }, -- 7라운드
-		{ Round = 8, Damage = 24 }, -- 8라운드부터
+		-- 챕터1은 라운드 올려도 데미지 고정. 챕터2는 Chapter2.UnitDamage 사용.
 	},
 	ProjectileSpeed = 270, -- 탄속
 	ProjectileLifetime = 0.9,
@@ -437,6 +458,97 @@ Config.ShieldZombie = {
 }
 
 -- 2챕터 (표시는 1~10) — 좀비 숫자는 1챕터와 같게 시작, 여기만 바꿔서 조절
+-- 챕터1 라운드 타임라인 (로컬 라운드 1~10 = wave 1~10)
+Config.Chapter1 = {
+	Round1 = {
+		Round = 1,
+		PlusAt = 30,
+		PlusHitCountMin = 25,
+		PlusHitCountMax = 35,
+	},
+	Round2 = {
+		Round = 2,
+		X2At = 20,
+		X2RetryAt = 40,
+		X2HitCountMin = 40,
+		X2HitCountMax = 50,
+	},
+	Round3 = {
+		Round = 3,
+		BombAt = 10,
+		BombHitCountMin = 60,
+		BombHitCountMax = 70,
+	},
+	Round4 = {
+		Round = 4,
+		DogSpawnChance = 0.15,
+	},
+	Round5 = {
+		Round = 5,
+		BossAt = 0,
+		BossHitCountMin = 350,
+		BossHitCountMax = 400,
+		BombAt = 5,
+		BombHitCountMin = 50,
+		BombHitCountMax = 60,
+	},
+	Round6 = {
+		Round = 6,
+		MinusAt = 0,
+		MinusHitCountMin = 30,
+		MinusHitCountMax = 35,
+		MinusWalkSpeedScale = 2.8,
+		PlusAt = 15,
+		PlusHitCountMin = 70,
+		PlusHitCountMax = 80,
+		DogSpawnChance = 0.10,
+		SplitSpawnChance = 0.15,
+	},
+	Round7 = {
+		Round = 7,
+		BombAt = 0,
+		BombHitCountMin = 80,
+		BombHitCountMax = 100,
+		LogAt = { 10, 40 },
+		DogSpawnChance = 0.10,
+		SplitSpawnChance = 0.15,
+	},
+	Round8 = {
+		Round = 8,
+		PlusAt = 0,
+		PlusHitCountMin = 70,
+		PlusHitCountMax = 80,
+		EliteAt = { 10, 15, 25 },
+		EliteHitCountMin = 330,
+		EliteHitCountMax = 360,
+		LogAt = 30,
+		DogSpawnChance = 0.10,
+		SplitSpawnChance = 0.15,
+	},
+	Round9 = {
+		Round = 9,
+		-- 물량: 개/일반/큰/분열
+		DogSpawnChance = 0.22,
+		SplitSpawnChance = 0.18,
+		BigSpawnChance = 0.15,
+		MaxAlive = 16,
+		SpawnGapScale = 0.72,
+	},
+	Round10 = {
+		Round = 10,
+		BossAt = 0,
+		BossHitCount = 2000,
+		BossWalkSpeed = 1.6,
+		LogAt = 20,
+		-- 개+일반만, 스폰 완화
+		DogSpawnChance = 0.20,
+		AllowSplit = false,
+		AllowBig = false,
+		MaxAlive = 5,
+		SpawnGap = 3.5,
+	},
+}
+
 Config.Chapter2 = {
 	Waves = {
 		From = 11,
@@ -444,6 +556,7 @@ Config.Chapter2 = {
 		Duration = 60, -- 각 라운드 1분
 	},
 	MaxHitPower = 34, -- -1·/2 안 먹고 타수 1로 시작 (라운드9 +1까지)
+	UnitDamage = 24, -- 기본총 (챕터2 전 라운드). 일반 좀비(36) 2방
 
 	Zombie = {
 		Health = 36,
@@ -1430,13 +1543,11 @@ function Config.unitDamageForWave(wave: number): number
 	if Config._chapter >= 3 then
 		return Config.Chapter3.UnitDamage
 	end
-	local damage = Config.Combat.UnitDamage
-	for _, step in Config.Combat.DamageByRound do
-		if wave >= step.Round then
-			damage = step.Damage
-		end
+	if Config._chapter == 2 then
+		return Config.Chapter2.UnitDamage or 24
 	end
-	return damage
+	-- 챕터1: 전 라운드 고정 (일반 좀비 3방)
+	return Config.Combat.UnitDamage
 end
 
 function Config.pickupHitsForWave(wave: number, fallbackMin: number, fallbackMax: number): (number, number)

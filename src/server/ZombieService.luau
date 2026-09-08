@@ -889,7 +889,6 @@ local function setupMegaHits(record: ZombieRecord, hitCount: number?, scale: num
 	if hitLabel then
 		local hitBillboard = hitLabel.Parent
 		if hitBillboard and hitBillboard:IsA("BillboardGui") then
-			-- 머리에서 너무 멀리 뜨지 않도록 이마 바로 위에 고정하고 원거리에서도 표시한다.
 			hitBillboard.StudsOffset = Vector3.new(0, 2.8, 0)
 			hitBillboard.MaxDistance = 600
 		end
@@ -899,6 +898,71 @@ local function setupMegaHits(record: ZombieRecord, hitCount: number?, scale: num
 	if hitbox and hitbox:IsA("BasePart") then
 		hitbox.Size = Vector3.new(3.4 * s, 4.8 * s, 3.4 * s)
 		hitbox.CanQuery = true
+	end
+end
+
+local function setupSplitZombie(record: ZombieRecord)
+	local cfg = Config.SplitZombie
+	record.model:SetAttribute("IsSplitZombie", true)
+	record.model:SetAttribute("IsBoss", true)
+	-- 보라빛 틴트
+	for _, desc in record.model:GetDescendants() do
+		if not desc:IsA("BasePart") then
+			continue
+		end
+		if desc.Name == "Hitbox" or desc.Name == "Shield" or string.find(desc.Name, "Rider", 1, true) then
+			continue
+		end
+		local lower = string.lower(desc.Name)
+		if string.find(lower, "head", 1, true)
+			or string.find(lower, "hand", 1, true)
+			or string.find(lower, "arm", 1, true)
+			or string.find(lower, "leg", 1, true)
+			or string.find(lower, "foot", 1, true)
+		then
+			desc.Color = cfg.BodyColor
+		elseif string.find(lower, "torso", 1, true)
+			or string.find(lower, "clothes", 1, true)
+			or desc.Name ~= "HumanoidRootPart"
+		then
+			if desc.Transparency < 0.95 then
+				desc.Color = cfg.ClothesColor
+			end
+		end
+	end
+	-- 등에 업힌 일반 좀비 2마리 실루엣
+	for i, ox in { -0.55, 0.55 } do
+		local rider = Instance.new("Part")
+		rider.Name = `SplitRider{i}`
+		rider.Size = Vector3.new(0.7, 1.1, 0.55)
+		rider.Color = cfg.RiderColor
+		rider.Material = Enum.Material.SmoothPlastic
+		rider.Anchored = false
+		rider.CanCollide = false
+		rider.CanQuery = false
+		rider.Massless = true
+		rider.CFrame = record.root.CFrame * CFrame.new(ox, 1.35, 0.55)
+		rider.Parent = record.model
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = record.root
+		weld.Part1 = rider
+		weld.Parent = rider
+		local head = Instance.new("Part")
+		head.Name = `SplitRiderHead{i}`
+		head.Shape = Enum.PartType.Ball
+		head.Size = Vector3.new(0.55, 0.55, 0.55)
+		head.Color = cfg.RiderColor
+		head.Material = Enum.Material.SmoothPlastic
+		head.Anchored = false
+		head.CanCollide = false
+		head.CanQuery = false
+		head.Massless = true
+		head.CFrame = rider.CFrame * CFrame.new(0, 0.75, 0)
+		head.Parent = record.model
+		local hw = Instance.new("WeldConstraint")
+		hw.Part0 = rider
+		hw.Part1 = head
+		hw.Parent = head
 	end
 end
 
@@ -1121,6 +1185,7 @@ function ZombieService.create(position: Vector3, stats: {
 	isShield: boolean?,
 	isThrower: boolean?,
 	isMine: boolean?,
+	isSplit: boolean?,
 	fenceApproach: boolean?,
 	fenceTargetX: number?,
 	fenceTargetZ: number?,
@@ -1159,6 +1224,9 @@ function ZombieService.create(position: Vector3, stats: {
 			fromProto.isBig = true
 			fromProto.model:SetAttribute("IsBigZombie", true)
 		end
+		if stats.isSplit == true then
+			setupSplitZombie(fromProto)
+		end
 		if stats.isThrower == true then
 			setupThrower(fromProto, stats.stopZ)
 		end
@@ -1192,6 +1260,9 @@ function ZombieService.create(position: Vector3, stats: {
 	if stats.isBig == true then
 		fallback.isBig = true
 		fallback.model:SetAttribute("IsBigZombie", true)
+	end
+	if stats.isSplit == true then
+		setupSplitZombie(fallback)
 	end
 	if stats.isThrower == true then
 		setupThrower(fallback, stats.stopZ)

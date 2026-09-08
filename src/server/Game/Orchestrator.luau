@@ -15,6 +15,7 @@ local Combat = require(script.Parent.Combat)
 local Debug = require(script.Parent.Debug)
 local EventFlags = require(script.Parent.EventFlags)
 local Heartbeat = require(script.Parent.Heartbeat)
+local Spawning = require(script.Parent.Spawning)
 
 local ctx = Context
 local setState = StateSync.setState
@@ -58,7 +59,11 @@ function Orchestrator.start(remotes)
 
 	ctx.nextIsBossAt = Config.Boss.EveryNKills
 
-	ZombieService.onDied(function()
+	ZombieService.onDied(function(record)
+		if record and record.model and record.model:GetAttribute("IsSplitZombie") == true then
+			local pos = record.root.Position
+			Spawning.spawnSplitChildren(pos)
+		end
 		Debug.onZombieDied()
 	end)
 	ZombieService.onMineExplode(function(position: Vector3)
@@ -176,7 +181,11 @@ function Orchestrator.start(remotes)
 		if id == "x2" or kind.Op == "mul" then
 			ctx.hitPower = math.max(1, math.floor(ctx.hitPower * math.max(1, value)))
 			local waveNow = (ctx.stateFolder:GetAttribute("Wave") :: number?) or 1
-			if Config.chapter() == 2 then
+			if Config.chapter() <= 1 then
+				if waveNow == Config.Chapter1.Round2.Round then
+					Ev.Ch1.R2X2Collected = true
+				end
+			elseif Config.chapter() == 2 then
 				local localRound = Config.chapterRound(waveNow)
 				if localRound == Config.Chapter2.Round4.Round then
 					Ev.Ch2.R4X2Collected = true

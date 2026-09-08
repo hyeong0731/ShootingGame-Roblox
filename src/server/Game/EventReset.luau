@@ -50,12 +50,17 @@ function EventReset.resetChapter3Round10Events(setState: (string, any) -> ())
 end
 
 function EventReset.resetChapter3Events(setState: (string, any) -> ())
+	Ev.resetCh1()
 	Ev.resetCh3()
 	Context.windSpeedScale = 1
 	setState("Ch3FogActive", false)
 	setState("Ch3WindActive", false)
 	setState("Ch3FenceBreached", false)
 	FinalBossR15.reset()
+end
+
+function EventReset.resetChapter1Events()
+	Ev.resetCh1()
 end
 
 function EventReset.resetChapter2Round2Events()

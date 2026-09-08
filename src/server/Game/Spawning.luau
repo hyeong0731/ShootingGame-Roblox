@@ -89,7 +89,17 @@ function Spawning.currentStats()
 		gap *= Config.Pressure.SpawnGapScale
 		maxAlive += Config.Pressure.MaxAliveBonus
 	end
-	if Config.chapter() <= 1 and wave >= Config.FinalBoss.Round then
+	if Config.chapter() <= 1 then
+		local c1 = Config.Chapter1
+		local localRound = Config.chapterRound(wave)
+		if localRound == c1.Round9.Round then
+			maxAlive = c1.Round9.MaxAlive or 16
+			gap *= c1.Round9.SpawnGapScale or 0.72
+		elseif localRound == c1.Round10.Round or wave >= Config.FinalBoss.Round then
+			maxAlive = c1.Round10.MaxAlive or Config.FinalBoss.MaxAlive
+			gap = c1.Round10.SpawnGap or Config.FinalBoss.SpawnGap
+		end
+	elseif Config.chapter() <= 1 and wave >= Config.FinalBoss.Round then
 		maxAlive = Config.FinalBoss.MaxAlive
 		gap = Config.FinalBoss.SpawnGap
 	end
@@ -370,8 +380,47 @@ function Spawning.spawnOne()
 		and round == ch3Round5.Round
 		and elapsedLocal >= ch3Round5.HordeStartAt
 		and elapsedLocal < ch3Round5.HordeEndAt
+
+	-- 챕터1 라운드별 개/분열/큰좀비 비율
+	local ch1DogChance = dogCfg.SpawnChance
+	local ch1SplitChance = 0
+	local ch1BigChance = 0
+	local ch1AllowSplit = false
+	local ch1AllowBig = false
+	if Config.chapter() <= 1 then
+		local c1 = Config.Chapter1
+		if round == c1.Round4.Round then
+			ch1DogChance = c1.Round4.DogSpawnChance or 0.15
+		elseif round == c1.Round6.Round then
+			ch1DogChance = c1.Round6.DogSpawnChance or 0.10
+			ch1SplitChance = c1.Round6.SplitSpawnChance or 0.15
+			ch1AllowSplit = true
+		elseif round == c1.Round7.Round then
+			ch1DogChance = c1.Round7.DogSpawnChance or 0.10
+			ch1SplitChance = c1.Round7.SplitSpawnChance or 0.15
+			ch1AllowSplit = true
+		elseif round == c1.Round8.Round then
+			ch1DogChance = c1.Round8.DogSpawnChance or 0.10
+			ch1SplitChance = c1.Round8.SplitSpawnChance or 0.15
+			ch1AllowSplit = true
+		elseif round == c1.Round9.Round then
+			ch1DogChance = c1.Round9.DogSpawnChance or 0.22
+			ch1SplitChance = c1.Round9.SplitSpawnChance or 0.18
+			ch1BigChance = c1.Round9.BigSpawnChance or 0.15
+			ch1AllowSplit = true
+			ch1AllowBig = true
+		elseif round == c1.Round10.Round then
+			ch1DogChance = c1.Round10.DogSpawnChance or 0.20
+			ch1AllowSplit = c1.Round10.AllowSplit == true
+			ch1AllowBig = c1.Round10.AllowBig == true
+		elseif round < c1.Round4.Round then
+			ch1DogChance = 0
+		end
+	end
+
 	local isDog = (not isBoss) and (
-		(Config.chapter() ~= 3 and wave >= dogCfg.UnlockWave and math.random() < dogCfg.SpawnChance)
+		(Config.chapter() <= 1 and wave >= dogCfg.UnlockWave and math.random() < ch1DogChance)
+		or (Config.chapter() == 2 and wave >= dogCfg.UnlockWave and math.random() < dogCfg.SpawnChance)
 		or (r5Horde and math.random() < ch3Round5.DogSpawnChance)
 	)
 
@@ -547,7 +596,9 @@ function Spawning.spawnOne()
 	local ch3BigOpen = r5Horde or r6BigOpen or r7BigOpen or r8BigOpen or r13BigOpen or r15BigOpen
 	if (not r13Mix) and (not r15Mix) and (not isBoss) and (not isDog) and (not isShield) then
 		local wantBig = false
-		if r5Horde then
+		if Config.chapter() <= 1 and ch1AllowBig then
+			wantBig = math.random() < ch1BigChance
+		elseif r5Horde then
 			wantBig = math.random() < ch3Round5.BigSpawnChance
 		elseif r6BigOpen then
 			wantBig = math.random() < ch3Round6.BigSpawnChance
@@ -555,7 +606,7 @@ function Spawning.spawnOne()
 			wantBig = math.random() < ch3Round7.BigSpawnChance
 		elseif r8BigOpen then
 			wantBig = math.random() < ch3Round8.BigSpawnChance
-		elseif Config.chapter() ~= 3 and Spawning.chapter2BigUnlocked(wave, elapsedLocal) then
+		elseif Config.chapter() == 2 and Spawning.chapter2BigUnlocked(wave, elapsedLocal) then
 			local bigChance = Config.Chapter2.BigZombie.SpawnChance
 			if round == r6.Round then
 				bigChance = r6.BigZombieSpawnChance
@@ -568,9 +619,25 @@ function Spawning.spawnOne()
 		end
 	end
 
+	local isSplit = false
+	local splitHits: number? = nil
+	if Config.chapter() <= 1
+		and ch1AllowSplit
+		and (not isBoss)
+		and (not isDog)
+		and (not isShield)
+		and (not isBig)
+	then
+		if math.random() < ch1SplitChance then
+			isSplit = true
+			local splitCfg = Config.SplitZombie
+			splitHits = math.random(splitCfg.HitCountMin, splitCfg.HitCountMax)
+		end
+	end
+
 	local throwerCfg = Config.ThrowerZombie
 	local isThrower = false
-	if Config.chapter() == 3 and (not isBoss) and (not isDog) and (not isShield) then
+	if Config.chapter() == 3 and (not isBoss) and (not isDog) and (not isShield) and (not isSplit) then
 		if r15ThrowerRoll then
 			isThrower = true
 		elseif round == ch3Round1.Round and elapsedLocal >= ch3Round1.ThrowerAt then
@@ -599,7 +666,9 @@ function Spawning.spawnOne()
 		elseif ch3BigOpen
 		then ch3Round5.BigZombieSizeScale
 		else nil
-	local scale = if ch3BigScale and isBig
+	local splitCfg = Config.SplitZombie
+	local scale = if isSplit then splitCfg.SizeScale
+		elseif ch3BigScale and isBig
 		then ch3BigScale
 		elseif isBoss
 		then Config.Boss.SizeMultiplier
@@ -611,7 +680,11 @@ function Spawning.spawnOne()
 	local health: number
 	local walkSpeed: number
 	local contactDamage: number
-	if isBig and r15BigOpen then
+	if isSplit then
+		health = splitHits or splitCfg.HitCountMin
+		walkSpeed = splitCfg.WalkSpeed
+		contactDamage = splitCfg.ContactDamage
+	elseif isBig and r15BigOpen then
 		health = stats.health * ch3Round15.BigZombieHealthMult
 		walkSpeed = stats.speed * ch3Round15.BigZombieSpeedScale
 		contactDamage = Config.Boss.ContactDamage
@@ -622,6 +695,10 @@ function Spawning.spawnOne()
 	elseif isBig and ch3BigOpen then
 		health = stats.health * ch3Round5.BigZombieHealthMult
 		walkSpeed = stats.speed * ch3Round5.BigZombieSpeedScale
+		contactDamage = Config.Boss.ContactDamage
+	elseif isBig and Config.chapter() <= 1 then
+		health = stats.health * Config.Boss.HealthMultiplier
+		walkSpeed = stats.speed * Config.Boss.SpeedMultiplier
 		contactDamage = Config.Boss.ContactDamage
 	elseif isBoss then
 		health = stats.health * Config.Boss.HealthMultiplier
@@ -647,19 +724,45 @@ function Spawning.spawnOne()
 	local zombie = ZombieService.create(Vector3.new(x, y, lane.SpawnZ), {
 		health = health,
 		walkSpeed = walkSpeed,
-		isBoss = isBoss,
+		isBoss = isBoss or isSplit,
+		isMega = isSplit,
 		isBig = isBig,
 		isDog = isDog,
 		isShield = isShield,
 		isThrower = isThrower,
+		isSplit = isSplit,
 		stopZ = throwerStopZ,
 		contactDamage = contactDamage,
 		scale = scale,
-		hitCount = shieldHits,
+		hitCount = if isSplit then splitHits else shieldHits,
 	})
 	if isThrower then
 		ZombieService.setAttackTarget(zombie, { kind = "player", ally = nil })
 	else
+		ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
+	end
+end
+
+function Spawning.spawnSplitChildren(at: Vector3)
+	local lane = Config.activeLane()
+	local stats = Spawning.currentStats()
+	local minX, maxX = Config.zombieXBounds(at.Z)
+	for i = 1, 2 do
+		local ox = if i == 1 then -2.2 else 2.2
+		local x = math.clamp(at.X + ox, minX, maxX)
+		local y = lane.CenterY + 2.4
+		local zombie = ZombieService.create(Vector3.new(x, y, at.Z), {
+			health = stats.health,
+			walkSpeed = stats.speed,
+			isBoss = false,
+			isBig = false,
+			isDog = false,
+			isShield = false,
+			contactDamage = Config.activeZombie().ContactDamage,
+			scale = 1,
+			hitCount = nil,
+		})
+		zombie.model:SetAttribute("IgnoreSpawnCap", true)
 		ZombieService.setAttackTarget(zombie, SupplyService.pickAttackTarget())
 	end
 end

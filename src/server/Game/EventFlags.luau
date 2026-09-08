@@ -1,5 +1,26 @@
 -- Round event flags
 local EventFlags = {
+	Ch1 = {
+		R1PlusSpawned = false,
+		R2X2Spawned = false,
+		R2X2RetrySpawned = false,
+		R2X2Collected = false,
+		R3BombSpawned = false,
+		R5BossSpawned = false,
+		R5BombSpawned = false,
+		R6MinusSpawned = false,
+		R6PlusSpawned = false,
+		R7BombSpawned = false,
+		R7Log1Spawned = false,
+		R7Log2Spawned = false,
+		R8PlusSpawned = false,
+		R8Elite1Spawned = false,
+		R8Elite2Spawned = false,
+		R8Elite3Spawned = false,
+		R8LogSpawned = false,
+		R10BossSpawned = false,
+		R10LogSpawned = false,
+	},
 	Ch2 = {
 		R1SniperSpawned = false,
 		R1PlusSpawned = false,
@@ -182,6 +203,13 @@ local EventFlags = {
 		R15Cleared = false,
 	},
 }
+
+function EventFlags.resetCh1()
+	local ch1 = EventFlags.Ch1
+	for key, value in ch1 do
+		ch1[key] = if typeof(value) == "number" then 0 else false
+	end
+end
 
 function EventFlags.resetCh2()
 	local ch2 = EventFlags.Ch2
