@@ -450,12 +450,20 @@ end
 
 function Lifecycle.bindStartPad()
 	task.spawn(function()
-		local arena = Workspace:WaitForChild("Arena", 30)
-		if not arena then
-			warn("[GameService] Arena missing — StartPad not bound")
-			return
+		local pad = Arena.getStartPad()
+		if not pad then
+			local arena = Workspace:WaitForChild("Arena", 30)
+			if not arena then
+				warn("[GameService] Arena missing — StartPad not bound")
+				return
+			end
+			local found = arena:WaitForChild("StartPad", 8)
+			if found and found:IsA("BasePart") then
+				pad = found
+			else
+				pad = Arena.getStartPad()
+			end
 		end
-		local pad = arena:WaitForChild("StartPad", 15)
 		if not pad or not pad:IsA("BasePart") then
 			warn("[GameService] StartPad missing — lobby start disabled")
 			return

@@ -9,6 +9,8 @@ local Dmz = require(script.Parent.Dmz)
 
 local Arena = {}
 
+local boundStartPad: BasePart? = nil
+
 local function part(props): Part
 	local p = Instance.new("Part")
 	p.Anchored = true
@@ -23,6 +25,290 @@ local function part(props): Part
 	return p
 end
 
+local function matchesLobbyName(name: string): boolean
+	local target = Config.Lobby.StudioName
+	if name == target or name == "찐 로비" or name == "씬로비" then
+		return true
+	end
+	return string.find(name, target, 1, true) ~= nil or string.find(name, "씬로비", 1, true) ~= nil
+end
+
+local function findLobbyIn(root: Instance): Instance?
+	if matchesLobbyName(root.Name) then
+		return root
+	end
+	for _, child in root:GetChildren() do
+		if matchesLobbyName(child.Name) then
+			return child
+		end
+	end
+	for _, desc in root:GetDescendants() do
+		if matchesLobbyName(desc.Name) and (desc:IsA("Model") or desc:IsA("Folder")) then
+			return desc
+		end
+	end
+	return nil
+end
+
+local function findStudioLobby(): Instance?
+	local found = findLobbyIn(Workspace)
+	if found then
+		return found
+	end
+	return nil
+end
+
+-- Arena를 다시 만들기 전에 찐로비를 Workspace로 빼 둔다 (같이 지워지지 않게)
+local function salvageStudioLobby(): Instance?
+	local lobby = findStudioLobby()
+	if not lobby then
+		return nil
+	end
+	local arena = Workspace:FindFirstChild("Arena")
+	if arena and lobby:IsDescendantOf(arena) then
+		lobby.Parent = Workspace
+	end
+	return lobby
+end
+
+local function greenPadScore(p: BasePart): number
+	if p:GetAttribute("IsStartPad") == true or p.Name == "StartPad" then
+		return 10000
+	end
+
+	local score = 0
+	local name = string.lower(p.Name)
+	if string.find(name, "start", 1, true) or string.find(p.Name, "시작") or string.find(p.Name, "발판") or string.find(p.Name, "초록") then
+		score += 80
+	end
+
+	local c = p.Color
+	local isGreen = c.G > 0.38 and c.G > c.R + 0.06 and c.G > c.B + 0.04
+	if isGreen then
+		score += 40 + math.floor(c.G * 25)
+	end
+	if p.Material == Enum.Material.Neon and isGreen then
+		score += 35
+	end
+
+	local footprint = p.Size.X * p.Size.Z
+	if p.Size.Y <= 8 and footprint >= 16 and footprint <= 600 then
+		score += 25
+	end
+	if footprint > 2500 then
+		score -= 80 -- 잔디 바닥 같은 큰 판
+	end
+
+	return score
+end
+
+local function largestPart(root: Instance): BasePart?
+	local best: BasePart? = nil
+	local bestVol = 0
+	local list = if root:IsA("BasePart") then { root } else root:GetDescendants()
+	for _, desc in list do
+		if desc:IsA("BasePart") then
+			local vol = desc.Size.X * desc.Size.Y * desc.Size.Z
+			if vol > bestVol then
+				bestVol = vol
+				best = desc
+			end
+		end
+	end
+	return best
+end
+
+local function findStartPad(lobby: Instance): BasePart?
+	if lobby:IsA("BasePart") then
+		return lobby
+	end
+	local best: BasePart? = nil
+	local bestScore = 0
+
+	for _, desc in lobby:GetDescendants() do
+		if desc:IsA("Model") then
+			local n = string.lower(desc.Name)
+			if string.find(n, "start", 1, true) or string.find(desc.Name, "시작") or string.find(desc.Name, "발판") then
+				local part = largestPart(desc)
+				if part then
+					return part
+				end
+			end
+		end
+	end
+
+	for _, desc in lobby:GetDescendants() do
+		if desc:IsA("BasePart") then
+			local score = greenPadScore(desc)
+			if score > bestScore then
+				bestScore = score
+				best = desc
+			end
+		end
+	end
+	if best and bestScore >= 40 then
+		return best
+	end
+	return nil
+end
+
+local function lobbyCenter(lobby: Instance): Vector3
+	if lobby:IsA("Model") then
+		return lobby:GetPivot().Position
+	end
+	if lobby:IsA("BasePart") then
+		return lobby.Position
+	end
+	local acc = Vector3.zero
+	local n = 0
+	for _, desc in lobby:GetDescendants() do
+		if desc:IsA("BasePart") then
+			acc += desc.Position
+			n += 1
+		end
+	end
+	if n > 0 then
+		return acc / n
+	end
+	return Config.Lobby.Center
+end
+
+local function findSpawnPart(lobby: Instance, pad: BasePart): BasePart?
+	for _, desc in lobby:GetDescendants() do
+		if desc:IsA("SpawnLocation") and desc ~= pad then
+			local delta = desc.Position - pad.Position
+			if Vector3.new(delta.X, 0, delta.Z).Magnitude > 8 then
+				return desc
+			end
+		end
+	end
+	return nil
+end
+
+local function ensureStartLabel(pad: BasePart)
+	if pad:FindFirstChild("StartLabel") then
+		return
+	end
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "StartLabel"
+	billboard.Size = UDim2.new(0, 220, 0, 56)
+	billboard.StudsOffset = Vector3.new(0, 4.2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = pad
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.Font = Enum.Font.GothamBold
+	label.Text = "게임 시작"
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0.3
+	label.TextScaled = true
+	label.Parent = billboard
+end
+
+local function bindPad(pad: BasePart)
+	boundStartPad = pad
+	pad.Anchored = true
+	pad.CanCollide = true
+	pad.CanTouch = true
+	pad:SetAttribute("IsStartPad", true)
+	ensureStartLabel(pad)
+end
+
+local function applyLobbyConfig(center: Vector3, spawn: Vector3, padPos: Vector3)
+	Config.Lobby.Center = center
+	Config.Lobby.Spawn = spawn
+	Config.Lobby.StartPad = padPos
+end
+
+local function adoptStudioLobby(lobby: Instance): boolean
+	local pad = findStartPad(lobby)
+	if not pad then
+		warn(`[Arena] "{lobby.Name}"에서 초록 시작 발판을 못 찾음 — 기본 로비를 씁니다`)
+		return false
+	end
+
+	bindPad(pad)
+
+	local center = lobbyCenter(lobby)
+	local spawnPart = findSpawnPart(lobby, pad)
+	local spawn: Vector3
+	if spawnPart then
+		spawn = spawnPart.Position + Vector3.new(0, 3, 0)
+	else
+		local away = Vector3.new(center.X - pad.Position.X, 0, center.Z - pad.Position.Z)
+		if away.Magnitude < 8 then
+			away = Vector3.new(0, 0, -16)
+		end
+		spawn = pad.Position + away.Unit * 18 + Vector3.new(0, 4, 0)
+	end
+
+	applyLobbyConfig(center, spawn, pad.Position)
+	print(`[Arena] 로비 = {lobby.Name} / 시작발판 = {pad.Name}`)
+	return true
+end
+
+local function buildGeneratedLobby(folder: Folder)
+	local lobby = Config.Lobby
+	part({
+		Name = "LobbyFloor",
+		Parent = folder,
+		Color = Color3.fromRGB(92, 124, 70),
+		Material = Enum.Material.Grass,
+		Size = lobby.Size,
+		CFrame = CFrame.new(lobby.Center),
+	})
+
+	local startPad = part({
+		Name = "StartPad",
+		Parent = folder,
+		Color = Color3.fromRGB(48, 190, 92),
+		Material = Enum.Material.Neon,
+		Size = Vector3.new(10, 1.2, 10),
+		CFrame = CFrame.new(lobby.StartPad),
+	})
+	bindPad(startPad)
+
+	local titlePart = part({
+		Name = "LobbyTitle",
+		Parent = folder,
+		Color = Color3.fromRGB(40, 44, 56),
+		Material = Enum.Material.SmoothPlastic,
+		Size = Vector3.new(0.4, 0.4, 0.4),
+		CFrame = CFrame.new(lobby.Center.X, 8, lobby.Center.Z - 4),
+		CanCollide = false,
+		CastShadow = false,
+	})
+	titlePart.Transparency = 1
+	local titleGui = Instance.new("BillboardGui")
+	titleGui.Size = UDim2.new(0, 320, 0, 72)
+	titleGui.StudsOffset = Vector3.new(0, 0, 0)
+	titleGui.AlwaysOnTop = true
+	titleGui.Parent = titlePart
+	local title = Instance.new("TextLabel")
+	title.BackgroundTransparency = 1
+	title.Size = UDim2.new(1, 0, 1, 0)
+	title.Font = Enum.Font.GothamBold
+	title.Text = "좀비 디펜스"
+	title.TextColor3 = Color3.new(1, 1, 1)
+	title.TextStrokeTransparency = 0.3
+	title.TextScaled = true
+	title.Parent = titleGui
+end
+
+function Arena.getStartPad(): BasePart?
+	if boundStartPad and boundStartPad.Parent then
+		return boundStartPad
+	end
+	local arena = Workspace:FindFirstChild("Arena")
+	local pad = arena and arena:FindFirstChild("StartPad")
+	if pad and pad:IsA("BasePart") then
+		return pad
+	end
+	return nil
+end
+
 function Arena.build(): Folder
 	pcall(function()
 		PhysicsService:RegisterCollisionGroup("Hero")
@@ -31,6 +317,9 @@ function Arena.build(): Folder
 		PhysicsService:RegisterCollisionGroup("Horde")
 	end)
 	PhysicsService:CollisionGroupSetCollidable("Hero", "Horde", false)
+
+	boundStartPad = nil
+	local studioLobby = salvageStudioLobby()
 
 	local existing = Workspace:FindFirstChild("Arena")
 	if existing then
@@ -158,70 +447,15 @@ function Arena.build(): Folder
 	Bridge.build(folder)
 	Dmz.build(folder)
 
-	-- open lobby field, far from the lane
+	local usingStudioLobby = studioLobby and studioLobby.Parent and adoptStudioLobby(studioLobby)
+	if not usingStudioLobby then
+		if studioLobby == nil then
+			warn(`[Arena] Workspace에 "{Config.Lobby.StudioName}"가 없음 — 기본 로비를 씁니다`)
+		end
+		buildGeneratedLobby(folder)
+	end
+
 	local lobby = Config.Lobby
-	part({
-		Name = "LobbyFloor",
-		Parent = folder,
-		Color = Color3.fromRGB(92, 124, 70),
-		Material = Enum.Material.Grass,
-		Size = lobby.Size,
-		CFrame = CFrame.new(lobby.Center),
-	})
-
-	local startPad = part({
-		Name = "StartPad",
-		Parent = folder,
-		Color = Color3.fromRGB(48, 190, 92),
-		Material = Enum.Material.Neon,
-		Size = Vector3.new(10, 1.2, 10),
-		CFrame = CFrame.new(lobby.StartPad),
-	})
-	startPad:SetAttribute("IsStartPad", true)
-
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "StartLabel"
-	billboard.Size = UDim2.new(0, 220, 0, 56)
-	billboard.StudsOffset = Vector3.new(0, 4.2, 0)
-	billboard.AlwaysOnTop = true
-	billboard.Parent = startPad
-
-	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.Size = UDim2.new(1, 0, 1, 0)
-	label.Font = Enum.Font.GothamBold
-	label.Text = "게임 시작"
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.3
-	label.TextScaled = true
-	label.Parent = billboard
-
-	local titlePart = part({
-		Name = "LobbyTitle",
-		Parent = folder,
-		Color = Color3.fromRGB(40, 44, 56),
-		Material = Enum.Material.SmoothPlastic,
-		Size = Vector3.new(0.4, 0.4, 0.4),
-		CFrame = CFrame.new(lobby.Center.X, 8, lobby.Center.Z - 4),
-		CanCollide = false,
-		CastShadow = false,
-	})
-	titlePart.Transparency = 1
-	local titleGui = Instance.new("BillboardGui")
-	titleGui.Size = UDim2.new(0, 320, 0, 72)
-	titleGui.StudsOffset = Vector3.new(0, 0, 0)
-	titleGui.AlwaysOnTop = true
-	titleGui.Parent = titlePart
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Size = UDim2.new(1, 0, 1, 0)
-	title.Font = Enum.Font.GothamBold
-	title.Text = "좀비 디펜스"
-	title.TextColor3 = Color3.new(1, 1, 1)
-	title.TextStrokeTransparency = 0.3
-	title.TextScaled = true
-	title.Parent = titleGui
-
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "PlayerSpawn"
 	spawn.Anchored = true
@@ -252,31 +486,38 @@ function Arena.build(): Folder
 	fxFolder.Name = "Fx"
 	fxFolder.Parent = Workspace
 
-	Lighting.Brightness = 2.55
-	Lighting.Ambient = Color3.fromRGB(140, 138, 130)
-	Lighting.OutdoorAmbient = Color3.fromRGB(170, 168, 158)
-	Lighting.ClockTime = 13.5
-	Lighting.GeographicLatitude = 25
-	Lighting.FogColor = Color3.fromRGB(190, 200, 210)
-	Lighting.FogStart = 90
-	Lighting.FogEnd = 320
+	-- 찐로비 쓸 때는 Studio 조명을 그대로 둔다 (바닥색이 바뀌어 보이지 않게)
+	if not usingStudioLobby then
+		Lighting.Brightness = 2.55
+		Lighting.Ambient = Color3.fromRGB(140, 138, 130)
+		Lighting.OutdoorAmbient = Color3.fromRGB(170, 168, 158)
+		Lighting.ClockTime = 13.5
+		Lighting.GeographicLatitude = 25
+		Lighting.FogColor = Color3.fromRGB(190, 200, 210)
+		Lighting.FogStart = 90
+		Lighting.FogEnd = 320
 
-	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
-	if not atmosphere then
-		atmosphere = Instance.new("Atmosphere")
-		atmosphere.Parent = Lighting
+		local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+		if not atmosphere then
+			atmosphere = Instance.new("Atmosphere")
+			atmosphere.Parent = Lighting
+		end
+		atmosphere.Density = 0.18
+		atmosphere.Offset = 0.1
+		atmosphere.Color = Color3.fromRGB(200, 205, 215)
+		atmosphere.Decay = Color3.fromRGB(150, 155, 165)
+		atmosphere.Glare = 0.15
+		atmosphere.Haze = 0.8
 	end
-	atmosphere.Density = 0.18
-	atmosphere.Offset = 0.1
-	atmosphere.Color = Color3.fromRGB(200, 205, 215)
-	atmosphere.Decay = Color3.fromRGB(150, 155, 165)
-	atmosphere.Glare = 0.15
-	atmosphere.Haze = 0.8
 
 	return folder
 end
 
 function Arena.applyChapterLook(chapter: number)
+	-- 로비(챕터1 복귀): Studio 꾸민 로비가 있으면 조명 덮어쓰지 않음
+	if chapter <= 1 and findStudioLobby() ~= nil then
+		return
+	end
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if not atmosphere then
 		atmosphere = Instance.new("Atmosphere")

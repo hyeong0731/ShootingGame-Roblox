@@ -1438,6 +1438,7 @@ Config.Barricade = {
 Config._chapter = 1
 
 Config.Lobby = {
+	StudioName = "찐로비", -- Workspace에 이 이름이 있으면 스크립트 로비 대신 사용
 	Center = Vector3.new(0, 1, 4000),
 	Size = Vector3.new(400, 1, 400),
 	Spawn = Vector3.new(0, 5, 3990),
