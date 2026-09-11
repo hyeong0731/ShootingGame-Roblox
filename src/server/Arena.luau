@@ -58,17 +58,102 @@ local function findStudioLobby(): Instance?
 	return nil
 end
 
--- Arena를 다시 만들기 전에 찐로비를 Workspace로 빼 둔다 (같이 지워지지 않게)
-local function salvageStudioLobby(): Instance?
-	local lobby = findStudioLobby()
-	if not lobby then
-		return nil
+-- Arena를 다시 만들기 전에 찐로비·흙바닥을 Workspace로 빼 둔다
+local function isLaneScriptPart(name: string): boolean
+	return name == "Path"
+		or name == "Shoulder"
+		or name == "Curb"
+		or name == "LaneBarrier"
+		or name == "Median"
+		or name == "MergedRoad"
+		or name == "SidePath"
+		or name == "PlayerSpawn"
+		or name == "LobbyTitle"
+end
+
+local function looksLikeGround(p: BasePart): boolean
+	local footprint = p.Size.X * p.Size.Z
+	if p.Size.Y > 12 or footprint < 200 then
+		return false
 	end
+	local n = string.lower(p.Name)
+	if n == "lobbyfloor"
+		or string.find(n, "floor", 1, true)
+		or string.find(n, "ground", 1, true)
+		or string.find(p.Name, "땅")
+		or string.find(p.Name, "바닥")
+		or string.find(p.Name, "흙")
+	then
+		return true
+	end
+	local mat = p.Material
+	if mat == Enum.Material.Ground
+		or mat == Enum.Material.Grass
+		or mat == Enum.Material.Sand
+		or mat == Enum.Material.Mud
+		or mat == Enum.Material.LeafyGrass
+	then
+		return p.Size.Y <= 6 and footprint >= 800
+	end
+	-- 얇고 넓은 판이면 바닥으로 취급
+	return p.Size.Y <= 4 and footprint >= 1500
+end
+
+local function salvageStudioLobby(): Instance?
 	local arena = Workspace:FindFirstChild("Arena")
-	if arena and lobby:IsDescendantOf(arena) then
+	local lobby = findStudioLobby()
+
+	if not arena then
+		return lobby
+	end
+
+	-- LobbyFloor / 흙바닥이 찐로비 밖에 있어도 지워지지 않게 회수
+	local grounds = {}
+	for _, desc in arena:GetDescendants() do
+		if desc:IsA("BasePart") and looksLikeGround(desc) then
+			table.insert(grounds, desc)
+		end
+	end
+
+	if lobby and lobby:IsDescendantOf(arena) then
 		lobby.Parent = Workspace
 	end
-	return lobby
+
+	local host = lobby
+	if not host and #grounds > 0 then
+		host = Instance.new("Folder")
+		host.Name = Config.Lobby.StudioName
+		host.Parent = Workspace
+		lobby = host
+	end
+
+	if host then
+		for _, ground in grounds do
+			if ground.Parent and not ground:IsDescendantOf(host) then
+				ground.Parent = host
+			end
+		end
+	end
+
+	-- 시작 발판·장식 모델이 Arena 직속이면 같이 보존
+	for _, child in arena:GetChildren() do
+		if child ~= host and not isLaneScriptPart(child.Name) then
+			if child:IsA("Model") or child:IsA("Folder") then
+				if matchesLobbyName(child.Name) then
+					child.Parent = Workspace
+					lobby = child
+				elseif child:FindFirstChild("StartPad", true) or child:FindFirstChildWhichIsA("SpawnLocation", true) then
+					child.Parent = Workspace
+				end
+			elseif host and child:IsA("BasePart") then
+				if child.Name == "StartPad" or child:GetAttribute("IsStartPad") == true or looksLikeGround(child) then
+					child.Parent = host
+				end
+			end
+		end
+	end
+
+	return findStudioLobby() or lobby
 end
 
 local function greenPadScore(p: BasePart): number
